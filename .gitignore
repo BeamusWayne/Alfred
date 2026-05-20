@@ -1,1 +1,18 @@
+node_modules/
+dist/
 .env
+.DS_Store
+*.log
+credentials.json
+
+# Harness
+.harness/
+
+# Project config & harness docs
+feature_list.json
+claude-progress.md
+init.sh
+CLAUDE.md
+autonomous-loop.md
+self-eval-trigger.md
+claude-code-leaked
