@@ -6,6 +6,8 @@ Alfred is not another Claude Code clone. Its thesis: the long-running harness is
 
 > Status: 538 tests passing · `tsc --noEmit` clean · zero runtime dependencies beyond `@anthropic-ai/sdk`, `commander`, `zod`.
 
+**📖 Full documentation** lives in [`docs/`](./docs/) as a VitePress site — run `bun run docs:dev` locally, or deploy to GitHub Pages via [`.github/workflows/docs.yml`](./.github/workflows/docs.yml). Jump to [Quickstart](./docs/guide/quickstart.md) · [CLI reference](./docs/cli/overview.md) · [Subsystems](./docs/subsystems/agent-loop.md) · [Architecture](./docs/architecture/overview.md).
+
 ---
 
 ## Quickstart

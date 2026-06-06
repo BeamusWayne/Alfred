@@ -1,5 +1,6 @@
 node_modules/
 dist/
+docs/.vitepress/cache/
 *.log
 
 # Local runtime state (agent memory, workflow journals, run ledgers)
