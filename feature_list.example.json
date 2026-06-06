@@ -1,0 +1,21 @@
+{
+  "features": [
+    {
+      "id": "slugify",
+      "title": "Add a slugify utility",
+      "description": "Create src/strings/slugify.ts exporting `slugify(s: string): string` that lowercases, trims, replaces runs of non-alphanumeric characters with single hyphens, and strips leading/trailing hyphens. Add tests/slugify.test.ts covering: basic phrase, leading/trailing punctuation, unicode/space collapsing, and the empty string.",
+      "status": "pending",
+      "priority": 1,
+      "iterationBudget": 3
+    },
+    {
+      "id": "truncate",
+      "title": "Add a truncate utility",
+      "description": "Create src/strings/truncate.ts exporting `truncate(s: string, max: number): string` that returns s unchanged when it fits, else cuts to `max` characters total INCLUDING a trailing ellipsis '…'. Add tests/truncate.test.ts covering: short string unchanged, exact-length boundary, long string truncated with ellipsis, and max smaller than the ellipsis.",
+      "status": "pending",
+      "priority": 2,
+      "iterationBudget": 3,
+      "deps": ["slugify"]
+    }
+  ]
+}
