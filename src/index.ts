@@ -16,7 +16,7 @@
  * Hooks load from .alfred/hooks.json; skills from .alfred/skills/.
  */
 import { Command } from "commander";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { runQuery } from "./query/engine.ts";
 import type { QueryEvent } from "./query/types.ts";
 import { getProvider } from "./providers/index.ts";
@@ -28,6 +28,8 @@ import { createRuntime } from "./orchestrator/runtime.ts";
 import { Journal } from "./orchestrator/journal.ts";
 import { Ledger } from "./orchestrator/ledger.ts";
 import { autonomousRun, type AutonomousEvent } from "./orchestrator/workflows/autonomousRun.ts";
+import { runEvalSuite, formatReport } from "./eval/runner.ts";
+import type { EvalCase } from "./eval/types.ts";
 import { VERSION } from "./version.ts";
 
 const dim = (s: string) => (process.stderr.isTTY ? `\x1b[2m${s}\x1b[0m` : s);
@@ -241,6 +243,19 @@ program
   .action(async (opts: RunCliOptions) => {
     const code = await runAutonomous(opts);
     process.exit(code);
+  });
+
+program
+  .command("eval <file>")
+  .description("replay recorded trajectories (a module exporting EvalCase[]) and assert no regressions")
+  .action(async (file: string) => {
+    const mod: { default?: readonly EvalCase[]; cases?: readonly EvalCase[] } = await import(
+      resolve(process.cwd(), file)
+    );
+    const cases = mod.default ?? mod.cases ?? [];
+    const report = await runEvalSuite(cases);
+    process.stdout.write(formatReport(report) + "\n");
+    process.exit(report.failed > 0 ? 1 : 0);
   });
 
 await program.parseAsync(process.argv);
