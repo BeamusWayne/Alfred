@@ -66,6 +66,25 @@ export const PRICING_TABLE: Readonly<Record<string, ModelPricing>> = {
     cacheReadPerMillion: 0.50,
     cacheWritePerMillion: 6.25,
   },
+  // Zhipu GLM — approximate public pricing (USD per 1M tokens).
+  "glm-4.5": {
+    inputPerMillion: 0.60,
+    outputPerMillion: 2.20,
+    cacheReadPerMillion: 0.11,
+    cacheWritePerMillion: 0.75,
+  },
+  "glm-4.6": {
+    inputPerMillion: 0.60,
+    outputPerMillion: 2.20,
+    cacheReadPerMillion: 0.11,
+    cacheWritePerMillion: 0.75,
+  },
+  "glm-5.1": {
+    inputPerMillion: 0.60,
+    outputPerMillion: 2.20,
+    cacheReadPerMillion: 0.11,
+    cacheWritePerMillion: 0.75,
+  },
 };
 
 /** Fallback pricing applied to unrecognised model ids. */

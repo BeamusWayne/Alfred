@@ -79,6 +79,7 @@ Layers over a clean agent loop — each new piece is additive, not a rewrite. Th
 |---|---|
 | `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | Provider credentials. |
 | `ALFRED_PROVIDER` | `anthropic` (default) or `openai`. |
+| `ALFRED_BASE_URL` | Override the provider base URL — point at any Anthropic-compatible endpoint (e.g. Zhipu GLM). |
 | `ALFRED_MODEL` | Default model. `ALFRED_MODEL_{ARCHITECT,EDITOR,SUBAGENT}` for role routing. |
 | `ALFRED_MEMORY=1` | Inject agent memory Core + run staleness GC on session end. |
 | `ALFRED_REPOMAP=1` | Inject a repo map into the system prompt. |
@@ -87,6 +88,19 @@ Layers over a clean agent loop — each new piece is additive, not a rewrite. Th
 | `ALFRED_EGRESS_ALLOW=host1,*.host2` | `web_fetch` egress allow-list (default-deny). |
 | `ALFRED_LEDGER_SECRET` | HMAC secret for the autonomous run ledger. |
 | `ALFRED_VERIFY_CMD` | Default verify command for `alfred run` (default `bun test`). |
+
+### Using GLM, or any Anthropic-compatible endpoint
+
+The `anthropic` provider speaks the Messages API, so any compatible gateway works by pointing `ALFRED_BASE_URL` at it — no code change. Zhipu **GLM** works out of the box (and is exercised end-to-end in this repo's dogfood):
+
+```bash
+export ALFRED_BASE_URL="https://open.bigmodel.cn/api/anthropic"
+export ANTHROPIC_API_KEY="<your-zhipu-key>"
+bun run src/index.ts -p --model glm-5.1 "hello"
+# the same env applies to `alfred run`
+```
+
+Pricing for `glm-4.5` / `glm-4.6` / `glm-5.1` ships in the cost table; unknown models fall back to a default estimate.
 
 ### Local state — `.alfred/` (git-ignored, inspectable)
 

@@ -9,6 +9,8 @@ export type ProviderId = (typeof PROVIDERS)[number];
 export const configSchema = z.object({
   provider: z.enum(PROVIDERS).default("anthropic"),
   model: z.string().min(1),
+  /** Override the provider base URL (e.g. an Anthropic-compatible GLM endpoint). */
+  baseUrl: z.string().optional(),
   maxTurns: z.number().int().positive().default(50),
   maxTokens: z.number().int().positive().default(8192),
   maxContextTokens: z.number().int().positive().default(200_000),
@@ -21,6 +23,7 @@ export type AlfredConfig = z.output<typeof configSchema>;
 export interface ConfigOverrides {
   readonly provider?: ProviderId;
   readonly model?: string;
+  readonly baseUrl?: string;
   readonly maxTurns?: number;
   readonly maxTokens?: number;
   readonly maxContextTokens?: number;
@@ -50,6 +53,7 @@ export function loadConfig(overrides: ConfigOverrides = {}): AlfredConfig {
   return configSchema.parse({
     provider: overrides.provider ?? providerFromEnv(),
     model: overrides.model ?? process.env.ALFRED_MODEL ?? DEFAULT_MODEL,
+    baseUrl: overrides.baseUrl ?? process.env.ALFRED_BASE_URL,
     maxTurns: overrides.maxTurns,
     maxTokens: overrides.maxTokens,
     maxContextTokens: overrides.maxContextTokens,

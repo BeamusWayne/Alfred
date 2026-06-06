@@ -102,6 +102,7 @@ async function runOnce(prompt: string, opts: CliOptions): Promise<number> {
     runQuery(prompt, {
       provider: getProvider(cfg.provider),
       model: cfg.model,
+      baseUrl: cfg.baseUrl,
       systemPrompt,
       maxTokens: cfg.maxTokens,
       maxTurns: cfg.maxTurns,

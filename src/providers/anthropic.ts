@@ -119,7 +119,8 @@ function toProviderError(err: unknown): ProviderError {
 function makeClient(config: ProviderConfig): Anthropic {
   return new Anthropic({
     apiKey: config.apiKey ?? process.env.ANTHROPIC_API_KEY,
-    baseURL: config.baseUrl ?? process.env.ANTHROPIC_BASE_URL,
+    // ALFRED_BASE_URL points the Messages API at any compatible endpoint (e.g. Zhipu GLM).
+    baseURL: config.baseUrl ?? process.env.ALFRED_BASE_URL ?? process.env.ANTHROPIC_BASE_URL,
   });
 }
 
