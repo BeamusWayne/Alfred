@@ -1,0 +1,137 @@
+/**
+ * Provider abstraction — the seam between Alfred and any LLM backend.
+ *
+ * Everything here is plain data (immutable by convention): construct new
+ * objects, never mutate. A `Provider` turns a list of `Message`s + tool
+ * definitions into an `LLMResponse`.
+ */
+
+export interface TextBlock {
+  readonly type: "text";
+  readonly text: string;
+}
+
+export interface ToolUseBlock {
+  readonly type: "tool_use";
+  readonly id: string;
+  readonly name: string;
+  readonly input: Record<string, unknown>;
+}
+
+/** Assistant-authored content. */
+export type ContentBlock = TextBlock | ToolUseBlock;
+
+export interface UserMessage {
+  readonly role: "user";
+  readonly content: string | readonly ContentBlock[];
+}
+
+export interface AssistantMessage {
+  readonly role: "assistant";
+  readonly content: readonly ContentBlock[];
+}
+
+/** A tool result is sent back to the model as a distinct turn. */
+export interface ToolResultMessage {
+  readonly role: "tool_result";
+  readonly toolUseId: string;
+  readonly content: string;
+  readonly isError: boolean;
+}
+
+export type Message = UserMessage | AssistantMessage | ToolResultMessage;
+
+export interface Usage {
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  readonly cacheReadTokens: number;
+  readonly cacheWriteTokens: number;
+}
+
+export const ZERO_USAGE: Usage = {
+  inputTokens: 0,
+  outputTokens: 0,
+  cacheReadTokens: 0,
+  cacheWriteTokens: 0,
+};
+
+export function addUsage(a: Usage, b: Usage): Usage {
+  return {
+    inputTokens: a.inputTokens + b.inputTokens,
+    outputTokens: a.outputTokens + b.outputTokens,
+    cacheReadTokens: a.cacheReadTokens + b.cacheReadTokens,
+    cacheWriteTokens: a.cacheWriteTokens + b.cacheWriteTokens,
+  };
+}
+
+/**
+ * Why the model stopped. `tool_use` means it wants tools run and the loop
+ * should continue; anything else is a natural end of turn.
+ */
+export type StopReason =
+  | "end_turn"
+  | "tool_use"
+  | "max_tokens"
+  | "stop_sequence"
+  | "refusal"
+  | "unknown";
+
+export interface LLMResponse {
+  readonly content: readonly ContentBlock[];
+  readonly stopReason: StopReason;
+  readonly usage: Usage;
+  readonly model: string;
+}
+
+/** A tool as the model sees it: name, description, JSON-schema input. */
+export interface ToolDefinition {
+  readonly name: string;
+  readonly description: string;
+  readonly inputSchema: Record<string, unknown>;
+}
+
+export interface ProviderConfig {
+  readonly model: string;
+  readonly apiKey?: string;
+  readonly baseUrl?: string;
+  readonly systemPrompt?: string;
+  readonly maxTokens?: number;
+  readonly temperature?: number;
+}
+
+export interface ChatOptions {
+  /** Abort in-flight requests (Esc / cancellation). */
+  readonly signal?: AbortSignal;
+}
+
+/**
+ * An error a provider can raise. `retryable` lets the agent loop's retry
+ * layer decide whether a backoff retry is worthwhile; `retryAfterMs` carries
+ * a server `Retry-After` when present.
+ */
+export class ProviderError extends Error {
+  readonly status?: number;
+  readonly retryable: boolean;
+  readonly retryAfterMs?: number;
+
+  constructor(
+    message: string,
+    opts: { status?: number; retryable?: boolean; retryAfterMs?: number } = {},
+  ) {
+    super(message);
+    this.name = "ProviderError";
+    this.status = opts.status;
+    this.retryable = opts.retryable ?? false;
+    this.retryAfterMs = opts.retryAfterMs;
+  }
+}
+
+export interface Provider {
+  readonly name: string;
+  chat(
+    messages: readonly Message[],
+    tools: readonly ToolDefinition[],
+    config: ProviderConfig,
+    options?: ChatOptions,
+  ): Promise<LLMResponse>;
+}
