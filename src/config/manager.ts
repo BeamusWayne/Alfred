@@ -3,9 +3,11 @@ import { z } from "zod";
 import { roleModelMapSchema, type RoleModelMap } from "./roles.ts";
 
 export const PERMISSION_MODES = ["default", "acceptEdits", "plan", "bypass"] as const;
+export const PROVIDERS = ["anthropic", "openai"] as const;
+export type ProviderId = (typeof PROVIDERS)[number];
 
 export const configSchema = z.object({
-  provider: z.literal("anthropic").default("anthropic"),
+  provider: z.enum(PROVIDERS).default("anthropic"),
   model: z.string().min(1),
   maxTurns: z.number().int().positive().default(50),
   maxTokens: z.number().int().positive().default(8192),
@@ -17,6 +19,7 @@ export const configSchema = z.object({
 export type AlfredConfig = z.output<typeof configSchema>;
 
 export interface ConfigOverrides {
+  readonly provider?: ProviderId;
   readonly model?: string;
   readonly maxTurns?: number;
   readonly maxTokens?: number;
@@ -39,9 +42,13 @@ function parseRolesFromEnv(): RoleModelMap | undefined {
   return Object.keys(map).length > 0 ? (map as RoleModelMap) : undefined;
 }
 
+function providerFromEnv(): ProviderId {
+  return process.env.ALFRED_PROVIDER === "openai" ? "openai" : "anthropic";
+}
+
 export function loadConfig(overrides: ConfigOverrides = {}): AlfredConfig {
   return configSchema.parse({
-    provider: "anthropic",
+    provider: overrides.provider ?? providerFromEnv(),
     model: overrides.model ?? process.env.ALFRED_MODEL ?? DEFAULT_MODEL,
     maxTurns: overrides.maxTurns,
     maxTokens: overrides.maxTokens,

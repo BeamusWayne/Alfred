@@ -10,8 +10,10 @@
  *
  * Opt-in layers: ALFRED_MEMORY=1 (memory inject + GC, ADR 0001 §4),
  * ALFRED_REPOMAP=1 (repo map, ADR 0002), ALFRED_OTEL_FILE=<path> (OTel spans,
- * ADR 0004), ALFRED_MODEL_{ARCHITECT,EDITOR,SUBAGENT} (role routing, ADR 0005),
+ * ADR 0004), ALFRED_SANDBOX=1 (OS sandbox for bash, ADR 0001 §7.3),
+ * ALFRED_PROVIDER=openai + ALFRED_MODEL_* (provider/role routing, ADR 0005),
  * ALFRED_LEDGER_SECRET (sign the autonomous run ledger, ADR 0001 §5.3).
+ * Hooks load from .alfred/hooks.json; skills from .alfred/skills/.
  */
 import { Command } from "commander";
 import { join } from "node:path";
@@ -21,6 +23,7 @@ import { getProvider } from "./providers/index.ts";
 import { buildSystemContext, buildSystemPrompt } from "./context/index.ts";
 import { loadConfig, PERMISSION_MODES, type ConfigOverrides } from "./config/manager.ts";
 import { LocalFileProvider } from "./memory/localFile.ts";
+import { loadHooksConfig } from "./hooks/engine.ts";
 import { createRuntime } from "./orchestrator/runtime.ts";
 import { Journal } from "./orchestrator/journal.ts";
 import { Ledger } from "./orchestrator/ledger.ts";
@@ -74,14 +77,20 @@ async function runOnce(prompt: string, opts: CliOptions): Promise<number> {
   if (cfg.provider === "anthropic" && !process.env.ANTHROPIC_API_KEY) {
     process.stderr.write(red("No ANTHROPIC_API_KEY set — export it before running a real query.\n"));
   }
+  if (cfg.provider === "openai" && !process.env.OPENAI_API_KEY) {
+    process.stderr.write(red("No OPENAI_API_KEY set — export it before running a real query.\n"));
+  }
 
   const workingDir = process.cwd();
   const memoryEnabled = Boolean(process.env.ALFRED_MEMORY);
   const memoryRoot = join(workingDir, ".alfred", "memory");
-  const sysCtx = await buildSystemContext(workingDir, {
-    repoMap: process.env.ALFRED_REPOMAP ? {} : false,
-    memoryRoot: memoryEnabled ? memoryRoot : false,
-  });
+  const [sysCtx, hooks] = await Promise.all([
+    buildSystemContext(workingDir, {
+      repoMap: process.env.ALFRED_REPOMAP ? {} : false,
+      memoryRoot: memoryEnabled ? memoryRoot : false,
+    }),
+    loadHooksConfig(join(workingDir, ".alfred", "hooks.json")),
+  ]);
   const systemPrompt = buildSystemPrompt(sysCtx);
 
   const controller = new AbortController();
@@ -96,6 +105,7 @@ async function runOnce(prompt: string, opts: CliOptions): Promise<number> {
       maxTurns: cfg.maxTurns,
       maxContextTokens: cfg.maxContextTokens,
       roles: cfg.roles,
+      hooks,
       permissions: {
         mode: cfg.permissionMode,
         allowedTools: new Set(),

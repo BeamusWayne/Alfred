@@ -9,6 +9,7 @@
  *   - returns a typed terminal status (success / max_turns / provider_error / aborted);
  *   - gates every tool through the permission evaluator, with an approval
  *     callback for `ask` (no more dead "ask" branch);
+ *   - fires PreToolUse/PostToolUse hooks around each tool call (ADR 0001 §7.5);
  *   - runs read-only + concurrency-safe tools in parallel, the rest serially;
  *   - compacts older context at a user boundary near the budget (ADR 0001 §7.4);
  *   - fences untrusted tool output (ADR 0003) and emits OTel GenAI spans plus
@@ -44,6 +45,8 @@ import {
 import { shouldCompact, compact } from "../compact/engine.ts";
 import { fallbackChain } from "../config/roles.ts";
 import { fence } from "../security/taint.ts";
+import { runHooks } from "../hooks/engine.ts";
+import type { HooksConfig } from "../hooks/types.ts";
 
 const DEFAULT_MAX_TURNS = 50;
 const DEFAULT_MAX_RETRIES = 5;
@@ -95,6 +98,7 @@ async function executeTool(
   ctx: ToolContext,
   tracer: Tracer,
   parentSpan: SpanHandle | undefined,
+  hooks: HooksConfig | undefined,
   approve?: (req: ApprovalRequest) => Promise<boolean>,
 ): Promise<ToolOutcome> {
   const tool = findTool(tools, use.name);
@@ -104,7 +108,19 @@ async function executeTool(
   if (!parsed.success) {
     return { use, output: `Invalid input for ${use.name}: ${parsed.error.message}`, isError: true };
   }
-  const data = parsed.data as Record<string, unknown>;
+  let data = parsed.data as Record<string, unknown>;
+
+  // PreToolUse hooks: may block the call or rewrite the input (ADR 0001 §7.5).
+  if (hooks) {
+    const pre = await runHooks(hooks, "PreToolUse", { toolName: use.name, input: data }, { cwd: ctx.workingDir });
+    if (pre.block) {
+      return { use, output: `Blocked by PreToolUse hook: ${pre.reason ?? "no reason"}`, isError: true };
+    }
+    if (pre.updatedInput) {
+      const reparsed = tool.inputSchema.safeParse({ ...data, ...pre.updatedInput });
+      if (reparsed.success) data = reparsed.data as Record<string, unknown>;
+    }
+  }
 
   const decision = await evaluatePermission({
     toolName: use.name,
@@ -143,9 +159,14 @@ async function executeTool(
     const raw =
       typeof result.content === "string" ? result.content : JSON.stringify(result.content);
     // Fence content from untrusted sources so the model treats it as data,
-    // not instructions (ADR 0003). Dormant until a tool sets `untrusted`.
+    // not instructions (ADR 0003).
     const output = result.untrusted ? fence(raw, use.name === "bash" ? "bash" : "mcp") : raw;
     span.setStatus(result.isError ? "error" : "ok").end();
+    if (hooks) {
+      await runHooks(hooks, "PostToolUse", { toolName: use.name, input: finalInput }, { cwd: ctx.workingDir }).catch(
+        () => undefined,
+      );
+    }
     return { use, output, isError: result.isError ?? false };
   } catch (err) {
     span.setStatus("error").end();
@@ -203,6 +224,7 @@ export async function* runQuery(
   const signal = config.signal ?? new AbortController().signal;
   const maxTurns = config.maxTurns ?? DEFAULT_MAX_TURNS;
   const maxContextTokens = config.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS;
+  const hooks = config.hooks;
 
   const ctx: ToolContext = {
     workingDir: config.permissions.workingDir,
@@ -301,7 +323,7 @@ export async function* runQuery(
       yield { type: "tool_use", id: use.id, name: use.name, describe: describeUse(tools, use), input: use.input };
     }
     const parallelResults = await Promise.all(
-      parallel.map((u) => executeTool(u, tools, ctx, tracer, agentSpan, config.approve)),
+      parallel.map((u) => executeTool(u, tools, ctx, tracer, agentSpan, hooks, config.approve)),
     );
     for (const outcome of parallelResults) {
       yield { type: "tool_result", id: outcome.use.id, name: outcome.use.name, output: outcome.output, isError: outcome.isError };
@@ -310,7 +332,7 @@ export async function* runQuery(
 
     for (const use of serial) {
       yield { type: "tool_use", id: use.id, name: use.name, describe: describeUse(tools, use), input: use.input };
-      const outcome = await executeTool(use, tools, ctx, tracer, agentSpan, config.approve);
+      const outcome = await executeTool(use, tools, ctx, tracer, agentSpan, hooks, config.approve);
       yield { type: "tool_result", id: outcome.use.id, name: outcome.use.name, output: outcome.output, isError: outcome.isError };
       messages.push(toToolResultMessage(outcome));
     }

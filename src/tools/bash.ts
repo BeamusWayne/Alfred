@@ -1,19 +1,22 @@
 /**
- * Run a shell command. Two layers of safety (ADR 0003):
+ * Run a shell command. Layers of safety (ADR 0003 / ADR 0001 §7.3):
  *   - a chain-aware kill-list in `checkPermissions` that returns DENY even
  *     under `bypass` (the engine never runs `rm -rf /`);
  *   - read-only command detection (every chained segment must be in an
- *     allowlist) so safe inspection auto-runs while anything else asks.
+ *     allowlist) so safe inspection auto-runs while anything else asks;
+ *   - optional OS sandbox (ALFRED_SANDBOX=1) that wraps the command in
+ *     `sandbox-exec` on macOS (deny network + writes outside the workspace).
  *
  * NOTE: string matching is UX, not a security boundary. The real boundary is
- * an OS sandbox (ADR 0003 / a later phase). Until then bash asks by default.
+ * the OS sandbox; until it is enabled, bash asks by default.
  */
 import { z } from "zod";
-import { exec } from "node:child_process";
+import { execFile } from "node:child_process";
 import { buildTool } from "./types.ts";
 import type { ToolResult } from "./types.ts";
 import { ask, deny } from "../permissions/types.ts";
 import { resolveInside } from "./lib/paths.ts";
+import { wrapCommand, defaultPolicy } from "../sandbox/index.ts";
 
 const inputSchema = z.object({
   command: z.string().describe("Shell command to execute"),
@@ -93,9 +96,19 @@ export const bashTool = buildTool({
   call: async (input, ctx): Promise<ToolResult<string>> => {
     const cwd = input.cwd ? resolveInside(ctx.workingDir, input.cwd) : ctx.workingDir;
     const timeout = input.timeout ?? DEFAULT_TIMEOUT;
+
+    // Optional OS sandbox (ADR 0001 §7.3). Transparent passthrough off-darwin.
+    const sandboxed = process.env.ALFRED_SANDBOX === "1";
+    const argv = sandboxed
+      ? wrapCommand(input.command, defaultPolicy(cwd), process.platform).argv
+      : ["sh", "-c", input.command];
+    const file = argv[0] ?? "sh";
+    const args = argv.slice(1);
+
     return await new Promise<ToolResult<string>>((resolve) => {
-      const child = exec(
-        input.command,
+      const child = execFile(
+        file,
+        args,
         { cwd, timeout, maxBuffer: 10 * 1024 * 1024 },
         (err, stdout, stderr) => {
           const out = (stdout ?? "") + (stderr ? `\n${stderr}` : "");

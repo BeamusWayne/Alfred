@@ -1,14 +1,16 @@
 /**
  * Assemble the system prompt actually sent to the model: the base prompt, then
- * project instructions, then agent memory + repo map, then volatile environment
- * (cwd/date/git) LAST so the stable prefix stays prompt-cache friendly
- * (ADR 0001 §4 / §7.4; ADR 0002 for the repo map).
+ * project instructions, then agent memory + repo map + skill index, then
+ * volatile environment (cwd/date/git) LAST so the stable prefix stays
+ * prompt-cache friendly (ADR 0001 §4 / §7.4; ADR 0002 repo map; §7.6 skills).
  */
+import { join } from "node:path";
 import { BASE_SYSTEM_PROMPT } from "./systemPrompt.ts";
 import { getGitContext, formatGit, type GitContext } from "./git.ts";
 import { discoverProjectDocs, type ProjectDoc } from "./projectDocs.ts";
 import { buildRepoMap, type RepomapOptions } from "./repomap.ts";
 import { LocalFileProvider } from "../memory/localFile.ts";
+import { discoverSkills, renderSkillIndex } from "../skills/loader.ts";
 
 export interface SystemContext {
   readonly workingDir: string;
@@ -19,6 +21,8 @@ export interface SystemContext {
   readonly repoMap?: string;
   /** Agent memory Core block (ADR 0001 §4); present only when requested. */
   readonly memoryBlock?: string;
+  /** Level-1 skill index (ADR 0001 §7.6); present only when skills exist. */
+  readonly skillsBlock?: string;
 }
 
 export interface BuildContextOptions {
@@ -40,15 +44,26 @@ async function injectMemory(root: string): Promise<string | undefined> {
   }
 }
 
+/** Read the Level-1 skill index; returns undefined when no skills are present. */
+async function injectSkills(workingDir: string): Promise<string | undefined> {
+  try {
+    const metas = await discoverSkills(join(workingDir, ".alfred", "skills"));
+    return metas.length > 0 ? renderSkillIndex(metas) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function buildSystemContext(
   workingDir: string,
   opts: BuildContextOptions = {},
 ): Promise<SystemContext> {
-  const [git, projectDocs, repoMap, memoryBlock] = await Promise.all([
+  const [git, projectDocs, repoMap, memoryBlock, skillsBlock] = await Promise.all([
     getGitContext(workingDir),
     discoverProjectDocs(workingDir),
     opts.repoMap ? buildRepoMap(workingDir, opts.repoMap) : Promise.resolve(undefined),
     opts.memoryRoot ? injectMemory(opts.memoryRoot) : Promise.resolve(undefined),
+    injectSkills(workingDir),
   ]);
   return {
     workingDir,
@@ -57,6 +72,7 @@ export async function buildSystemContext(
     projectDocs,
     repoMap,
     memoryBlock,
+    skillsBlock,
   };
 }
 
@@ -75,6 +91,10 @@ export function buildSystemPrompt(ctx: SystemContext): string {
 
   if (ctx.memoryBlock && ctx.memoryBlock.trim().length > 0) {
     parts.push(`## Agent memory\n${ctx.memoryBlock.trim()}`);
+  }
+
+  if (ctx.skillsBlock && ctx.skillsBlock.trim().length > 0) {
+    parts.push(ctx.skillsBlock.trim());
   }
 
   if (ctx.repoMap && ctx.repoMap.trim().length > 0) {

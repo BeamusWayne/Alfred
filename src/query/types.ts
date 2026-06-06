@@ -2,6 +2,7 @@ import type { Message, Provider, Usage } from "../providers/types.ts";
 import type { ToolPermissionContext } from "../permissions/types.ts";
 import type { Tool } from "../tools/types.ts";
 import type { Role, RoleModelMap } from "../config/roles.ts";
+import type { HooksConfig } from "../hooks/types.ts";
 
 /**
  * How the loop ended — typed so a caller (REPL, headless runner, harness) can
@@ -43,6 +44,8 @@ export interface QueryConfig {
   readonly roles?: RoleModelMap;
   /** Active role; selects the head of the fallback chain (ADR 0005). */
   readonly role?: Role;
+  /** PreToolUse/PostToolUse hooks fired around each tool call (ADR 0001 §7.5). */
+  readonly hooks?: HooksConfig;
 }
 
 export type QueryEvent =
