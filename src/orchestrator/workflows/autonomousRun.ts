@@ -28,6 +28,7 @@ import {
 } from "../../harness/featureList.ts";
 import { runVerify, passed, type VerifyResult } from "../../harness/verify.ts";
 import { checkpoint, rollback, currentSha, type Checkpoint } from "../../harness/checkpoint.ts";
+import { bestOfNCode } from "./bestOfNCode.ts";
 
 export const rubricSchema = z.object({
   verification: z.number().int().min(0).max(2),
@@ -59,6 +60,9 @@ export interface AutonomousRunOptions {
   readonly architectModel?: string;
   /** The model that applies the change (ADR 0005 editor step). */
   readonly editorModel?: string;
+  /** When > 1, each implement attempt runs N worktree-isolated candidates and
+   * keeps the first that passes the verify gate (ADR 0001 §5.3 best-of-N). */
+  readonly bestOfN?: number;
   readonly onEvent?: (ev: AutonomousEvent) => void;
 }
 
@@ -154,7 +158,23 @@ export async function autonomousRun(opts: AutonomousRunOptions): Promise<Autonom
     let feedback = "";
     for (let attempt = 1; attempt <= iterationBudget; attempt++) {
       opts.onEvent?.({ type: "attempt", featureId: feature.id, attempt });
-      if (useSplit) {
+      if (opts.bestOfN && opts.bestOfN > 1) {
+        const fb = feedback;
+        await bestOfNCode({
+          cwd: opts.cwd,
+          n: opts.bestOfN,
+          verifyCmd: opts.verifyCmd,
+          implement: async (worktreePath, candidate) => {
+            await opts.runtime.agent(
+              `${implementPrompt(feature, opts.verifyCmd, fb, [])}\n\n(Candidate ${candidate + 1} — explore a distinct approach.)`,
+              {
+                permissions: { mode: "bypass", allowedTools: new Set(), deniedTools: new Set(), workingDir: worktreePath },
+                label: `bestof:${feature.id}#${attempt}.${candidate}`,
+              },
+            );
+          },
+        });
+      } else if (useSplit) {
         const plan = await opts.runtime.agent<Plan>(planPrompt(feature, feedback), {
           schema: planSchema,
           model: opts.architectModel,

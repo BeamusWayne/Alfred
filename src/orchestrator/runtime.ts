@@ -35,6 +35,8 @@ export interface AgentCallOptions {
   readonly model?: string;
   readonly maxTurns?: number;
   readonly label?: string;
+  /** Per-call permission override (e.g. a worktree workingDir for best-of-N). */
+  readonly permissions?: ToolPermissionContext;
   /** Resume key: if the journal already holds a result for this key, reuse it. */
   readonly key?: string;
 }
@@ -104,7 +106,7 @@ export function createRuntime(runId: string, opts: RuntimeOptions): Runtime {
       run = await runAgent<T>(prompt, {
         provider: opts.provider,
         model: callOpts.model ?? opts.model,
-        permissions: opts.permissions,
+        permissions: callOpts.permissions ?? opts.permissions,
         schema: callOpts.schema,
         tools: callOpts.tools,
         systemPrompt: callOpts.systemPrompt,

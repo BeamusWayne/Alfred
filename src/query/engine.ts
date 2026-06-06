@@ -44,6 +44,7 @@ import {
   type SpanHandle,
 } from "../telemetry/otel.ts";
 import { shouldCompact, compact } from "../compact/engine.ts";
+import { editContext } from "../compact/contextEdit.ts";
 import { estimateMessages } from "../compact/tokens.ts";
 import { fallbackChain } from "../config/roles.ts";
 import { fence, type TaintSource } from "../security/taint.ts";
@@ -342,6 +343,15 @@ export async function* runQuery(
   while (turns < maxTurns) {
     turns++;
     if (signal.aborted) return finish("aborted");
+
+    // Context editing first (ADR 0001 §4): cheaply evict stale tool-result
+    // bodies; only summarise (compact) if still over budget afterward.
+    const edited = editContext(messages, { maxContextTokens, actualTokens: lastInputTokens });
+    if (edited.evicted > 0) {
+      messages.length = 0;
+      messages.push(...edited.messages);
+      lastInputTokens = 0; // stale after eviction; fall back to the estimate below
+    }
 
     // Compact older context at a user boundary when near the budget, using the
     // provider's real token count when available (ADR 0001 §7.4).

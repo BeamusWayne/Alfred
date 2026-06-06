@@ -15,18 +15,21 @@
  * ADR 0003), ALFRED_OTEL_FILE=<path> (OTel spans, ADR 0004), ALFRED_BASE_URL
  * (Anthropic-compatible endpoint, e.g. GLM), ALFRED_MODEL_{ARCHITECT,EDITOR,
  * SUBAGENT} (role routing, ADR 0005), ALFRED_LEDGER_SECRET (sign the run
- * ledger). Hooks load from .alfred/hooks.json; skills from .alfred/skills/.
+ * ledger). Hooks load from .alfred/hooks.json; skills from .alfred/skills/;
+ * MCP/LSP servers from .alfred/{mcp,lsp}.json.
  */
 import { Command } from "commander";
 import { join, resolve } from "node:path";
 import { runQuery } from "./query/engine.ts";
 import type { QueryEvent } from "./query/types.ts";
 import { getProvider } from "./providers/index.ts";
+import { getAllTools } from "./tools/index.ts";
 import { buildSystemContext, buildSystemPrompt } from "./context/index.ts";
 import { loadConfig, PERMISSION_MODES, type ConfigOverrides } from "./config/manager.ts";
 import { resolveRole } from "./config/roles.ts";
 import { LocalFileProvider } from "./memory/localFile.ts";
 import { loadHooksConfig } from "./hooks/engine.ts";
+import { bootstrapExtensions } from "./extensions/bootstrap.ts";
 import { createRuntime } from "./orchestrator/runtime.ts";
 import { Journal } from "./orchestrator/journal.ts";
 import { Ledger } from "./orchestrator/ledger.ts";
@@ -92,57 +95,64 @@ async function runOnce(prompt: string, opts: CliOptions): Promise<number> {
   // One provider instance drives prefetch (in the engine) and extract (on end).
   const memory = memoryEnabled ? new LocalFileProvider(memoryRoot) : undefined;
 
-  const [sysCtx, hooks] = await Promise.all([
+  const [sysCtx, hooks, ext] = await Promise.all([
     buildSystemContext(workingDir, {
       repoMap: process.env.ALFRED_REPOMAP ? {} : false,
       memoryRoot: memoryEnabled ? memoryRoot : false,
     }),
     loadHooksConfig(join(workingDir, ".alfred", "hooks.json")),
+    bootstrapExtensions(workingDir),
   ]);
   const systemPrompt = buildSystemPrompt(sysCtx);
 
   const controller = new AbortController();
   process.on("SIGINT", () => controller.abort());
 
-  const state = await drain(
-    runQuery(prompt, {
-      provider: getProvider(cfg.provider),
-      model: cfg.model,
-      baseUrl: cfg.baseUrl,
-      systemPrompt,
-      maxTokens: cfg.maxTokens,
-      maxTurns: cfg.maxTurns,
-      maxContextTokens: cfg.maxContextTokens,
-      roles: cfg.roles,
-      hooks,
-      memory,
-      permissions: {
-        mode: cfg.permissionMode,
-        allowedTools: new Set(),
-        deniedTools: new Set(),
-        workingDir,
-      },
-      approve: opts.yes ? async () => true : undefined,
-      signal: controller.signal,
-    }),
-  );
+  try {
+    const state = await drain(
+      runQuery(prompt, {
+        provider: getProvider(cfg.provider),
+        model: cfg.model,
+        baseUrl: cfg.baseUrl,
+        systemPrompt,
+        maxTokens: cfg.maxTokens,
+        maxTurns: cfg.maxTurns,
+        maxContextTokens: cfg.maxContextTokens,
+        roles: cfg.roles,
+        hooks,
+        memory,
+        // MCP/LSP tools (if any servers are configured) on top of the built-ins.
+        tools: ext.tools.length > 0 ? [...getAllTools(), ...ext.tools] : undefined,
+        permissions: {
+          mode: cfg.permissionMode,
+          allowedTools: new Set(),
+          deniedTools: new Set(),
+          workingDir,
+        },
+        approve: opts.yes ? async () => true : undefined,
+        signal: controller.signal,
+      }),
+    );
 
-  // Memory extract: staleness / contradiction GC on session end (ADR 0001 §4).
-  if (memory) {
-    try {
-      await memory.extract();
-      memory.close();
-    } catch {
-      // best-effort; never fail the run on a GC error
+    // Memory extract: staleness / contradiction GC on session end (ADR 0001 §4).
+    if (memory) {
+      try {
+        await memory.extract();
+        memory.close();
+      } catch {
+        // best-effort; never fail the run on a GC error
+      }
     }
-  }
 
-  if (state.cost && state.cost.usd > 0) {
-    process.stderr.write(dim(`[cost: $${state.cost.usd.toFixed(4)}]\n`));
-  }
+    if (state.cost && state.cost.usd > 0) {
+      process.stderr.write(dim(`[cost: $${state.cost.usd.toFixed(4)}]\n`));
+    }
 
-  process.stdout.write("\n");
-  return state.status === "success" ? 0 : 1;
+    process.stdout.write("\n");
+    return state.status === "success" ? 0 : 1;
+  } finally {
+    await ext.close();
+  }
 }
 
 async function drain(gen: ReturnType<typeof runQuery>) {
@@ -161,6 +171,7 @@ interface RunCliOptions {
   readonly maxFeatures?: string;
   readonly rollbackOnBlock?: boolean;
   readonly budgetUsd?: string;
+  readonly bestOfN?: string;
 }
 
 /** `alfred run` — the autonomous harness as a workflow (ADR 0001 §5.3 / §7.7). */
@@ -211,6 +222,7 @@ async function runAutonomous(opts: RunCliOptions): Promise<number> {
     rollbackOnBlock: Boolean(opts.rollbackOnBlock),
     architectModel,
     editorModel,
+    bestOfN: opts.bestOfN ? Number(opts.bestOfN) : undefined,
     onEvent: (ev: AutonomousEvent) => process.stdout.write(JSON.stringify(ev) + "\n"),
   });
 
@@ -254,6 +266,7 @@ program
   .option("--max-features <n>", "stop after N features")
   .option("--rollback-on-block", "git-rollback the working tree when a feature is blocked")
   .option("--budget-usd <n>", "stop when estimated spend exceeds this USD budget")
+  .option("--best-of-n <n>", "run N worktree-isolated implement candidates per attempt, keep the first that passes")
   .action(async (opts: RunCliOptions) => {
     const code = await runAutonomous(opts);
     process.exit(code);
