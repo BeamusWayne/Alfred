@@ -1,8 +1,9 @@
 /**
- * Anthropic provider. Differences from the old implementation (per the review):
- *   - prompt caching: `cache_control` on the system prompt and the tool block,
- *     so the stable prefix is billed at ~0.1x on cache hits;
- *   - real usage including cache read/write tokens;
+ * Anthropic provider (@anthropic-ai/sdk).
+ *   - prompt caching: `cache_control` on the last system block + last tool, so
+ *     the stable prefix is billed at ~0.1x on cache hits;
+ *   - streaming: incremental text deltas via `client.messages.stream`;
+ *   - token counting: `client.messages.countTokens`;
  *   - errors mapped to ProviderError with `retryable` + `retryAfterMs`, so the
  *     loop's backoff layer can do its job.
  */
@@ -16,6 +17,7 @@ import {
   type Provider,
   type ProviderConfig,
   type StopReason,
+  type StreamEvent,
   type ToolDefinition,
   type Usage,
 } from "./types.ts";
@@ -54,7 +56,7 @@ function toAnthropicTools(tools: readonly ToolDefinition[]): Anthropic.ToolUnion
       description: t.description,
       input_schema: t.inputSchema as Anthropic.Tool.InputSchema,
     };
-    // Cache the whole tool block by marking the last tool.
+    // Cache the whole tool block by marking the last tool (stable prefix).
     if (i === tools.length - 1) {
       return { ...tool, cache_control: { type: "ephemeral" } };
     }
@@ -114,6 +116,20 @@ function toProviderError(err: unknown): ProviderError {
   return new ProviderError(message, { retryable: !aborted });
 }
 
+function makeClient(config: ProviderConfig): Anthropic {
+  return new Anthropic({
+    apiKey: config.apiKey ?? process.env.ANTHROPIC_API_KEY,
+    baseURL: config.baseUrl ?? process.env.ANTHROPIC_BASE_URL,
+  });
+}
+
+/** The system prompt as a cache-marked block (stable prefix), or undefined. */
+function systemBlocks(config: ProviderConfig): Anthropic.TextBlockParam[] | undefined {
+  return config.systemPrompt
+    ? [{ type: "text", text: config.systemPrompt, cache_control: { type: "ephemeral" } }]
+    : undefined;
+}
+
 export class AnthropicProvider implements Provider {
   readonly name = "anthropic";
 
@@ -123,22 +139,14 @@ export class AnthropicProvider implements Provider {
     config: ProviderConfig,
     options?: ChatOptions,
   ): Promise<LLMResponse> {
-    const client = new Anthropic({
-      apiKey: config.apiKey ?? process.env.ANTHROPIC_API_KEY,
-      baseURL: config.baseUrl ?? process.env.ANTHROPIC_BASE_URL,
-    });
-
-    const system: Anthropic.TextBlockParam[] | undefined = config.systemPrompt
-      ? [{ type: "text", text: config.systemPrompt, cache_control: { type: "ephemeral" } }]
-      : undefined;
-
+    const client = makeClient(config);
     try {
       const response = await client.messages.create(
         {
           model: config.model,
           max_tokens: config.maxTokens ?? 8192,
           temperature: config.temperature,
-          system,
+          system: systemBlocks(config),
           messages: toAnthropicMessages(messages),
           tools: tools.length > 0 ? toAnthropicTools(tools) : undefined,
         },
@@ -150,6 +158,61 @@ export class AnthropicProvider implements Provider {
         usage: fromUsage(response.usage),
         model: response.model,
       };
+    } catch (err) {
+      throw toProviderError(err);
+    }
+  }
+
+  async *stream(
+    messages: readonly Message[],
+    tools: readonly ToolDefinition[],
+    config: ProviderConfig,
+    options?: ChatOptions,
+  ): AsyncGenerator<StreamEvent, LLMResponse> {
+    const client = makeClient(config);
+    try {
+      const s = client.messages.stream(
+        {
+          model: config.model,
+          max_tokens: config.maxTokens ?? 8192,
+          temperature: config.temperature,
+          system: systemBlocks(config),
+          messages: toAnthropicMessages(messages),
+          tools: tools.length > 0 ? toAnthropicTools(tools) : undefined,
+        },
+        { signal: options?.signal },
+      );
+      for await (const event of s) {
+        if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+          yield { type: "text_delta", text: event.delta.text };
+        }
+      }
+      const final = await s.finalMessage();
+      return {
+        content: fromContent(final.content),
+        stopReason: fromStopReason(final.stop_reason),
+        usage: fromUsage(final.usage),
+        model: final.model,
+      };
+    } catch (err) {
+      throw toProviderError(err);
+    }
+  }
+
+  async countTokens(
+    messages: readonly Message[],
+    tools: readonly ToolDefinition[],
+    config: ProviderConfig,
+  ): Promise<number> {
+    const client = makeClient(config);
+    try {
+      const r = await client.messages.countTokens({
+        model: config.model,
+        system: systemBlocks(config),
+        messages: toAnthropicMessages(messages),
+        tools: tools.length > 0 ? toAnthropicTools(tools) : undefined,
+      });
+      return r.input_tokens;
     } catch (err) {
       throw toProviderError(err);
     }

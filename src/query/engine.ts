@@ -4,6 +4,8 @@
  * `QueryEvent`s and returns a typed `QueryState`.
  *
  * What it does that the old loop did not (per the review):
+ *   - streams text incrementally when the provider supports it, else emits the
+ *     full text once the response lands;
  *   - retries transient provider failures with backoff (yields `retrying`),
  *     escalating through the model fallback chain on each retry (ADR 0005);
  *   - returns a typed terminal status (success / max_turns / provider_error / aborted);
@@ -174,6 +176,11 @@ async function executeTool(
   }
 }
 
+/**
+ * One model turn with retry + fallback escalation. Emits text as it arrives —
+ * streamed deltas when the provider supports `stream`, otherwise the full text
+ * once the response lands — so text emission lives here, not in `runQuery`.
+ */
 async function* chatWithRetry(
   config: QueryConfig,
   messages: readonly Message[],
@@ -195,7 +202,24 @@ async function* chatWithRetry(
       temperature: config.temperature,
     };
     try {
-      return await config.provider.chat(messages, toolDefs, providerConfig, { signal });
+      if (config.provider.stream) {
+        const gen = config.provider.stream(messages, toolDefs, providerConfig, { signal });
+        let step = await gen.next();
+        while (!step.done) {
+          if (step.value.type === "text_delta" && step.value.text.length > 0) {
+            yield { type: "text", text: step.value.text };
+          }
+          step = await gen.next();
+        }
+        return step.value;
+      }
+      const response = await config.provider.chat(messages, toolDefs, providerConfig, { signal });
+      for (const block of response.content) {
+        if (block.type === "text" && block.text.length > 0) {
+          yield { type: "text", text: block.text };
+        }
+      }
+      return response;
     } catch (err) {
       if (!isRetryable(err) || attempt >= maxRetries) throw err;
       if (chainIdx + 1 < chain.length) chainIdx++;
@@ -299,12 +323,9 @@ export async function* runQuery(
 
     usage = addUsage(usage, response.usage);
     cost = cost.add(response.model, response.usage);
-    for (const block of response.content) {
-      if (block.type === "text" && block.text.length > 0) {
-        yield { type: "text", text: block.text };
-      }
-    }
 
+    // Text is emitted by chatWithRetry (streamed or whole); here we only record
+    // the assistant turn and dispatch any tool calls.
     messages.push({ role: "assistant", content: response.content });
 
     if (response.stopReason !== "tool_use") {

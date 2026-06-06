@@ -37,10 +37,10 @@ export interface ModelPricing {
  */
 export const PRICING_TABLE: Readonly<Record<string, ModelPricing>> = {
   "claude-haiku-4-5": {
-    inputPerMillion: 0.80,
-    outputPerMillion: 4.00,
-    cacheReadPerMillion: 0.08,
-    cacheWritePerMillion: 1.00,
+    inputPerMillion: 1.00,
+    outputPerMillion: 5.00,
+    cacheReadPerMillion: 0.10,
+    cacheWritePerMillion: 1.25,
   },
   "claude-sonnet-4-6": {
     inputPerMillion: 3.00,
@@ -48,11 +48,23 @@ export const PRICING_TABLE: Readonly<Record<string, ModelPricing>> = {
     cacheReadPerMillion: 0.30,
     cacheWritePerMillion: 3.75,
   },
+  "claude-opus-4-6": {
+    inputPerMillion: 5.00,
+    outputPerMillion: 25.00,
+    cacheReadPerMillion: 0.50,
+    cacheWritePerMillion: 6.25,
+  },
+  "claude-opus-4-7": {
+    inputPerMillion: 5.00,
+    outputPerMillion: 25.00,
+    cacheReadPerMillion: 0.50,
+    cacheWritePerMillion: 6.25,
+  },
   "claude-opus-4-8": {
-    inputPerMillion: 15.00,
-    outputPerMillion: 75.00,
-    cacheReadPerMillion: 1.50,
-    cacheWritePerMillion: 18.75,
+    inputPerMillion: 5.00,
+    outputPerMillion: 25.00,
+    cacheReadPerMillion: 0.50,
+    cacheWritePerMillion: 6.25,
   },
 };
 

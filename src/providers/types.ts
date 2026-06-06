@@ -126,6 +126,13 @@ export class ProviderError extends Error {
   }
 }
 
+/** A streaming delta — incremental text as the model produces it. */
+export interface TextDeltaEvent {
+  readonly type: "text_delta";
+  readonly text: string;
+}
+export type StreamEvent = TextDeltaEvent;
+
 export interface Provider {
   readonly name: string;
   chat(
@@ -134,4 +141,17 @@ export interface Provider {
     config: ProviderConfig,
     options?: ChatOptions,
   ): Promise<LLMResponse>;
+  /** Optional token-streaming chat: yields text deltas, returns the final response. */
+  stream?(
+    messages: readonly Message[],
+    tools: readonly ToolDefinition[],
+    config: ProviderConfig,
+    options?: ChatOptions,
+  ): AsyncGenerator<StreamEvent, LLMResponse>;
+  /** Optional accurate prompt token count (e.g. Anthropic count_tokens). */
+  countTokens?(
+    messages: readonly Message[],
+    tools: readonly ToolDefinition[],
+    config: ProviderConfig,
+  ): Promise<number>;
 }

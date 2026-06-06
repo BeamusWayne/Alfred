@@ -62,9 +62,9 @@ describe("PRICING_TABLE", () => {
 // ---------------------------------------------------------------------------
 
 describe("CostTracker — known model pricing", () => {
-  test("claude-haiku-4-5: 1M input tokens costs $0.80", () => {
+  test("claude-haiku-4-5: 1M input tokens costs $1.00", () => {
     const t = new CostTracker().add("claude-haiku-4-5", usage(1_000_000));
-    expect(approxEqual(t.total().usd, 0.80)).toBe(true);
+    expect(approxEqual(t.total().usd, 1.00)).toBe(true);
   });
 
   test("claude-sonnet-4-6: 1M output tokens costs $15.00", () => {
@@ -77,24 +77,24 @@ describe("CostTracker — known model pricing", () => {
       "claude-opus-4-8",
       usage(1_000_000, 1_000_000),
     );
-    // 15 (input) + 75 (output) = $90
-    expect(approxEqual(t.total().usd, 90.00)).toBe(true);
+    // 5 (input) + 25 (output) = $30
+    expect(approxEqual(t.total().usd, 30.00)).toBe(true);
   });
 
-  test("haiku cache-read tokens priced at $0.08/M", () => {
+  test("haiku cache-read tokens priced at $0.10/M", () => {
     const t = new CostTracker().add(
       "claude-haiku-4-5",
       usage(0, 0, 1_000_000, 0),
     );
-    expect(approxEqual(t.total().usd, 0.08)).toBe(true);
+    expect(approxEqual(t.total().usd, 0.10)).toBe(true);
   });
 
-  test("haiku cache-write tokens priced at $1.00/M", () => {
+  test("haiku cache-write tokens priced at $1.25/M", () => {
     const t = new CostTracker().add(
       "claude-haiku-4-5",
       usage(0, 0, 0, 1_000_000),
     );
-    expect(approxEqual(t.total().usd, 1.00)).toBe(true);
+    expect(approxEqual(t.total().usd, 1.25)).toBe(true);
   });
 
   test("sonnet cache-read tokens priced at $0.30/M", () => {
@@ -105,12 +105,12 @@ describe("CostTracker — known model pricing", () => {
     expect(approxEqual(t.total().usd, 0.30)).toBe(true);
   });
 
-  test("opus cache-write tokens priced at $18.75/M", () => {
+  test("opus cache-write tokens priced at $6.25/M", () => {
     const t = new CostTracker().add(
       "claude-opus-4-8",
       usage(0, 0, 0, 1_000_000),
     );
-    expect(approxEqual(t.total().usd, 18.75)).toBe(true);
+    expect(approxEqual(t.total().usd, 6.25)).toBe(true);
   });
 
   test("combined usage across all token types for sonnet", () => {
@@ -167,19 +167,19 @@ describe("CostTracker — immutability", () => {
     // t0 untouched
     expect(t0.total().usd).toBe(0);
     // t1 has 1M tokens
-    expect(approxEqual(t1.total().usd, 0.80)).toBe(true);
+    expect(approxEqual(t1.total().usd, 1.00)).toBe(true);
     // t2 has 2M tokens
-    expect(approxEqual(t2.total().usd, 1.60)).toBe(true);
+    expect(approxEqual(t2.total().usd, 2.00)).toBe(true);
   });
 
   test("add() for same model accumulates usage in new tracker", () => {
     const t1 = new CostTracker().add("claude-opus-4-8", usage(500_000));
     const t2 = t1.add("claude-opus-4-8", usage(500_000));
 
-    // Combined: 1M input tokens at opus rate ($15)
-    expect(approxEqual(t2.total().usd, 15.00)).toBe(true);
+    // Combined: 1M input tokens at opus rate ($5)
+    expect(approxEqual(t2.total().usd, 5.00)).toBe(true);
     // t1 is half that
-    expect(approxEqual(t1.total().usd, 7.50)).toBe(true);
+    expect(approxEqual(t1.total().usd, 2.50)).toBe(true);
   });
 });
 
@@ -190,9 +190,9 @@ describe("CostTracker — immutability", () => {
 describe("CostTracker — total()", () => {
   test("total() aggregates USD across multiple models", () => {
     const t = new CostTracker()
-      .add("claude-haiku-4-5", usage(1_000_000))      // $0.80
+      .add("claude-haiku-4-5", usage(1_000_000))      // $1.00
       .add("claude-sonnet-4-6", usage(1_000_000));    // $3.00
-    expect(approxEqual(t.total().usd, 3.80)).toBe(true);
+    expect(approxEqual(t.total().usd, 4.00)).toBe(true);
   });
 
   test("total() aggregates Usage across multiple models", () => {
