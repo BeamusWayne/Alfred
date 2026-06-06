@@ -4,14 +4,18 @@
  *
  * Deterministic state machine over feature_list.json:
  *   pick a feature → verify-fix inner loop (an implement agent drives real
- *   tools, then the OBJECTIVE verify gate runs `VERIFY_CMD` and trusts only its
- *   exit code) → a rubric self-eval agent guards against gaming → mark passing
- *   ONLY when BOTH verify exit == 0 AND rubric == 2 → append a signed,
- *   hash-chained ledger row. The model fills boxes; the boxes are code.
+ *   tools — optionally split into an architect plan + an editor apply, ADR 0005
+ *   — then the OBJECTIVE verify gate runs `VERIFY_CMD` and trusts only its exit
+ *   code) → a rubric self-eval guards against gaming → mark passing ONLY when
+ *   BOTH verify exit == 0 AND rubric == 2 → append a signed, hash-chained
+ *   ledger row (mirrored as an OTel span) + an episode record. Boxes are code.
  */
 import { z } from "zod";
+import { join } from "node:path";
 import type { Runtime } from "../runtime.ts";
 import type { Ledger } from "../ledger.ts";
+import { EpisodeStore } from "../../memory/episodes.ts";
+import { tracerFromEnv, GEN_AI_OPERATION_NAME } from "../../telemetry/otel.ts";
 import {
   loadFeatureList,
   saveFeatureList,
@@ -31,6 +35,9 @@ export const rubricSchema = z.object({
 });
 export type Rubric = z.infer<typeof rubricSchema>;
 
+const planSchema = z.object({ steps: z.array(z.string()) });
+type Plan = z.infer<typeof planSchema>;
+
 export type AutonomousEvent =
   | { readonly type: "feature_start"; readonly feature: Feature }
   | { readonly type: "attempt"; readonly featureId: string; readonly attempt: number }
@@ -48,6 +55,10 @@ export interface AutonomousRunOptions {
   readonly maxFeatures?: number;
   readonly maxConsecutiveBlocked?: number;
   readonly rollbackOnBlock?: boolean;
+  /** When set and ≠ editorModel, a strong model plans (ADR 0005 architect step). */
+  readonly architectModel?: string;
+  /** The model that applies the change (ADR 0005 editor step). */
+  readonly editorModel?: string;
   readonly onEvent?: (ev: AutonomousEvent) => void;
 }
 
@@ -58,7 +69,12 @@ export interface AutonomousRunResult {
   readonly ledgerOk: boolean;
 }
 
-function implementPrompt(feature: Feature, verifyCmd: string, feedback: string): string {
+function implementPrompt(
+  feature: Feature,
+  verifyCmd: string,
+  feedback: string,
+  steps: readonly string[],
+): string {
   return [
     "You are implementing ONE feature in this codebase. Use the available tools",
     "(read, glob, grep, edit, write, bash) to make the change, then check it yourself.",
@@ -66,8 +82,22 @@ function implementPrompt(feature: Feature, verifyCmd: string, feedback: string):
     `## Feature: ${feature.title}`,
     feature.description,
     "",
+    steps.length > 0 ? `## Plan to follow\n${steps.map((s, i) => `${i + 1}. ${s}`).join("\n")}\n` : "",
     feedback ? `## Previous attempt feedback\n${feedback}\n` : "",
     `When you believe it is complete, stop. It will be checked by running: \`${verifyCmd}\``,
+  ].join("\n");
+}
+
+function planPrompt(feature: Feature, feedback: string): string {
+  return [
+    "You are the architect. Produce a short, concrete implementation plan for the",
+    "feature below — file paths to create/edit and the key steps. Do not write code.",
+    "",
+    `## Feature: ${feature.title}`,
+    feature.description,
+    "",
+    feedback ? `## Previous attempt feedback\n${feedback}\n` : "",
+    "Call structured_output with { steps: string[] }.",
   ].join("\n");
 }
 
@@ -90,6 +120,12 @@ function rubricPrompt(feature: Feature, verify: VerifyResult | undefined): strin
 
 export async function autonomousRun(opts: AutonomousRunOptions): Promise<AutonomousRunResult> {
   const maxBlocked = opts.maxConsecutiveBlocked ?? 2;
+  const useSplit = Boolean(
+    opts.architectModel && opts.editorModel && opts.architectModel !== opts.editorModel,
+  );
+  const episodes = new EpisodeStore(join(opts.cwd, ".alfred", "memory", "episodes"));
+  const tracer = tracerFromEnv();
+
   let list = await loadFeatureList(opts.featureListPath);
   let consecutiveBlocked = 0;
   let processed = 0;
@@ -118,9 +154,21 @@ export async function autonomousRun(opts: AutonomousRunOptions): Promise<Autonom
     let feedback = "";
     for (let attempt = 1; attempt <= iterationBudget; attempt++) {
       opts.onEvent?.({ type: "attempt", featureId: feature.id, attempt });
-      await opts.runtime.agent(implementPrompt(feature, opts.verifyCmd, feedback), {
-        label: `implement:${feature.id}#${attempt}`,
-      });
+      if (useSplit) {
+        const plan = await opts.runtime.agent<Plan>(planPrompt(feature, feedback), {
+          schema: planSchema,
+          model: opts.architectModel,
+          label: `architect:${feature.id}#${attempt}`,
+        });
+        await opts.runtime.agent(implementPrompt(feature, opts.verifyCmd, feedback, plan.data?.steps ?? []), {
+          model: opts.editorModel,
+          label: `editor:${feature.id}#${attempt}`,
+        });
+      } else {
+        await opts.runtime.agent(implementPrompt(feature, opts.verifyCmd, feedback, []), {
+          label: `implement:${feature.id}#${attempt}`,
+        });
+      }
       verify = await runVerify(opts.verifyCmd, { cwd: opts.cwd });
       opts.onEvent?.({ type: "verify", featureId: feature.id, attempt, exitCode: verify.exitCode, passed: passed(verify) });
       if (passed(verify)) break;
@@ -136,25 +184,20 @@ export async function autonomousRun(opts: AutonomousRunOptions): Promise<Autonom
     const rubric = rubricRun.data;
     const verifyOk = verify !== undefined && passed(verify);
     const rubricOk = rubric?.verification === 2;
+    const featurePassed = verifyOk && rubricOk;
     const gitSha = await currentSha(opts.cwd);
+    const reason = featurePassed
+      ? ""
+      : !verifyOk
+        ? `verify exit ${verify?.exitCode ?? "n/a"}`
+        : `rubric ${rubric?.verification ?? "null"}`;
 
-    if (verify !== undefined && passed(verify) && rubricOk) {
+    if (featurePassed) {
       list = markPassing(list, feature.id);
       consecutiveBlocked = 0;
-      await opts.ledger.append("feature", {
-        feature: feature.id,
-        status: "passing",
-        verifyExit: verify.exitCode,
-        rubric: rubric?.verification ?? null,
-        gitSha,
-      });
-      opts.onEvent?.({ type: "feature_passing", featureId: feature.id });
     } else {
       list = markBlocked(list, feature.id);
       consecutiveBlocked++;
-      const reason = !verifyOk
-        ? `verify exit ${verify?.exitCode ?? "n/a"}`
-        : `rubric ${rubric?.verification ?? "null"}`;
       if (cp && opts.rollbackOnBlock) {
         try {
           await rollback(opts.cwd, cp);
@@ -162,16 +205,43 @@ export async function autonomousRun(opts: AutonomousRunOptions): Promise<Autonom
           // best-effort; a failed rollback must not crash the run
         }
       }
-      await opts.ledger.append("feature", {
-        feature: feature.id,
-        status: "blocked",
-        verifyExit: verify?.exitCode ?? -1,
-        rubric: rubric?.verification ?? null,
-        gitSha,
-        reason,
-      });
-      opts.onEvent?.({ type: "feature_blocked", featureId: feature.id, reason });
     }
+
+    // Signed receipt row (ADR 0001 §5.3) — secrets are redacted inside the ledger.
+    await opts.ledger.append("feature", {
+      feature: feature.id,
+      status: featurePassed ? "passing" : "blocked",
+      verifyExit: verify?.exitCode ?? -1,
+      rubric: rubric?.verification ?? null,
+      gitSha,
+      ...(reason ? { reason } : {}),
+    });
+    // Ledger-as-spans (ADR 0004): mirror the receipt row as an OTel span.
+    tracer
+      .startSpan("feature", {
+        [GEN_AI_OPERATION_NAME]: "invoke_agent",
+        feature: feature.id,
+        status: featurePassed ? "passing" : "blocked",
+        verifyExit: verify?.exitCode ?? -1,
+        rubric: rubric?.verification ?? -1,
+      })
+      .end();
+    // Episode record (ADR 0001 §4) — the bridge to self-improvement.
+    await episodes.write({
+      goal: `${feature.id}: ${feature.title}`,
+      approach: useSplit ? "architect/editor + verify-fix" : "verify-fix",
+      worked: featurePassed ? [feature.id] : [],
+      failed: featurePassed ? [] : [reason || "blocked"],
+      verifyExit: verify ? String(verify.exitCode) : undefined,
+      gitSha: gitSha ?? undefined,
+      cost: opts.runtime.budgetSnapshot().usd,
+    });
+
+    opts.onEvent?.(
+      featurePassed
+        ? { type: "feature_passing", featureId: feature.id }
+        : { type: "feature_blocked", featureId: feature.id, reason },
+    );
     await saveFeatureList(opts.featureListPath, list);
 
     if (consecutiveBlocked >= maxBlocked) {

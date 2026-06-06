@@ -22,6 +22,12 @@ export interface ShouldCompactOptions {
    * Defaults to 0.8 (80 %).
    */
   readonly threshold?: number;
+  /**
+   * The real input-token count from the provider (e.g. the last response's
+   * `usage.inputTokens`, or a `count_tokens` result). When > 0 this is used
+   * instead of the char/4 estimate, so compaction triggers on true token size.
+   */
+  readonly actualTokens?: number;
 }
 
 /** Options for `compact`. */
@@ -43,8 +49,8 @@ const DEFAULT_THRESHOLD = 0.8;
 const DEFAULT_KEEP_RECENT = 6;
 
 /**
- * Returns `true` when the estimated token count of `messages` exceeds
- * `threshold × maxContextTokens`.
+ * Returns `true` when the context size exceeds `threshold × maxContextTokens`.
+ * Prefers the real `actualTokens` count when supplied, else a char/4 estimate.
  */
 export function shouldCompact(
   messages: readonly Message[],
@@ -52,7 +58,11 @@ export function shouldCompact(
 ): boolean {
   const threshold = opts.threshold ?? DEFAULT_THRESHOLD;
   const budget = Math.floor(opts.maxContextTokens * threshold);
-  return estimateMessages(messages) > budget;
+  const used =
+    opts.actualTokens !== undefined && opts.actualTokens > 0
+      ? opts.actualTokens
+      : estimateMessages(messages);
+  return used > budget;
 }
 
 /**
@@ -166,3 +176,6 @@ export async function compact(
 
   return [summaryMessage, ...recentTail];
 }
+
+// `estimateTokens` is re-exported for callers that want a cheap pre-flight size.
+export { estimateTokens };

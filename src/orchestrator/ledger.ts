@@ -8,13 +8,15 @@
  * Any edit, reorder, or truncation of stored entries is detectable via
  * `Ledger.verify()`.
  *
- * The genesis entry (seq 0) uses a fixed 64-zero string as its `prevSig`
- * anchor so the chain is self-contained and requires no external state.
+ * Secret-shaped strings in the data are redacted before signing (ADR 0003), so
+ * the receipt is safe to share. The genesis entry (seq 0) uses a fixed 64-zero
+ * string as its `prevSig` anchor so the chain is self-contained.
  */
 
 import { createHmac } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
+import { redact } from "../security/redact.ts";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -66,6 +68,18 @@ function hmacSha256(secret: string, message: string): string {
 }
 
 /**
+ * Scrub secret-shaped strings from ledger data so the signed Proof Receipt is
+ * safe to share (ADR 0003). Shallow — ledger rows are flat key/value records.
+ */
+function redactData(data: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(data)) {
+    out[k] = typeof v === "string" ? redact(v) : v;
+  }
+  return out;
+}
+
+/**
  * Sign an entry: HMAC over canonical(payload) + prevSig.
  * The payload fields included are the four LedgerPayload fields only —
  * prevSig and sig are NOT part of the signed payload to avoid circularity.
@@ -114,7 +128,8 @@ export class Ledger {
   }
 
   /**
-   * Append a new signed entry to the ledger and return it.
+   * Append a new signed entry to the ledger and return it. Secret-shaped
+   * strings in `data` are redacted before signing.
    *
    * The entry's `seq` is the current entry count (0-based), `prevSig` is the
    * signature of the immediately preceding entry (or GENESIS_PREV_SIG for the
@@ -140,7 +155,7 @@ export class Ledger {
           seq,
           kind,
           ts: this.now(),
-          data,
+          data: redactData(data),
         };
         const sig = signEntry(this.secret, payload, prevSig);
         const entry: LedgerEntry = { ...payload, prevSig, sig };

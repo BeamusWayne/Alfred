@@ -4,16 +4,18 @@
  *
  *   alfred [prompt]      one-shot agent run (-p print mode)
  *   alfred run           autonomous harness: drive feature_list.json to green
+ *   alfred eval <file>   replay recorded trajectories, assert no regressions
  *
  * Text goes to stdout; tool/retry/status traces go to stderr, so
  * `alfred -p "…" | cat` captures a clean answer.
  *
- * Opt-in layers: ALFRED_MEMORY=1 (memory inject + GC, ADR 0001 §4),
- * ALFRED_REPOMAP=1 (repo map, ADR 0002), ALFRED_OTEL_FILE=<path> (OTel spans,
- * ADR 0004), ALFRED_SANDBOX=1 (OS sandbox for bash, ADR 0001 §7.3),
- * ALFRED_PROVIDER=openai + ALFRED_MODEL_* (provider/role routing, ADR 0005),
- * ALFRED_LEDGER_SECRET (sign the autonomous run ledger, ADR 0001 §5.3).
- * Hooks load from .alfred/hooks.json; skills from .alfred/skills/.
+ * Opt-in layers: ALFRED_MEMORY=1 (memory inject/prefetch/GC, ADR 0001 §4),
+ * ALFRED_REPOMAP=1 (repo map, ADR 0002), ALFRED_SANDBOX=1 (OS sandbox, ADR
+ * 0001 §7.3), ALFRED_QUARANTINE=1 (dual-LLM quarantine of untrusted output,
+ * ADR 0003), ALFRED_OTEL_FILE=<path> (OTel spans, ADR 0004), ALFRED_BASE_URL
+ * (Anthropic-compatible endpoint, e.g. GLM), ALFRED_MODEL_{ARCHITECT,EDITOR,
+ * SUBAGENT} (role routing, ADR 0005), ALFRED_LEDGER_SECRET (sign the run
+ * ledger). Hooks load from .alfred/hooks.json; skills from .alfred/skills/.
  */
 import { Command } from "commander";
 import { join, resolve } from "node:path";
@@ -22,6 +24,7 @@ import type { QueryEvent } from "./query/types.ts";
 import { getProvider } from "./providers/index.ts";
 import { buildSystemContext, buildSystemPrompt } from "./context/index.ts";
 import { loadConfig, PERMISSION_MODES, type ConfigOverrides } from "./config/manager.ts";
+import { resolveRole } from "./config/roles.ts";
 import { LocalFileProvider } from "./memory/localFile.ts";
 import { loadHooksConfig } from "./hooks/engine.ts";
 import { createRuntime } from "./orchestrator/runtime.ts";
@@ -86,6 +89,9 @@ async function runOnce(prompt: string, opts: CliOptions): Promise<number> {
   const workingDir = process.cwd();
   const memoryEnabled = Boolean(process.env.ALFRED_MEMORY);
   const memoryRoot = join(workingDir, ".alfred", "memory");
+  // One provider instance drives prefetch (in the engine) and extract (on end).
+  const memory = memoryEnabled ? new LocalFileProvider(memoryRoot) : undefined;
+
   const [sysCtx, hooks] = await Promise.all([
     buildSystemContext(workingDir, {
       repoMap: process.env.ALFRED_REPOMAP ? {} : false,
@@ -109,6 +115,7 @@ async function runOnce(prompt: string, opts: CliOptions): Promise<number> {
       maxContextTokens: cfg.maxContextTokens,
       roles: cfg.roles,
       hooks,
+      memory,
       permissions: {
         mode: cfg.permissionMode,
         allowedTools: new Set(),
@@ -121,11 +128,10 @@ async function runOnce(prompt: string, opts: CliOptions): Promise<number> {
   );
 
   // Memory extract: staleness / contradiction GC on session end (ADR 0001 §4).
-  if (memoryEnabled) {
+  if (memory) {
     try {
-      const mem = new LocalFileProvider(memoryRoot);
-      await mem.extract();
-      mem.close();
+      await memory.extract();
+      memory.close();
     } catch {
       // best-effort; never fail the run on a GC error
     }
@@ -173,6 +179,11 @@ async function runAutonomous(opts: RunCliOptions): Promise<number> {
   const ledgerSecret = process.env.ALFRED_LEDGER_SECRET ?? "alfred-dev-insecure-secret-change-me";
   const ledger = new Ledger(join(runDir, "ledger.jsonl"), ledgerSecret);
 
+  // Architect/editor split (ADR 0005): resolve per-role models from config.
+  const roles = cfg.roles ?? {};
+  const architectModel = resolveRole(roles, "architect", cfg.model).model;
+  const editorModel = resolveRole(roles, "editor", cfg.model).model;
+
   const controller = new AbortController();
   process.on("SIGINT", () => controller.abort());
 
@@ -198,6 +209,8 @@ async function runAutonomous(opts: RunCliOptions): Promise<number> {
     verifyCmd,
     maxFeatures: opts.maxFeatures ? Number(opts.maxFeatures) : undefined,
     rollbackOnBlock: Boolean(opts.rollbackOnBlock),
+    architectModel,
+    editorModel,
     onEvent: (ev: AutonomousEvent) => process.stdout.write(JSON.stringify(ev) + "\n"),
   });
 
