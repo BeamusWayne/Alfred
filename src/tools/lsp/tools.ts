@@ -58,6 +58,64 @@ function toFileUri(path: string): string {
   return `file://${encoded.startsWith("/") ? encoded : `/${encoded}`}`;
 }
 
+/** Map a file extension to an LSP languageId (best-effort; defaults to plaintext). */
+function languageIdFor(path: string): string {
+  const ext = path.slice(path.lastIndexOf(".") + 1).toLowerCase();
+  const map: Record<string, string> = {
+    ts: "typescript",
+    tsx: "typescriptreact",
+    mts: "typescript",
+    cts: "typescript",
+    js: "javascript",
+    jsx: "javascriptreact",
+    mjs: "javascript",
+    cjs: "javascript",
+    json: "json",
+    py: "python",
+    rs: "rust",
+    go: "go",
+    java: "java",
+    c: "c",
+    h: "c",
+    cpp: "cpp",
+    hpp: "cpp",
+    cc: "cpp",
+  };
+  return map[ext] ?? "plaintext";
+}
+
+/**
+ * Open a document on demand before querying it.
+ *
+ * Servers like `typescript-language-server` answer definition/references/hover
+ * only for documents that have been `textDocument/didOpen`-ed. The bootstrap
+ * layer never opens files, so without this every query would come back empty.
+ * We read the file from disk, send `didOpen` once per URI, and remember it so
+ * repeat queries don't re-open. `firstOpen` triggers a brief settle so the
+ * server can index the project before the first request races ahead of it.
+ */
+async function ensureOpen(
+  client: LspClient,
+  opened: Set<string>,
+  uri: string,
+  path: string,
+): Promise<void> {
+  if (opened.has(uri)) return;
+  let text: string;
+  try {
+    text = await Bun.file(path).text();
+  } catch {
+    return; // unreadable — let the query proceed and likely return empty
+  }
+  client.didOpen(uri, languageIdFor(path), text);
+  opened.add(uri);
+  // First open of the session: give the server a moment to load the project so
+  // the immediately-following request sees a fully-indexed document.
+  if (opened.size === 1) {
+    await new Promise<void>((resolve) => setTimeout(resolve, 250));
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Tool factory
 // ---------------------------------------------------------------------------
@@ -68,6 +126,9 @@ function toFileUri(path: string): string {
  * in src/index.ts once `bootstrapLsp` is wired up).
  */
 export function makeLspTools(client: LspClient): readonly Tool[] {
+  // URIs already sent to the server via didOpen, shared across all three tools.
+  const opened = new Set<string>();
+
   const lspDefinition = buildTool({
     name: "lsp_definition",
     description:
@@ -83,6 +144,7 @@ export function makeLspTools(client: LspClient): readonly Tool[] {
       const uri = toFileUri(input.path);
       const pos = { line: input.line, character: input.character };
       try {
+        await ensureOpen(client, opened, uri, input.path);
         const locations = await client.definition(uri, pos);
         return { content: formatLocations(locations) };
       } catch (err: unknown) {
@@ -107,6 +169,7 @@ export function makeLspTools(client: LspClient): readonly Tool[] {
       const uri = toFileUri(input.path);
       const pos = { line: input.line, character: input.character };
       try {
+        await ensureOpen(client, opened, uri, input.path);
         const locations = await client.references(uri, pos);
         return { content: formatLocations(locations) };
       } catch (err: unknown) {
@@ -131,6 +194,7 @@ export function makeLspTools(client: LspClient): readonly Tool[] {
       const uri = toFileUri(input.path);
       const pos = { line: input.line, character: input.character };
       try {
+        await ensureOpen(client, opened, uri, input.path);
         const text = await client.hover(uri, pos);
         return { content: text ?? "(no hover info)" };
       } catch (err: unknown) {

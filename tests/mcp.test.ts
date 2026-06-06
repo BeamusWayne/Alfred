@@ -444,3 +444,26 @@ describe("mcpToolToAlfredTool", () => {
     expect(result.content).toBe("file contents here");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Tests: request timeout (a dead server must not hang the agent)
+// ---------------------------------------------------------------------------
+
+describe("McpClient request timeout", () => {
+  test("rejects a request when the server never responds", async () => {
+    const fake = fakeTransport(); // no autoRespond → nothing ever comes back
+    const client = new McpClient(fake.transport, { requestTimeoutMs: 20 });
+    await expect(client.initialize()).rejects.toThrow(/timed out/);
+  });
+
+  test("does not time out when the server responds in time", async () => {
+    const fake = fakeTransport();
+    autoRespond(fake, () => ({
+      protocolVersion: "2024-11-05",
+      capabilities: {},
+      serverInfo: { name: "s", version: "1" },
+    }));
+    const client = new McpClient(fake.transport, { requestTimeoutMs: 1000 });
+    await expect(client.initialize()).resolves.toBeUndefined();
+  });
+});

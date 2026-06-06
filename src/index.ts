@@ -40,6 +40,7 @@ import { VERSION } from "./version.ts";
 
 const dim = (s: string) => (process.stderr.isTTY ? `\x1b[2m${s}\x1b[0m` : s);
 const red = (s: string) => (process.stderr.isTTY ? `\x1b[31m${s}\x1b[0m` : s);
+const yellow = (s: string) => (process.stderr.isTTY ? `\x1b[33m${s}\x1b[0m` : s);
 
 function renderEvent(ev: QueryEvent): void {
   switch (ev.type) {
@@ -101,7 +102,10 @@ async function runOnce(prompt: string, opts: CliOptions): Promise<number> {
       memoryRoot: memoryEnabled ? memoryRoot : false,
     }),
     loadHooksConfig(join(workingDir, ".alfred", "hooks.json")),
-    bootstrapExtensions(workingDir),
+    bootstrapExtensions(workingDir, {
+      // Surface MCP/LSP launch failures instead of silently exposing no tools.
+      onWarn: (m) => process.stderr.write(yellow(`[ext] ${m}\n`)),
+    }),
   ]);
   const systemPrompt = buildSystemPrompt(sysCtx);
 

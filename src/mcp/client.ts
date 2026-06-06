@@ -32,6 +32,19 @@ import { isJsonRpcError } from "./types.ts";
 interface PendingCall {
   readonly resolve: (value: unknown) => void;
   readonly reject: (reason: unknown) => void;
+  /** Timer that rejects the call if the server never responds (optional). */
+  readonly timer?: ReturnType<typeof setTimeout>;
+}
+
+/** Options for {@link McpClient}. */
+export interface McpClientOptions {
+  /**
+   * Reject any request that gets no response within this many milliseconds.
+   * Without it a dead or non-conforming server makes every call hang forever,
+   * which silently stalls the whole agent. Omit (the default) for the in-memory
+   * fakes used by unit tests, where responses are synchronous.
+   */
+  readonly requestTimeoutMs?: number;
 }
 
 /** Narrow an `unknown` frame to a typed JSON-RPC response, or return null. */
@@ -67,11 +80,13 @@ function flattenContent(items: readonly McpContentItem[]): string {
 
 export class McpClient {
   private readonly transport: McpTransport;
+  private readonly requestTimeoutMs?: number;
   private nextId = 1;
   private readonly pending = new Map<JsonRpcId, PendingCall>();
 
-  constructor(transport: McpTransport) {
+  constructor(transport: McpTransport, options: McpClientOptions = {}) {
     this.transport = transport;
+    this.requestTimeoutMs = options.requestTimeoutMs;
     this.transport.onMessage((json) => this.handleMessage(json));
   }
 
@@ -148,14 +163,45 @@ export class McpClient {
         method,
         ...(params !== undefined ? { params } : {}),
       };
-      this.pending.set(id, { resolve, reject });
-      this.transport.send(JSON.stringify(message));
+
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      if (this.requestTimeoutMs !== undefined) {
+        timer = setTimeout(() => {
+          if (this.pending.delete(id)) {
+            reject(
+              new Error(
+                `MCP request "${method}" (id ${id}) timed out after ${this.requestTimeoutMs}ms`,
+              ),
+            );
+          }
+        }, this.requestTimeoutMs);
+        // Don't keep the process alive solely for this timer.
+        (timer as { unref?: () => void }).unref?.();
+      }
+
+      this.pending.set(id, { resolve, reject, timer });
+
+      // A spawn/pipe failure surfaces here as a synchronous throw; settle the
+      // call immediately instead of leaving it pending until the timeout.
+      try {
+        this.transport.send(JSON.stringify(message));
+      } catch (err) {
+        if (this.pending.delete(id)) {
+          if (timer !== undefined) clearTimeout(timer);
+          reject(err instanceof Error ? err : new Error(String(err)));
+        }
+      }
     });
   }
 
   private notify(method: string, params: Record<string, unknown>): void {
     const message: JsonRpcNotification = { jsonrpc: "2.0", method, params };
-    this.transport.send(JSON.stringify(message));
+    // Notifications are fire-and-forget; a broken pipe must not throw.
+    try {
+      this.transport.send(JSON.stringify(message));
+    } catch {
+      // best-effort
+    }
   }
 
   private handleMessage(json: string): void {
@@ -168,6 +214,7 @@ export class McpClient {
     const pending = this.pending.get(id);
     if (pending === undefined) return;
     this.pending.delete(id);
+    if (pending.timer !== undefined) clearTimeout(pending.timer);
 
     if (isJsonRpcError(response)) {
       const { code, message } = response.error;
@@ -182,6 +229,16 @@ export class McpClient {
 // stdioTransport — production transport (Bun.spawn, not exercised by unit tests)
 // ---------------------------------------------------------------------------
 
+/** Spawn the server with piped stdio; the inferred return type carries the
+ * precise FileSink/ReadableStream handles the transport relies on. */
+function spawnMcpProc(command: string, args: readonly string[]) {
+  return Bun.spawn([command, ...args], {
+    stdin: "pipe",
+    stdout: "pipe",
+    stderr: "inherit",
+  });
+}
+
 /**
  * Bun.spawn-backed transport for a real MCP server process.
  * Messages are newline-delimited JSON on the process's stdin/stdout.
@@ -190,11 +247,17 @@ export function stdioTransport(
   command: string,
   args: readonly string[] = [],
 ): McpTransport {
-  const proc = Bun.spawn([command, ...args], {
-    stdin: "pipe",
-    stdout: "pipe",
-    stderr: "inherit",
-  });
+  // IIFE keeps `proc`'s precise piped-stdio types while still catching the
+  // synchronous throw a missing binary produces; the rethrow names the command
+  // so the bootstrap layer can report exactly which server failed to launch.
+  const proc = ((): ReturnType<typeof spawnMcpProc> => {
+    try {
+      return spawnMcpProc(command, args);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(`failed to spawn MCP server "${command}": ${msg}`);
+    }
+  })();
 
   const listeners: Array<(json: string) => void> = [];
   let buffer = "";

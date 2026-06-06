@@ -3,7 +3,7 @@
 Alfred adds structural and semantic code awareness in three layers, defined in [ADR 0002](/adr/0002-code-intelligence): a **repo map** for whole-repo structural context, a **post-edit syntax check** to prevent broken code from reaching disk, and an **LSP client** for IDE-grade go-to-definition, find-references, hover, and diagnostics.
 
 ::: info Bootstrap status
-All three libraries are fully built and unit-tested. The repo map and LSP client are not yet wired into the startup sequence — that follow-up is tracked as the next P1/P2 integration step.
+All three libraries are fully built and unit-tested. The **LSP client is wired into startup**: `bootstrapExtensions()` connects every server declared in `.alfred/lsp.json` before the first model turn and exposes `lsp_definition` / `lsp_references` / `lsp_hover` (see [Configuration](#configuration-alfred-lsp-json)). The repo map remains an opt-in library pending its own startup wiring.
 :::
 
 ---
@@ -133,11 +133,18 @@ interface LspTransport {
 
 The transport delivers one complete JSON payload per `onMessage` callback. The production `stdioTransport(command, args)` factory spawns a language server process with `Bun.spawn` and pumps stdout through a stateful `createFrameParser` — a streaming parser that reassembles LSP `Content-Length`-framed messages across arbitrary chunk boundaries. Unit tests supply in-memory fake transports and never need a live language server.
 
+Two robustness properties matter for real servers:
+
+- **Byte-accurate framing.** `Content-Length` is a UTF-8 *byte* count. The parser buffers raw bytes and decodes only complete frame bodies, so a multi-byte character (a non-ASCII identifier, an emoji in a string) split across two OS-pipe reads never desynchronises the stream. The transport feeds the parser raw `Uint8Array` chunks; the parser also accepts strings for test convenience.
+- **Spawn errors surface.** A missing binary makes `Bun.spawn` throw synchronously; `stdioTransport` rethrows it as `failed to spawn LSP server "<command>": <reason>` so the bootstrap layer can report exactly which server failed.
+
 **`encodeMessage(obj)`** serialises any object to LSP wire format: `Content-Length: N\r\n\r\n<json>`.
 
 ### `LspClient`
 
 `LspClient` manages the LSP lifecycle and correlates requests to responses using auto-incrementing integer IDs, mirroring the pattern used by `McpClient`.
+
+**Construction:** `new LspClient(transport, { requestTimeoutMs })`. When `requestTimeoutMs` is set, any request without a response in that window rejects with a clear timeout error instead of hanging forever — a dead or non-conforming server can otherwise stall the whole agent. `bootstrapExtensions` passes its `connectTimeoutMs` (default 15 s) here. Unit-test fakes omit it (their responses are synchronous).
 
 **Lifecycle methods:**
 
@@ -179,6 +186,29 @@ client.diagnostics(uri): readonly Diagnostic[]
 
 All three accept `{ path, line, character }` where `path` is absolute and `line`/`character` are 0-based. The tools convert path → `file://` URI before forwarding to the client, and convert response URIs back to absolute paths for display. They return `(no results)` or `(no hover info)` rather than errors when the server has nothing to say.
 
-::: tip Integration note
-Pass the array returned by `makeLspTools(client)` as `tools` in `runQuery` config once `bootstrapLsp` is wired at startup. The ADR 0002 source references `src/index.ts` as the integration point.
+**Open-on-demand.** Servers like `typescript-language-server` answer queries only for documents that have been `textDocument/didOpen`-ed. The tools therefore read the file from disk and send `didOpen` (with a languageId inferred from the extension) the first time a URI is queried, remembering it so repeat queries don't re-open. The first open of a session waits briefly so the server can index the project before the request races ahead. This is why a freshly bootstrapped `lsp_hover` returns real type information rather than an empty result.
+
+## Configuration: `.alfred/lsp.json` {#configuration-alfred-lsp-json}
+
+Declare one entry per language server. Alfred validates the file and connects each server at startup; a failure is non-fatal but printed as a `[ext] …` warning.
+
+```json
+{
+  "servers": [
+    {
+      "command": "node_modules/.bin/typescript-language-server",
+      "args": ["--stdio"]
+    }
+  ]
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `command` | `string` | yes | Server executable. Must be on `$PATH` or an absolute/relative path that resolves. |
+| `args` | `string[]` | no | Arguments after `command` (e.g. `["--stdio"]`). |
+| `rootUri` | `string` | no | Project root URI. Defaults to `file://<workingDir>`. |
+
+::: tip Use a real binary, not `bunx -y` / `npx -y`
+Install the server (`bun add -d typescript typescript-language-server`, or globally) and point `command` at the resolved binary. A first-run `bunx -y …` can emit resolution output and cold-start latency on the stdio channel the handshake needs, which may trip the connect timeout. The verified-working setup above drives a real `typescript-language-server` through `bootstrapExtensions` and returns live hover/definition data. For diagnosing a server that won't connect, see [MCP → Troubleshooting](/extensibility/mcp#troubleshooting) — the launch path and warnings are shared.
 :::

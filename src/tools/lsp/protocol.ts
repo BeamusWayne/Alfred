@@ -82,40 +82,79 @@ export function encodeMessage(obj: unknown): string {
   return `Content-Length: ${Buffer.byteLength(body, "utf8")}${HEADER_SEP}${body}`;
 }
 
+/** Index of the first occurrence of byte sequence `needle` in `hay`, or -1. */
+function indexOfBytes(hay: Uint8Array, needle: Uint8Array): number {
+  const last = hay.length - needle.length;
+  outer: for (let i = 0; i <= last; i++) {
+    for (let j = 0; j < needle.length; j++) {
+      if (hay[i + j] !== needle[j]) continue outer;
+    }
+    return i;
+  }
+  return -1;
+}
+
 /**
  * Return a stateful chunk consumer that calls `onMessage` exactly once for
  * each complete LSP Content-Length-framed message, even if the message
  * arrives split across multiple chunks.
  *
- * The returned function may be called with any number of raw string chunks in
- * any order; it buffers internally and is safe to call sequentially.
+ * The returned function accepts either decoded strings (convenient for unit
+ * tests) or raw `Uint8Array` chunks (what the stdio transport reads). Framing
+ * is computed on BYTES, not characters: `Content-Length` is a UTF-8 byte count
+ * per the LSP spec, so slicing a decoded JS string by that number would
+ * over-read on any multi-byte content (e.g. non-ASCII identifiers, emoji) and
+ * desynchronise every subsequent frame. Buffering raw bytes and decoding only
+ * complete frame bodies keeps the parser correct for all UTF-8 input.
+ *
+ * It buffers internally and is safe to call sequentially with any chunking.
  */
-export function createFrameParser(onMessage: (json: string) => void): (chunk: string) => void {
-  let buffer = "";
+export function createFrameParser(
+  onMessage: (json: string) => void,
+): (chunk: string | Uint8Array) => void {
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
+  const separator = encoder.encode(HEADER_SEP);
+  // Widened element type: appended chunks may be backed by ArrayBuffer or a
+  // SharedArrayBuffer, and `new Uint8Array(n)` is ArrayBuffer-backed — both
+  // unify under the default `ArrayBufferLike` parameter.
+  let buffer: Uint8Array = new Uint8Array(0);
 
-  return function consumeChunk(chunk: string): void {
-    buffer += chunk;
+  function append(bytes: Uint8Array): void {
+    if (buffer.length === 0) {
+      buffer = bytes;
+      return;
+    }
+    const merged = new Uint8Array(buffer.length + bytes.length);
+    merged.set(buffer);
+    merged.set(bytes, buffer.length);
+    buffer = merged;
+  }
+
+  return function consumeChunk(chunk: string | Uint8Array): void {
+    append(typeof chunk === "string" ? encoder.encode(chunk) : chunk);
 
     // Keep consuming complete frames from the front of the buffer.
     while (true) {
-      const sepIdx = buffer.indexOf(HEADER_SEP);
+      const sepIdx = indexOfBytes(buffer, separator);
       if (sepIdx === -1) break; // header not yet complete
 
-      const headerSection = buffer.slice(0, sepIdx);
+      const headerSection = decoder.decode(buffer.subarray(0, sepIdx));
       const match = CONTENT_LENGTH_RE.exec(headerSection);
       if (match === null) {
-        // Malformed header — discard up to and including the separator.
-        buffer = buffer.slice(sepIdx + HEADER_SEP.length);
+        // Malformed header or non-LSP preamble (e.g. a launcher banner) —
+        // discard up to and including the separator and resynchronise.
+        buffer = buffer.slice(sepIdx + separator.length);
         continue;
       }
 
       const contentLength = parseInt(match[1] ?? "0", 10);
-      const bodyStart = sepIdx + HEADER_SEP.length;
-      const bodyEnd = bodyStart + contentLength;
+      const bodyStart = sepIdx + separator.length;
+      const bodyEnd = bodyStart + contentLength; // byte offsets, per the spec
 
       if (buffer.length < bodyEnd) break; // body not yet complete
 
-      const body = buffer.slice(bodyStart, bodyEnd);
+      const body = decoder.decode(buffer.subarray(bodyStart, bodyEnd));
       buffer = buffer.slice(bodyEnd);
       onMessage(body);
     }

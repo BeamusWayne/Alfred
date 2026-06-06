@@ -43,6 +43,19 @@ type JsonRpcId = number;
 interface PendingCall {
   readonly resolve: (value: unknown) => void;
   readonly reject: (reason: unknown) => void;
+  /** Timer that rejects the call if the server never responds (optional). */
+  readonly timer?: ReturnType<typeof setTimeout>;
+}
+
+/** Options for {@link LspClient}. */
+export interface LspClientOptions {
+  /**
+   * Reject any request that gets no response within this many milliseconds.
+   * Without it a dead or non-conforming server makes every call hang forever,
+   * which silently stalls the whole agent. Omit (the default) for the in-memory
+   * fakes used by unit tests, where responses are synchronous.
+   */
+  readonly requestTimeoutMs?: number;
 }
 
 interface JsonRpcFrame {
@@ -126,13 +139,15 @@ function extractHoverText(raw: unknown): string | null {
 
 export class LspClient {
   private readonly transport: LspTransport;
+  private readonly requestTimeoutMs?: number;
   private nextId = 1;
   private readonly pending = new Map<JsonRpcId, PendingCall>();
   /** uri → latest diagnostics list from publishDiagnostics notifications */
   private readonly diagCache = new Map<string, readonly Diagnostic[]>();
 
-  constructor(transport: LspTransport) {
+  constructor(transport: LspTransport, options: LspClientOptions = {}) {
     this.transport = transport;
+    this.requestTimeoutMs = options.requestTimeoutMs;
     this.transport.onMessage((json) => this.handleMessage(json));
   }
 
@@ -231,14 +246,46 @@ export class LspClient {
         method,
         ...(params !== undefined ? { params } : {}),
       };
-      this.pending.set(id, { resolve, reject });
-      this.transport.send(JSON.stringify(message));
+
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      if (this.requestTimeoutMs !== undefined) {
+        timer = setTimeout(() => {
+          if (this.pending.delete(id)) {
+            reject(
+              new Error(
+                `LSP request "${method}" (id ${id}) timed out after ${this.requestTimeoutMs}ms`,
+              ),
+            );
+          }
+        }, this.requestTimeoutMs);
+        // Don't keep the process alive solely for this timer.
+        (timer as { unref?: () => void }).unref?.();
+      }
+
+      this.pending.set(id, { resolve, reject, timer });
+
+      // A spawn/pipe failure surfaces here as a synchronous throw; settle the
+      // call immediately instead of leaving it pending until the timeout.
+      try {
+        this.transport.send(JSON.stringify(message));
+      } catch (err) {
+        if (this.pending.delete(id)) {
+          if (timer !== undefined) clearTimeout(timer);
+          reject(err instanceof Error ? err : new Error(String(err)));
+        }
+      }
     });
   }
 
   private notify(method: string, params: Record<string, unknown>): void {
     const message = { jsonrpc: "2.0" as const, method, params };
-    this.transport.send(JSON.stringify(message));
+    // Notifications are fire-and-forget; a broken pipe (e.g. the server already
+    // exited) must not throw out of didOpen/initialized/exit.
+    try {
+      this.transport.send(JSON.stringify(message));
+    } catch {
+      // best-effort
+    }
   }
 
   private handleMessage(json: string): void {
@@ -256,6 +303,7 @@ export class LspClient {
       const pending = this.pending.get(frame.id);
       if (pending === undefined) return;
       this.pending.delete(frame.id);
+      if (pending.timer !== undefined) clearTimeout(pending.timer);
 
       if (frame.error !== undefined) {
         pending.reject(
@@ -304,6 +352,16 @@ export class LspClient {
 // stdioTransport — production transport (Bun.spawn, not exercised by unit tests)
 // ---------------------------------------------------------------------------
 
+/** Spawn the server with piped stdio; the inferred return type carries the
+ * precise FileSink/ReadableStream handles the transport relies on. */
+function spawnLspProc(command: string, args: readonly string[]) {
+  return Bun.spawn([command, ...args], {
+    stdin: "pipe",
+    stdout: "pipe",
+    stderr: "inherit",
+  });
+}
+
 /**
  * Bun.spawn-backed transport for a real language server process.
  * Messages use LSP Content-Length framing on stdin/stdout.
@@ -312,11 +370,17 @@ export function stdioTransport(
   command: string,
   args: readonly string[] = [],
 ): LspTransport {
-  const proc = Bun.spawn([command, ...args], {
-    stdin: "pipe",
-    stdout: "pipe",
-    stderr: "inherit",
-  });
+  // IIFE keeps `proc`'s precise piped-stdio types while still catching the
+  // synchronous throw a missing binary produces; the rethrow names the command
+  // so the bootstrap layer can report exactly which server failed to launch.
+  const proc = ((): ReturnType<typeof spawnLspProc> => {
+    try {
+      return spawnLspProc(command, args);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(`failed to spawn LSP server "${command}": ${msg}`);
+    }
+  })();
 
   const listeners: Array<(json: string) => void> = [];
   const parser = createFrameParser((json) => {
@@ -325,14 +389,15 @@ export function stdioTransport(
     }
   });
 
-  // Pump stdout through the frame parser in the background.
+  // Pump stdout through the frame parser in the background. Raw bytes are fed
+  // straight in: the parser frames on byte offsets and decodes complete bodies
+  // itself, so a multi-byte character split across two reads stays correct.
   (async () => {
     const reader = proc.stdout.getReader();
-    const decoder = new TextDecoder();
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      parser(decoder.decode(value, { stream: true }));
+      parser(value);
     }
   })();
 

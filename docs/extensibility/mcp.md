@@ -2,8 +2,8 @@
 
 Alfred includes a production-ready MCP client and tool adapter (`src/mcp/client.ts`, `src/mcp/toolAdapter.ts`). The client speaks the full MCP JSON-RPC 2.0 lifecycle — `initialize`, `tools/list`, `tools/call` — over a stdio transport. Every result returned by an MCP server is fenced as `untrusted` so the query engine cannot be prompt-injected through server-controlled content.
 
-::: warning Startup auto-wiring is a documented follow-up
-The MCP client and adapter are fully built and tested today. However, Alfred does **not yet automatically connect to MCP servers at startup**. There is no built-in `.alfred/mcp.json` loader wired into `src/index.ts`. This page documents the intended configuration format and the existing library surface so you can wire it yourself — and describes what the planned auto-wiring will look like when it ships.
+::: tip Startup auto-wiring is live
+`alfred` connects to every MCP and LSP server declared in `.alfred/mcp.json` and `.alfred/lsp.json` **before the first model turn**, via `bootstrapExtensions()` in `src/extensions/bootstrap.ts` (wired into `src/index.ts`). A server that fails to launch is **non-fatal but never silent** — Alfred prints a `[ext] … failed to connect: <reason>` warning and continues. See [Troubleshooting](#troubleshooting) below.
 :::
 
 ## Architecture
@@ -89,39 +89,52 @@ All MCP tool results set `untrusted: true`. The query engine in `src/query/engin
 
 This defends against prompt-injection attacks where a malicious MCP server embeds instructions in its response content (ADR 0003 — the lethal-trifecta mitigation). The model is instructed by the system prompt to treat content inside `<untrusted-data>` as data only.
 
-## Intended `.alfred/mcp.json` configuration format
+## `.alfred/mcp.json` configuration format
 
-When startup auto-wiring ships, Alfred will read `.alfred/mcp.json` and connect to each listed server before the first model turn. The intended shape is:
+Place an `.alfred/mcp.json` in your working directory. Alfred validates it with the Zod schema in `src/extensions/bootstrap.ts` and connects each server at startup. A missing or malformed file is skipped silently (it is optional); a server that is present but fails to launch produces a visible warning.
 
 ```json
 {
   "servers": [
-    {
-      "name": "filesystem",
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
-    },
-    {
-      "name": "github",
-      "command": "/usr/local/bin/mcp-github",
-      "args": [],
-      "env": {
-        "GITHUB_TOKEN": "${GITHUB_TOKEN}"
-      }
-    }
+    { "command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"] },
+    { "command": "/usr/local/bin/mcp-github" }
   ]
 }
 ```
 
-| Field | Type | Description |
-|---|---|---|
-| `name` | `string` | Human-readable label; used in log output. |
-| `command` | `string` | Executable to spawn via `stdioTransport`. |
-| `args` | `string[]` | Positional arguments passed after `command`. |
-| `env` | `Record<string, string>` | Additional environment variables for the server process. `${VAR}` references are expanded from the parent environment. |
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `command` | `string` | yes | Executable to spawn via `stdioTransport`. Must be on `$PATH` or an absolute path. |
+| `args` | `string[]` | no | Positional arguments passed after `command`. |
 
-::: info Wiring it yourself today
-Until auto-wiring ships you can connect MCP servers by calling `stdioTransport`, `McpClient`, and `mcpToolToAlfredTool` directly in a thin wrapper around `runQuery`, then passing the resulting `Tool[]` via `QueryConfig.tools`. See the adapter example above.
+::: warning The schema is exactly `{ command, args? }`
+Earlier drafts of this page showed `name` and `env` fields. Those are **not** part of the implemented schema and are rejected by validation. Set environment variables for the server in Alfred's own environment before launch (the child inherits it), and identify servers by their `command` in log output.
+:::
+
+## Troubleshooting: a server didn't connect {#troubleshooting}
+
+If a configured server exposes no tools, Alfred tells you why. At startup you will see a line like:
+
+```
+[ext] MCP server "npx -y @modelcontextprotocol/server-bad" failed to connect: <reason>
+```
+
+The same messages are collected in `BootstrapResult.warnings`. Common causes and fixes:
+
+| Symptom in the warning | Cause | Fix |
+|---|---|---|
+| `Executable not found in $PATH: "…"` | The `command` isn't installed or isn't on `$PATH`. | Install the server, or point `command` at an absolute path. |
+| `… timed out after 15000ms` | The process launched but never completed the JSON-RPC handshake (wrong flags, not actually a stdio server, or it crashed). | Run the exact `command args` by hand and confirm it speaks MCP/LSP on stdio. Override the window with `connectTimeoutMs` if a cold start legitimately needs longer. |
+| No warning, but also no tools | The config file is missing or malformed (it is parsed leniently and skipped). | Check the path is `.alfred/mcp.json` and the JSON is valid. |
+
+::: tip Prefer a real binary over `bunx -y` / `npx -y` for stdio servers
+A first-run `bunx -y …` / `npx -y …` may print resolution progress and add cold-start latency on the very channel the JSON-RPC handshake needs, which can trip the connect timeout. For reliable startup, install the server as a project or global dependency and point `command` at the resolved binary (e.g. `node_modules/.bin/<server>` or an absolute path). Alfred's frame parser tolerates a leading non-protocol banner, but a clean binary is the dependable path.
+:::
+
+The connection path is covered end-to-end: a real `typescript-language-server` is driven through `bootstrapExtensions` in verification, and `tests/bootstrap.test.ts` asserts that an un-spawnable command yields a warning rather than a silent empty tool set.
+
+::: info Using the library directly
+You can still bypass config and connect MCP servers in code by calling `stdioTransport`, `McpClient`, and `mcpToolToAlfredTool` directly, then passing the resulting `Tool[]` via `QueryConfig.tools`. See the adapter example above. Pass `{ requestTimeoutMs }` to `new McpClient(transport, …)` so a dead server rejects instead of hanging.
 :::
 
 ## JSON-RPC wire types

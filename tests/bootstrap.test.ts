@@ -411,4 +411,43 @@ describe("bootstrapExtensions", () => {
     expect(result.tools).toEqual([]);
     await expect(result.close()).resolves.toBeUndefined();
   });
+
+  test("warnings is empty when no servers are configured", async () => {
+    const dir = await makeTmpDir();
+    const result = await bootstrapExtensions(dir);
+    expect(result.warnings).toEqual([]);
+  });
+
+  test("surfaces a warning (never silent) when a server fails to spawn", async () => {
+    // A command that cannot be launched makes Bun.spawn throw ENOENT. The old
+    // behaviour swallowed this in a bare catch, so a launch failure looked
+    // identical to "no servers configured". It must now be reported.
+    const dir = await makeTmpDir();
+    const alfredDir = path.join(dir, ".alfred");
+    await fs.mkdir(alfredDir);
+    const bogus = "alfred-nonexistent-binary-xyz";
+    await fs.writeFile(
+      path.join(alfredDir, "lsp.json"),
+      JSON.stringify({ servers: [{ command: bogus, args: ["--stdio"] }] }),
+      "utf8",
+    );
+    await fs.writeFile(
+      path.join(alfredDir, "mcp.json"),
+      JSON.stringify({ servers: [{ command: bogus }] }),
+      "utf8",
+    );
+
+    const seen: string[] = [];
+    const result = await bootstrapExtensions(dir, {
+      connectTimeoutMs: 500, // fail fast even if the binary spawns then dies
+      onWarn: (m) => seen.push(m),
+    });
+
+    expect(result.tools).toEqual([]);
+    expect(result.warnings.length).toBe(2); // one LSP + one MCP
+    expect(seen).toEqual([...result.warnings]); // onWarn received the same lines
+    expect(result.warnings.some((w) => w.includes("LSP") && w.includes(bogus))).toBe(true);
+    expect(result.warnings.some((w) => w.includes("MCP") && w.includes(bogus))).toBe(true);
+    await expect(result.close()).resolves.toBeUndefined();
+  });
 });

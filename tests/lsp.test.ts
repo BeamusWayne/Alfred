@@ -68,6 +68,27 @@ function lastSent(t: FakeTransport): Record<string, unknown> {
   return JSON.parse(raw) as Record<string, unknown>;
 }
 
+/**
+ * Wait until the client has sent a request (a message with both `method` and
+ * `id`) for `method`, then return it. The LSP tools open the document first via
+ * an async file read, so the query request is not sent synchronously from
+ * `call()` — polling the microtask queue is the robust way to catch it.
+ */
+async function waitForRequest(
+  t: FakeTransport,
+  method: string,
+  maxTicks = 50,
+): Promise<Record<string, unknown>> {
+  for (let i = 0; i < maxTicks; i++) {
+    for (let j = t.sent.length - 1; j >= 0; j--) {
+      const msg = JSON.parse(t.sent[j]!) as Record<string, unknown>;
+      if (msg["method"] === method && "id" in msg) return msg;
+    }
+    await new Promise((r) => setTimeout(r, 0));
+  }
+  throw new Error(`request "${method}" was not sent within ${maxTicks} ticks`);
+}
+
 // ---------------------------------------------------------------------------
 // Tests: encodeMessage / createFrameParser
 // ---------------------------------------------------------------------------
@@ -115,6 +136,52 @@ describe("encodeMessage + createFrameParser", () => {
     expect(received).toHaveLength(2);
     expect(JSON.parse(received[0]!)).toEqual(msg1);
     expect(JSON.parse(received[1]!)).toEqual(msg2);
+  });
+
+  test("frames on byte length, not character count, for multi-byte UTF-8", () => {
+    // Content-Length is a UTF-8 byte count. This body's byte length exceeds its
+    // JS string length, so slicing the decoded string by that number would
+    // over-read and desync the following frame. Byte-accurate framing keeps
+    // both intact — and we feed raw Uint8Array chunks split mid-character, the
+    // exact shape the stdio transport delivers from the OS pipe.
+    const msg1 = { jsonrpc: "2.0", id: 1, result: { value: "café — 日本語 🚀" } };
+    const msg2 = { jsonrpc: "2.0", id: 2, result: "next" };
+    const bytes = new TextEncoder().encode(encodeMessage(msg1) + encodeMessage(msg2));
+
+    const received: string[] = [];
+    const consume = createFrameParser((json) => received.push(json));
+
+    // 0x9F is a UTF-8 continuation byte inside 🚀 (F0 9F 9A 80) — splitting
+    // here lands in the middle of a multi-byte character.
+    const cut = bytes.indexOf(0x9f);
+    const at = cut > 0 ? cut : Math.floor(bytes.length / 2);
+    consume(bytes.subarray(0, at));
+    consume(bytes.subarray(at));
+
+    expect(received).toHaveLength(2);
+    expect(JSON.parse(received[0]!)).toEqual(msg1);
+    expect(JSON.parse(received[1]!)).toEqual(msg2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests: LspClient request timeout (a dead server must not hang the agent)
+// ---------------------------------------------------------------------------
+
+describe("LspClient request timeout", () => {
+  test("rejects a request when the server never responds", async () => {
+    const t = makeFakeTransport();
+    const client = new LspClient(t, { requestTimeoutMs: 20 });
+    // The fake never delivers a response → the timeout must fire.
+    await expect(client.initialize("file:///workspace")).rejects.toThrow(/timed out/);
+  });
+
+  test("does not time out when the server responds in time", async () => {
+    const t = makeFakeTransport();
+    const client = new LspClient(t, { requestTimeoutMs: 1000 });
+    const p = client.initialize("file:///workspace");
+    t.deliver(successResponse(1, { capabilities: {} }));
+    await expect(p).resolves.toBeUndefined();
   });
 });
 
@@ -361,7 +428,7 @@ describe("lsp_definition tool", () => {
     const callPromise = defTool!.call({ path: "/ws/src/index.ts", line: 5, character: 3 }, ctx);
 
     // The tool converts path to file URI and calls client.definition — respond
-    const defReq = JSON.parse(t.sent[t.sent.length - 1]!) as Record<string, unknown>;
+    const defReq = await waitForRequest(t, "textDocument/definition");
     t.deliver(
       successResponse(defReq["id"] as number, [
         { uri: "file:///ws/lib/utils.ts", range: { start: { line: 11, character: 0 }, end: { line: 11, character: 12 } } },
@@ -392,7 +459,7 @@ describe("lsp_definition tool", () => {
     };
 
     const callP = defTool.call({ path: "/ws/src/index.ts", line: 0, character: 0 }, ctx);
-    const req = JSON.parse(t.sent[t.sent.length - 1]!) as Record<string, unknown>;
+    const req = await waitForRequest(t, "textDocument/definition");
     t.deliver(successResponse(req["id"] as number, null));
 
     const result = await callP;
