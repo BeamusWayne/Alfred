@@ -13,6 +13,9 @@
  *   - No external dependencies; the FileExporter is a tiny JSONL serialiser.
  */
 
+import { appendFileSync, mkdirSync } from "node:fs";
+import { dirname } from "node:path";
+
 // ---------------------------------------------------------------------------
 // Attribute key constants (OTel GenAI semantic conventions)
 // ---------------------------------------------------------------------------
@@ -64,24 +67,28 @@ export class NoopExporter implements SpanExporter {
 
 export class FileExporter implements SpanExporter {
   private readonly path: string;
-  /**
-   * Serialise all writes through a promise chain so concurrent end() calls
-   * never interleave their read-then-write sequences.
-   */
-  private writeQueue: Promise<void> = Promise.resolve();
+  private dirReady = false;
 
   constructor(path: string) {
     this.path = path;
   }
 
-  export(span: Span): Promise<void> {
-    this.writeQueue = this.writeQueue.then(async (): Promise<void> => {
-      const line = JSON.stringify(span) + "\n";
-      const existing = Bun.file(this.path);
-      const prior = (await existing.exists()) ? await existing.text() : "";
-      await Bun.write(this.path, prior + line);
-    });
-    return this.writeQueue;
+  /**
+   * Append the span synchronously. Synchronous I/O is deliberate: spans are
+   * small and infrequent, and a sync append guarantees every span — including
+   * the last one, ended just before `process.exit` — actually lands on disk.
+   * An async write queue races the exit and silently drops the final span.
+   */
+  export(span: Span): void {
+    if (!this.dirReady) {
+      try {
+        mkdirSync(dirname(this.path), { recursive: true });
+      } catch {
+        // parent dir may already exist
+      }
+      this.dirReady = true;
+    }
+    appendFileSync(this.path, JSON.stringify(span) + "\n");
   }
 }
 
