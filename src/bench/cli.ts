@@ -47,7 +47,7 @@ if (args.length === 0) {
   process.stderr.write(
     "Usage: bun run src/bench/cli.ts <spec.json>\n" +
       "       <spec.json> must be a JSON file matching BenchSpec:\n" +
-      "         { targetDir, heldOutTestsDir, featureListPath, testCmd }\n",
+      "         { targetDir, heldOutTestsDir, featureListPath, buildCmd, testCmd }\n",
   );
   process.exit(1);
 }
@@ -68,10 +68,11 @@ try {
     typeof (raw as Record<string, unknown>)["targetDir"] !== "string" ||
     typeof (raw as Record<string, unknown>)["heldOutTestsDir"] !== "string" ||
     typeof (raw as Record<string, unknown>)["featureListPath"] !== "string" ||
+    typeof (raw as Record<string, unknown>)["buildCmd"] !== "string" ||
     typeof (raw as Record<string, unknown>)["testCmd"] !== "string"
   ) {
     die(
-      `spec file must be a JSON object with string fields: targetDir, heldOutTestsDir, featureListPath, testCmd`,
+      `spec file must be a JSON object with string fields: targetDir, heldOutTestsDir, featureListPath, buildCmd, testCmd`,
     );
   }
   spec = raw as BenchSpec;
