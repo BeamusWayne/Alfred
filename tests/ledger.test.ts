@@ -408,3 +408,36 @@ describe("Ledger — concurrent appends", () => {
     expect(result.ok).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Canonicalisation must agree with JSON.stringify on which fields exist
+// ---------------------------------------------------------------------------
+
+describe("Ledger — undefined/array values do not break verification", () => {
+  test("an undefined-valued field signs and verifies (no false tamper)", async () => {
+    const dir = await makeTempDir();
+    const ledger = new Ledger(ledgerPath(dir), "secret");
+
+    // JSON.stringify drops `optional: undefined` when persisting the entry. The
+    // signature is computed before persistence, so canonicalisation must drop
+    // it too — otherwise verify() recomputes a different hash and falsely fails.
+    await ledger.append("step", { kept: "value", optional: undefined });
+
+    const [entry] = await ledger.readAll();
+    expect(entry).toBeDefined();
+    expect("optional" in (entry!.data as Record<string, unknown>)).toBe(false);
+
+    const result = await ledger.verify();
+    expect(result.ok).toBe(true);
+  });
+
+  test("undefined inside an array round-trips as null and verifies", async () => {
+    const dir = await makeTempDir();
+    const ledger = new Ledger(ledgerPath(dir), "secret");
+
+    await ledger.append("step", { items: [1, undefined, 3], nested: { a: undefined, b: 2 } });
+
+    const result = await ledger.verify();
+    expect(result.ok).toBe(true);
+  });
+});

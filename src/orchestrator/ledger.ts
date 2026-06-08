@@ -42,23 +42,47 @@ export interface LedgerEntry extends LedgerPayload {
 const GENESIS_PREV_SIG = "0".repeat(64);
 
 /**
+ * True for values `JSON.stringify` cannot represent: in an object it drops the
+ * key, in an array it emits `null`. Canonicalisation must mirror this exactly,
+ * or the signed form diverges from the stored (JSON.stringify'd) form and
+ * `verify()` falsely reports tampering.
+ */
+function isJsonUnrepresentable(v: unknown): boolean {
+  return v === undefined || typeof v === "function" || typeof v === "symbol";
+}
+
+/**
  * Produce a deterministic JSON string from a `LedgerPayload` by sorting keys
  * at every level. This is critical: `JSON.stringify` key order is insertion-
  * order-dependent; we need a stable canonical form for HMAC inputs.
+ *
+ * It must agree with `JSON.stringify` byte-for-byte on which fields exist,
+ * because entries are persisted with `JSON.stringify` and re-canonicalised from
+ * disk at verify time. In particular, object keys whose value is `undefined`
+ * (or a function/symbol) are dropped, and such values inside arrays become
+ * `null` — matching `JSON.stringify`.
  */
 function canonicalise(value: unknown): string {
+  if (isJsonUnrepresentable(value)) {
+    // Reached only at the top level (object/array branches pre-filter); JSON
+    // would yield `undefined` here, but a stable string keeps HMAC inputs sane.
+    return "null";
+  }
   if (value === null || typeof value !== "object") {
     return JSON.stringify(value);
   }
   if (Array.isArray(value)) {
-    return "[" + value.map(canonicalise).join(",") + "]";
+    return (
+      "[" +
+      value.map((v) => (isJsonUnrepresentable(v) ? "null" : canonicalise(v))).join(",") +
+      "]"
+    );
   }
-  const sorted = Object.keys(value as Record<string, unknown>)
+  const obj = value as Record<string, unknown>;
+  const sorted = Object.keys(obj)
+    .filter((k) => !isJsonUnrepresentable(obj[k]))
     .sort()
-    .map((k) => {
-      const v = (value as Record<string, unknown>)[k];
-      return JSON.stringify(k) + ":" + canonicalise(v);
-    });
+    .map((k) => JSON.stringify(k) + ":" + canonicalise(obj[k]));
   return "{" + sorted.join(",") + "}";
 }
 
