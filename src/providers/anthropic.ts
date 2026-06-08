@@ -101,16 +101,39 @@ function fromUsage(u: Anthropic.Usage): Usage {
   };
 }
 
-function toProviderError(err: unknown): ProviderError {
+/**
+ * Map any thrown error to a `ProviderError` with an accurate `retryable` flag.
+ *
+ * The order matters: `APIConnectionError` and `APIUserAbortError` both extend
+ * `APIError`, so they are matched first.
+ *
+ * The key correctness rule: an `APIError` is retryable ONLY when it carries an
+ * explicitly retryable HTTP status. A 4xx like an invalid model name (400) is
+ * deterministic — retrying the identical request just fails identically and
+ * burns the backoff budget — so it must fail fast. (The previous logic treated
+ * any status-less `APIError` as retryable, which mis-retried such failures.)
+ */
+export function toProviderError(err: unknown): ProviderError {
+  // Connection-level failures carry no HTTP status and are transient — retry.
+  // APIConnectionTimeoutError extends APIConnectionError, so this covers both.
+  if (err instanceof Anthropic.APIConnectionError) {
+    return new ProviderError(err.message, { retryable: true });
+  }
+  // A user-initiated abort is terminal — never retry it.
+  if (err instanceof Anthropic.APIUserAbortError) {
+    return new ProviderError(err.message, { retryable: false });
+  }
   if (err instanceof Anthropic.APIError) {
-    const status = err.status;
-    const headers = (err.headers ?? {}) as Record<string, string | undefined>;
-    const retryAfterRaw = headers["retry-after"];
-    const retryAfterMs = retryAfterRaw ? Number(retryAfterRaw) * 1000 : undefined;
-    const retryable = status === undefined || RETRYABLE_STATUS.has(status);
+    const status = typeof err.status === "number" ? err.status : undefined;
+    // `err.headers` is a web `Headers` instance — must use `.get()`, not index
+    // access (which silently returned undefined before, defeating Retry-After).
+    const retryAfterHeader = err.headers?.get("retry-after");
+    const retryAfterSec = retryAfterHeader != null ? Number(retryAfterHeader) : Number.NaN;
+    const retryAfterMs = Number.isFinite(retryAfterSec) ? retryAfterSec * 1000 : undefined;
+    const retryable = status !== undefined && RETRYABLE_STATUS.has(status);
     return new ProviderError(err.message, { status, retryable, retryAfterMs });
   }
-  // Connection / abort errors have no status — treat as retryable network blips.
+  // Unknown non-SDK error: an abort is terminal; otherwise treat as a blip.
   const message = err instanceof Error ? err.message : String(err);
   const aborted = message.toLowerCase().includes("abort");
   return new ProviderError(message, { retryable: !aborted });
