@@ -417,3 +417,31 @@ describe("prefetch", () => {
     expect(results.length).toBeLessThanOrEqual(3);
   });
 });
+
+// ---------------------------------------------------------------------------
+// slug path-traversal containment (ADR 0003)
+// ---------------------------------------------------------------------------
+
+describe("slug containment", () => {
+  test("forget/get/upsert reject a traversal slug and never touch outside files", async () => {
+    // A file living outside the facts dir (and outside the workspace root).
+    const outside = join(tempRoot, "..", `outside-secret-${Math.random().toString(36).slice(2)}.md`);
+    await writeFile(outside, "do not delete", "utf8");
+    try {
+      await expect(provider.forget("../../foo")).rejects.toThrow(/invalid memory slug/);
+      await expect(provider.get("../../foo")).rejects.toThrow(/invalid memory slug/);
+      await expect(provider.upsert(fakeFact({ slug: "../../evil" }))).rejects.toThrow(/invalid memory slug/);
+      await expect(provider.forget("a/b")).rejects.toThrow(/invalid memory slug/);
+      // The outside file must be untouched.
+      expect(await Bun.file(outside).exists()).toBe(true);
+    } finally {
+      await rm(outside, { force: true });
+    }
+  });
+
+  test("a legitimate slug with dots (no separators) is allowed", async () => {
+    const f = await provider.upsert(fakeFact({ slug: "v1.2.3-config", content: "x" }));
+    expect(f.slug).toBe("v1.2.3-config");
+    expect((await provider.get("v1.2.3-config"))?.slug).toBe("v1.2.3-config");
+  });
+});

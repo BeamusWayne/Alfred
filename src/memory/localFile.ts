@@ -81,6 +81,26 @@ function slugToFilename(slug: string): string {
   return `${slug}.md`;
 }
 
+/**
+ * A fact slug must be a single, safe path component. It is model-controlled
+ * (memory_forget/memory_get take it straight from tool input, and those tools
+ * are auto-approved), so without this an input like "../../etc/cron.d/x" would
+ * let `join(factsDir, slug + ".md")` escape the workspace and read or delete
+ * arbitrary *.md files. A slug with no path separators cannot traverse.
+ */
+function assertSafeSlug(slug: string): void {
+  if (
+    slug.length === 0 ||
+    slug === "." ||
+    slug === ".." ||
+    slug.includes("/") ||
+    slug.includes("\\") ||
+    slug.includes("\0")
+  ) {
+    throw new Error(`invalid memory slug: ${JSON.stringify(slug)}`);
+  }
+}
+
 function filenameToSlug(filename: string): string {
   return filename.endsWith(".md") ? filename.slice(0, -3) : filename;
 }
@@ -122,6 +142,7 @@ export class LocalFileProvider implements MemoryProvider {
   }
 
   private factPath(slug: string): string {
+    assertSafeSlug(slug);
     return join(this.factsDir(), slugToFilename(slug));
   }
 
