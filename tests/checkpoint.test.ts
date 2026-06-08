@@ -185,3 +185,23 @@ describe("checkpoint outside a git repo", () => {
     expect(cp).toBeNull();
   });
 });
+
+describe("rollback — untracked file handling", () => {
+  test("removes untracked files the attempt created but preserves pre-existing ones", async () => {
+    // An untracked file present BEFORE the checkpoint must survive rollback.
+    await writeFile(join(repoDir, "preexisting.txt"), "keep me\n");
+    const cp = await checkpoint(repoDir);
+    expect(cp).not.toBeNull();
+
+    // The attempt creates a new untracked file and modifies a tracked one.
+    await writeFile(join(repoDir, "attempt_new.ts"), "export const x = 1;\n");
+    await writeFile(join(repoDir, "README.md"), "changed by attempt\n");
+
+    await rollback(repoDir, cp!);
+
+    // New untracked removed; pre-existing untracked kept; tracked change reverted.
+    expect(await Bun.file(join(repoDir, "attempt_new.ts")).exists()).toBe(false);
+    expect(await Bun.file(join(repoDir, "preexisting.txt")).exists()).toBe(true);
+    expect((await readFile(join(repoDir, "README.md"), "utf8")).trim()).toBe("initial");
+  });
+});

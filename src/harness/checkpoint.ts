@@ -9,6 +9,9 @@
  * returns null and `rollback` is a no-op.
  */
 
+import { rm } from "node:fs/promises";
+import { join } from "node:path";
+
 // ---------------------------------------------------------------------------
 // Private git helper
 // ---------------------------------------------------------------------------
@@ -38,6 +41,17 @@ async function git(args: readonly string[], cwd: string): Promise<GitResult> {
   }
 }
 
+/**
+ * List untracked, non-ignored files (one repo-relative path per line).
+ * `git stash create` / `git reset --hard` never touch these, so the checkpoint
+ * must track them itself to know which ones an attempt created.
+ */
+async function listUntracked(cwd: string): Promise<string[]> {
+  const r = await git(["ls-files", "--others", "--exclude-standard"], cwd);
+  if (r.exitCode !== 0) return [];
+  return r.stdout.split("\n").map((s) => s.trim()).filter((s) => s.length > 0);
+}
+
 // ---------------------------------------------------------------------------
 // Public types
 // ---------------------------------------------------------------------------
@@ -54,6 +68,13 @@ export interface Checkpoint {
   readonly stashRef: string | null;
   /** Whether the working tree was dirty when the checkpoint was taken. */
   readonly dirty: boolean;
+  /**
+   * Untracked, non-ignored files present at checkpoint time. rollback removes
+   * any untracked file that appeared *after* this snapshot — `git stash create`
+   * cannot capture untracked files and `git reset --hard` cannot remove them,
+   * so a failed attempt's new files would otherwise survive rollback.
+   */
+  readonly untracked: readonly string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -104,7 +125,9 @@ export async function checkpoint(cwd: string): Promise<Checkpoint | null> {
     }
   }
 
-  return { kind: "git", head, stashRef, dirty };
+  const untracked = await listUntracked(cwd);
+
+  return { kind: "git", head, stashRef, dirty, untracked };
 }
 
 /**
@@ -124,6 +147,15 @@ export async function rollback(cwd: string, cp: Checkpoint): Promise<void> {
     throw new Error(
       `checkpoint rollback: git reset --hard ${cp.head} failed: ${resetResult.stderr}`
     );
+  }
+
+  // Remove untracked files the attempt created (reset --hard cannot). Only
+  // files absent from the checkpoint snapshot are deleted, so pre-existing
+  // untracked files are preserved — matching "exact pre-attempt state".
+  const before = new Set(cp.untracked);
+  const created = (await listUntracked(cwd)).filter((p) => !before.has(p));
+  for (const rel of created) {
+    await rm(join(cwd, rel), { force: true });
   }
 
   if (cp.stashRef !== null) {
