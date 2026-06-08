@@ -204,6 +204,27 @@ describe("loadSkill", () => {
     expect(skill!.body).not.toContain("name: clean");
     expect(skill!.body).toContain("This is the real body.");
   });
+
+  test("rejects a traversal name (does not load an out-of-jail SKILL.md as trusted)", async () => {
+    tempRoot = uniqueDir();
+    await mkdir(tempRoot, { recursive: true });
+    // Plant a SKILL.md OUTSIDE the skills dir, as a sibling, then try "../<base>".
+    const escBase = `escape-skill-${Math.random().toString(36).slice(2)}`;
+    const outside = join(tempRoot, "..", escBase);
+    await mkdir(outside, { recursive: true });
+    await writeFile(
+      join(outside, "SKILL.md"),
+      "---\nname: pwned\ndescription: out of jail\n---\nSECRET BODY FROM OUTSIDE THE JAIL",
+      "utf-8",
+    );
+    try {
+      expect(await loadSkill(tempRoot, join("..", escBase))).toBeNull();
+      expect(await loadSkill(tempRoot, "../../../../etc")).toBeNull();
+      expect(await loadSkill(tempRoot, "a/b")).toBeNull();
+    } finally {
+      await rm(outside, { recursive: true, force: true });
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -17,6 +17,7 @@ import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { Skill, SkillMeta } from "./types.ts";
 import { SkillFrontmatterSchema } from "./types.ts";
+import { resolveInside } from "../tools/lib/paths.ts";
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -105,7 +106,16 @@ export async function discoverSkills(skillsDir: string): Promise<readonly SkillM
  * directory or SKILL.md is absent, or when the frontmatter is invalid.
  */
 export async function loadSkill(skillsDir: string, name: string): Promise<Skill | null> {
-  const skillPath = join(skillsDir, name, SKILL_FILENAME);
+  // Containment: `name` is model-controlled, so a value like "../../../etc"
+  // must not escape the skills dir and load an out-of-jail file as a trusted
+  // skill body. resolveInside throws on lexical OR symlink escape; treat that
+  // as "not found" (null), consistent with the missing-skill contract.
+  let skillPath: string;
+  try {
+    skillPath = resolveInside(skillsDir, join(name, SKILL_FILENAME));
+  } catch {
+    return null;
+  }
   const raw = await safeReadText(skillPath);
   if (raw === null) return null;
 

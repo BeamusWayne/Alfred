@@ -17,6 +17,7 @@ import { z } from "zod";
 import { buildTool } from "../types.ts";
 import type { Tool, ToolResult } from "../types.ts";
 import { allow } from "../../permissions/types.ts";
+import { resolveInside } from "../lib/paths.ts";
 import type { LspClient } from "./client.ts";
 import type { Location } from "./protocol.ts";
 
@@ -140,13 +141,19 @@ export function makeLspTools(client: LspClient): readonly Tool[] {
     checkPermissions: async () => allow(),
     describeCall: (input) => `lsp_definition(${input.path}:${input.line}:${input.character})`,
 
-    call: async (input): Promise<ToolResult<string>> => {
-      const uri = toFileUri(input.path);
+    call: async (input, ctx): Promise<ToolResult<string>> => {
+      let abs: string;
+      try {
+        abs = resolveInside(ctx.workingDir, input.path);
+      } catch {
+        return { content: `lsp_definition error: path '${input.path}' is outside the workspace`, isError: true };
+      }
+      const uri = toFileUri(abs);
       const pos = { line: input.line, character: input.character };
       try {
-        await ensureOpen(client, opened, uri, input.path);
+        await ensureOpen(client, opened, uri, abs);
         const locations = await client.definition(uri, pos);
-        return { content: formatLocations(locations) };
+        return { content: formatLocations(locations), untrusted: true };
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         return { content: `lsp_definition error: ${msg}`, isError: true };
@@ -165,13 +172,19 @@ export function makeLspTools(client: LspClient): readonly Tool[] {
     checkPermissions: async () => allow(),
     describeCall: (input) => `lsp_references(${input.path}:${input.line}:${input.character})`,
 
-    call: async (input): Promise<ToolResult<string>> => {
-      const uri = toFileUri(input.path);
+    call: async (input, ctx): Promise<ToolResult<string>> => {
+      let abs: string;
+      try {
+        abs = resolveInside(ctx.workingDir, input.path);
+      } catch {
+        return { content: `lsp_references error: path '${input.path}' is outside the workspace`, isError: true };
+      }
+      const uri = toFileUri(abs);
       const pos = { line: input.line, character: input.character };
       try {
-        await ensureOpen(client, opened, uri, input.path);
+        await ensureOpen(client, opened, uri, abs);
         const locations = await client.references(uri, pos);
-        return { content: formatLocations(locations) };
+        return { content: formatLocations(locations), untrusted: true };
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         return { content: `lsp_references error: ${msg}`, isError: true };
@@ -190,13 +203,19 @@ export function makeLspTools(client: LspClient): readonly Tool[] {
     checkPermissions: async () => allow(),
     describeCall: (input) => `lsp_hover(${input.path}:${input.line}:${input.character})`,
 
-    call: async (input): Promise<ToolResult<string>> => {
-      const uri = toFileUri(input.path);
+    call: async (input, ctx): Promise<ToolResult<string>> => {
+      let abs: string;
+      try {
+        abs = resolveInside(ctx.workingDir, input.path);
+      } catch {
+        return { content: `lsp_hover error: path '${input.path}' is outside the workspace`, isError: true };
+      }
+      const uri = toFileUri(abs);
       const pos = { line: input.line, character: input.character };
       try {
-        await ensureOpen(client, opened, uri, input.path);
+        await ensureOpen(client, opened, uri, abs);
         const text = await client.hover(uri, pos);
-        return { content: text ?? "(no hover info)" };
+        return { content: text ?? "(no hover info)", untrusted: true };
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         return { content: `lsp_hover error: ${msg}`, isError: true };

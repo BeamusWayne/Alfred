@@ -494,3 +494,43 @@ describe("lsp_definition tool", () => {
     expect(perm.behavior).toBe("allow");
   });
 });
+
+describe("LSP tools — workspace containment", () => {
+  const wsCtx = {
+    workingDir: "/ws",
+    signal: new AbortController().signal,
+    readFileState: new Map(),
+    permissions: { mode: "default" as const, allowedTools: new Set<string>(), deniedTools: new Set<string>(), workingDir: "/ws" },
+  };
+
+  test("a path outside the workspace is refused and never sent to the server", async () => {
+    for (const name of ["lsp_definition", "lsp_references", "lsp_hover"]) {
+      const t = makeFakeTransport();
+      const client = new LspClient(t);
+      const tool = makeLspTools(client).find((x) => x.name === name)!;
+      // initialize handshake (so any leakage would otherwise reach the server)
+      const initP = client.initialize("file:///ws");
+      t.deliver(successResponse(1, { capabilities: {} }));
+      await initP;
+      const before = t.sent.length;
+
+      const result = await tool.call({ path: "/etc/passwd", line: 0, character: 0 }, wsCtx);
+
+      expect(result.isError).toBe(true);
+      expect(result.content).toContain("outside the workspace");
+      // No didOpen / query request was emitted for the out-of-jail path.
+      expect(t.sent.length).toBe(before);
+    }
+  });
+
+  test("hover/definition results are flagged untrusted (fenced before re-entering context)", async () => {
+    const t = makeFakeTransport();
+    const client = new LspClient(t);
+    const hover = makeLspTools(client).find((x) => x.name === "lsp_hover")!;
+    const p = hover.call({ path: "/ws/probe.ts", line: 0, character: 0 }, wsCtx);
+    const req = await waitForRequest(t, "textDocument/hover");
+    t.deliver(successResponse(req["id"] as number, { contents: "type info" }));
+    const result = await p;
+    expect(result.untrusted).toBe(true);
+  });
+});
