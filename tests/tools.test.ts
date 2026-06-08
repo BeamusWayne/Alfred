@@ -88,6 +88,22 @@ describe("file tools", () => {
     expect(String(r.content)).toContain("matches");
   });
 
+  test("replace_all refuses multiple FUZZY matches instead of silently partial-editing", async () => {
+    const ctx = makeCtx();
+    // Two blocks that match "foo\nbar" only after trailing-whitespace normalisation
+    // (no exact substring match), so locate() returns strategy=rstrip, count=2.
+    await fileWriteTool.call({ path: "fuzzy.txt", content: "foo \nbar \nfoo \nbar " }, ctx);
+    await fileReadTool.call({ path: "fuzzy.txt" }, ctx);
+    const r = await fileEditTool.call(
+      { path: "fuzzy.txt", old_string: "foo\nbar", new_string: "X", replace_all: true },
+      ctx,
+    );
+    expect(r.isError).toBe(true);
+    expect(String(r.content)).toMatch(/not exact|unsafe/i);
+    // No partial edit happened.
+    expect(await Bun.file(join(dir, "fuzzy.txt")).text()).toBe("foo \nbar \nfoo \nbar ");
+  });
+
   test("file tools are path-jailed to the workspace", async () => {
     const ctx = makeCtx();
     await expect(fileReadTool.call({ path: "../../etc/passwd" }, ctx)).rejects.toThrow(PathEscapeError);

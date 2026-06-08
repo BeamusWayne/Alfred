@@ -7,7 +7,7 @@ import { describe, test, expect, afterEach } from "bun:test";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mkdtemp, mkdir, rm, readdir, writeFile } from "node:fs/promises";
-import { runHeldOut, alfredBench, type BenchSpec } from "../src/bench/alfredBench.ts";
+import { runHeldOut, alfredBench, benchPassed, type BenchSpec } from "../src/bench/alfredBench.ts";
 import { autonomousRun } from "../src/orchestrator/workflows/autonomousRun.ts";
 import { MockProvider, textResponse, toolUseResponse, type Script } from "../src/providers/mock.ts";
 import { createRuntime } from "../src/orchestrator/runtime.ts";
@@ -107,6 +107,21 @@ describe("alfredBench — dual FAIL→PASS", () => {
     expect(result.passing).toBe(0);
     expect(result.dualPassConfirmed).toBe(0);
     expect(result.ledgerOk).toBe(true);
+  });
+});
+
+describe("benchPassed — empty feature list is not a pass", () => {
+  test("features=0 is NOT a pass (no false green receipt)", () => {
+    expect(benchPassed({ features: 0, passing: 0, dualPassConfirmed: 0, ledgerOk: true, baselineFailed: false })).toBe(false);
+  });
+  test("all features dual-confirmed with an intact ledger passes", () => {
+    expect(benchPassed({ features: 2, passing: 2, dualPassConfirmed: 2, ledgerOk: true, baselineFailed: true })).toBe(true);
+  });
+  test("a partially-confirmed run does not pass", () => {
+    expect(benchPassed({ features: 2, passing: 1, dualPassConfirmed: 1, ledgerOk: true, baselineFailed: true })).toBe(false);
+  });
+  test("a tampered ledger never passes", () => {
+    expect(benchPassed({ features: 1, passing: 1, dualPassConfirmed: 1, ledgerOk: false, baselineFailed: true })).toBe(false);
   });
 });
 

@@ -77,6 +77,19 @@ export const fileEditTool = buildTool({
         isError: true,
       };
     }
+    // replace_all can only safely replace ALL matches when they are exact. With
+    // multiple whitespace-normalised (fuzzy) matches the fast path below would
+    // silently replace just the first and report "1 replacement", leaving the
+    // rest. Refuse instead of doing a misleading partial edit.
+    if (input.replace_all && found.count > 1 && found.strategy !== "exact") {
+      return {
+        content:
+          `old_string matches ${found.count} places in ${input.path} only via ${found.strategy} ` +
+          `(whitespace-normalised), not exact — a global replace over non-exact matches is unsafe. ` +
+          `Make old_string match exactly, or edit each occurrence with surrounding context.`,
+        isError: true,
+      };
+    }
 
     let next: string;
     let n = 1;

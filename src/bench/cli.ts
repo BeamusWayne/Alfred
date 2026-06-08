@@ -18,7 +18,7 @@
  */
 
 import { join, resolve } from "node:path";
-import { alfredBench, type BenchSpec } from "./alfredBench.ts";
+import { alfredBench, benchPassed, type BenchSpec } from "./alfredBench.ts";
 import { createRuntime } from "../orchestrator/runtime.ts";
 import { Journal } from "../orchestrator/journal.ts";
 import { Ledger } from "../orchestrator/ledger.ts";
@@ -154,7 +154,10 @@ await journal.close();
 process.stdout.write(JSON.stringify({ type: "bench_result", ...result }) + "\n");
 
 // Human summary to stderr.
-const allDualPassed = result.dualPassConfirmed === result.features;
+// benchPassed requires ≥1 feature actually dual-confirmed against the held-out
+// suite (the `> 0` guard) plus an intact ledger — an empty/emptied feature list
+// no longer satisfies 0===0 and reports a false passing receipt.
+const allDualPassed = benchPassed(result);
 process.stderr.write(
   dim(
     `\n[alfred-bench] features=${result.features} passing=${result.passing} ` +
@@ -166,5 +169,6 @@ if (!result.ledgerOk) {
   process.stderr.write(`[alfred-bench] WARN: ledger chain TAMPERED — receipt is not trustworthy\n`);
 }
 
-// Exit non-zero unless every feature dual-passed.
-process.exit(allDualPassed && result.ledgerOk ? 0 : 1);
+// Exit non-zero unless the run genuinely passed (benchPassed already requires
+// ≥1 dual-confirmed feature AND an intact ledger).
+process.exit(allDualPassed ? 0 : 1);

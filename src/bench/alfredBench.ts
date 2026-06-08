@@ -197,6 +197,21 @@ export async function alfredBench(spec: BenchSpec, deps: BenchDeps): Promise<Ben
   };
 }
 
+/**
+ * The bench pass-condition: a green, trustworthy receipt requires that at least
+ * one feature was actually dual-confirmed against the held-out suite, that every
+ * feature dual-confirmed, and that the ledger chain is intact. The `> 0` guard
+ * is essential — an empty/emptied feature list otherwise satisfies `0 === 0` and
+ * reports a passing receipt for a run that proved nothing.
+ */
+export function benchPassed(result: BenchResult): boolean {
+  return (
+    result.features > 0 &&
+    result.dualPassConfirmed === result.features &&
+    result.ledgerOk
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Re-exports
 // ---------------------------------------------------------------------------
