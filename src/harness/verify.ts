@@ -21,6 +21,19 @@ export interface VerifyOptions {
 }
 
 /**
+ * Env var names that must NEVER reach the verify subprocess. The verify command
+ * is model-influenced (e.g. `bun test` runs repo test files the agent just
+ * wrote) and is not sandboxed, so any secret in its env is exfiltratable.
+ * Above all this strips ALFRED_LEDGER_SECRET — the key that signs the
+ * tamper-evident ledger; leaking it would let a malicious run forge the Proof
+ * Receipt — plus provider API credentials (ADR 0003 blast-radius reduction).
+ */
+const SENSITIVE_ENV_RE = /(SECRET|TOKEN|PASSWORD|PASSWD|CREDENTIAL|API[_-]?KEY|ACCESS[_-]?KEY)/i;
+
+/** Max time to wait for the output pipes to drain after the process exits/dies. */
+const DRAIN_GRACE_MS = 2000;
+
+/**
  * Run `command` in a shell, capturing stdout/stderr/exitCode.
  * Enforces `timeoutMs` (kills the process and sets `timedOut: true`).
  * Honours `signal` for external cancellation.
@@ -32,14 +45,16 @@ export async function runVerify(
   const { cwd, timeoutMs, signal, env } = opts;
   const start = Date.now();
 
-  const mergedEnv: Record<string, string> = {
-    ...Object.fromEntries(
-      Object.entries(process.env).filter(
-        (entry): entry is [string, string] => entry[1] !== undefined,
-      ),
+  // Strip Alfred's own secrets + provider credentials from the inherited env
+  // before handing it to the (unsandboxed, model-influenced) verify command.
+  // An explicit, trusted `opts.env` may still set anything it needs.
+  const inheritedEnv = Object.fromEntries(
+    Object.entries(process.env).filter(
+      (entry): entry is [string, string] =>
+        entry[1] !== undefined && !SENSITIVE_ENV_RE.test(entry[0]),
     ),
-    ...env,
-  };
+  );
+  const mergedEnv: Record<string, string> = { ...inheritedEnv, ...env };
 
   const proc = Bun.spawn(["sh", "-c", command], {
     cwd,
@@ -71,16 +86,24 @@ export async function runVerify(
 
   const stdoutChunks: Uint8Array[] = [];
   const stderrChunks: Uint8Array[] = [];
+  // Minimal structural type — we only ever cancel these; avoids a clash between
+  // the global and node:stream/web ReadableStreamDefaultReader definitions.
+  const readers: Array<{ cancel(): Promise<unknown> }> = [];
 
   const readAll = async (
     stream: ReadableStream<Uint8Array>,
     chunks: Uint8Array[],
   ): Promise<void> => {
     const reader = stream.getReader();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      chunks.push(value);
+    readers.push(reader);
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+      }
+    } catch {
+      // reader cancelled or stream errored after kill — stop draining.
     }
   };
 
@@ -95,10 +118,18 @@ export async function runVerify(
     await proc.exited;
   }
 
-  // Give readers a chance to drain after the process exits / is killed.
-  await readPromise.catch(() => {
-    // Ignore read errors after kill.
-  });
+  // Bound the post-exit drain. Killing the shell does not kill its children, so
+  // a leaked grandchild can keep the stdout/stderr pipe open — the readers would
+  // then await `done` forever and runVerify would hang far past timeoutMs. Give
+  // a short grace, then cancel the readers so the drain always terminates.
+  await Promise.race([
+    readPromise,
+    new Promise<void>((resolve) => setTimeout(resolve, DRAIN_GRACE_MS)),
+  ]);
+  for (const reader of readers) {
+    void reader.cancel().catch(() => undefined);
+  }
+  await readPromise.catch(() => undefined);
 
   if (timeoutHandle !== undefined) {
     clearTimeout(timeoutHandle);
