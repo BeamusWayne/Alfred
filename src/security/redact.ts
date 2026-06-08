@@ -19,6 +19,7 @@ type SecretKind =
   | "aws-access-key"
   | "github-token"
   | "google-api-key"
+  | "zhipu-glm-key"
   | "bearer-token"
   | "hex-blob"
   | "base64-blob";
@@ -76,6 +77,13 @@ const RULES: readonly RedactionRule[] = [
   {
     kind: "google-api-key",
     pattern: /\bAIza[0-9A-Za-z_-]{35}\b/g,
+  },
+  // Zhipu GLM keys: <32 hex>.<16 alphanumeric> (e.g. open.bigmodel.cn).
+  // The hex half is only 32 chars, below the hex-blob threshold, so without a
+  // dedicated rule these leak. The shape is specific enough to be safe.
+  {
+    kind: "zhipu-glm-key",
+    pattern: /\b[0-9a-f]{32}\.[A-Za-z0-9]{16}\b/g,
   },
   // Bearer tokens in Authorization headers (captures the token value)
   {
