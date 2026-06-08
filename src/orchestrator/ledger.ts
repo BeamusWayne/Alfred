@@ -5,8 +5,11 @@
  * Every harness step appends a row to a JSONL file. Each entry's signature
  * covers the canonical serialisation of the entry payload (stable key order)
  * concatenated with the previous entry's signature, forming a hash chain.
- * Any edit, reorder, or truncation of stored entries is detectable via
- * `Ledger.verify()`.
+ * Edits and reorders are caught by the chain; TAIL TRUNCATION (which a pure
+ * chain cannot detect — a prefix is itself valid) is caught by a separate
+ * signed head anchor written to a `<path>.head` sidecar that records the
+ * chain length + last signature under HMAC. The Proof Receipt is therefore
+ * BOTH files; `Ledger.verify()` requires the anchor when entries exist.
  *
  * Secret-shaped strings in the data are redacted before signing (ADR 0003), so
  * the receipt is safe to share. The genesis entry (seq 0) uses a fixed 64-zero
@@ -127,6 +130,31 @@ async function ensureParentDir(filePath: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Signed head anchor — makes tail-truncation detectable
+// ---------------------------------------------------------------------------
+
+/** Sidecar path holding the signed head anchor next to the ledger JSONL. */
+function headPath(ledgerPath: string): string {
+  return `${ledgerPath}.head`;
+}
+
+/**
+ * The signed tail anchor. A pure hash chain cannot detect tail truncation — a
+ * prefix of a valid chain is itself valid — so we separately sign the chain
+ * length + last signature. An attacker who lops off recent rows (or corrupts
+ * the last line) cannot also forge a matching anchor without the HMAC secret.
+ */
+interface HeadAnchor {
+  readonly count: number;
+  readonly lastSig: string;
+  readonly headSig: string;
+}
+
+function headAnchorSig(secret: string, count: number, lastSig: string): string {
+  return hmacSha256(secret, `${count}:${lastSig}`);
+}
+
+// ---------------------------------------------------------------------------
 // Ledger class
 // ---------------------------------------------------------------------------
 
@@ -187,6 +215,16 @@ export class Ledger {
         const existing = Bun.file(this.path);
         const priorText = (await existing.exists()) ? await existing.text() : "";
         await Bun.write(this.path, priorText + JSON.stringify(entry) + "\n");
+
+        // Update the signed head anchor so a later tail-truncation is detectable.
+        const count = seq + 1;
+        const anchor: HeadAnchor = {
+          count,
+          lastSig: sig,
+          headSig: headAnchorSig(this.secret, count, sig),
+        };
+        await Bun.write(headPath(this.path), JSON.stringify(anchor) + "\n");
+
         resolveEntry(entry);
       } catch (err: unknown) {
         rejectEntry(err);
@@ -262,7 +300,53 @@ export class Ledger {
       }
     }
 
+    // Tail-truncation / last-line-corruption detection via the signed head
+    // anchor. The per-entry chain above cannot catch a dropped tail (a valid
+    // prefix verifies), so cross-check the signed (count, lastSig) anchor.
+    const head = await this.readHead();
+    if (entries.length === 0) {
+      if (head !== null && head.count !== 0) {
+        return { ok: false, brokenAt: 0, reason: "head anchor claims entries but ledger is empty (truncation)" };
+      }
+      return { ok: true };
+    }
+    if (head === null) {
+      return {
+        ok: false,
+        brokenAt: entries.length,
+        reason: "missing signed head anchor (.head) — possible tail truncation or sidecar removal",
+      };
+    }
+    const last = entries[entries.length - 1]!;
+    const expectedHeadSig = headAnchorSig(this.secret, entries.length, last.sig);
+    if (head.count !== entries.length || head.lastSig !== last.sig || head.headSig !== expectedHeadSig) {
+      return {
+        ok: false,
+        brokenAt: entries.length,
+        reason: `head anchor mismatch — expected count ${entries.length}, got ${head.count} (tail truncation/tamper)`,
+      };
+    }
+
     return { ok: true };
+  }
+
+  /** Read and validate the signed head anchor sidecar; null if absent/malformed. */
+  private async readHead(): Promise<HeadAnchor | null> {
+    const file = Bun.file(headPath(this.path));
+    if (!(await file.exists())) return null;
+    try {
+      const raw = JSON.parse(await file.text()) as Record<string, unknown>;
+      if (
+        typeof raw["count"] === "number" &&
+        typeof raw["lastSig"] === "string" &&
+        typeof raw["headSig"] === "string"
+      ) {
+        return { count: raw["count"], lastSig: raw["lastSig"], headSig: raw["headSig"] };
+      }
+    } catch {
+      // malformed sidecar → treat as absent
+    }
+    return null;
   }
 
   // -------------------------------------------------------------------------
