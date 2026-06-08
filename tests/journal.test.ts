@@ -272,3 +272,29 @@ describe("concurrent appends — integrity", () => {
     expect(types.filter((t) => t === "agent-2").length).toBe(2);
   });
 });
+
+describe("Journal — write-failure resilience", () => {
+  test("a transient write failure does not poison the queue and does not desync seq", async () => {
+    const jpath = join(testDir, "j.jsonl");
+    // Force the first write to fail deterministically: make the journal path a
+    // directory so Bun.write/readLines error. Then remove it so the next write
+    // succeeds — simulating a transient EIO/ENOSPC that later clears.
+    await mkdir(jpath, { recursive: true });
+    const j = new Journal(jpath);
+
+    await expect(j.append({ type: "a", label: "a", data: { i: 1 } })).rejects.toBeDefined();
+
+    await rm(jpath, { recursive: true, force: true });
+
+    // With the bug the queue was permanently rejected and this would throw the
+    // stale error (and never persist); it must now succeed.
+    const ok = await j.append({ type: "b", label: "b", data: { i: 2 } });
+    expect(ok.type).toBe("b");
+
+    const all = await j.readAll();
+    expect(all.length).toBe(1);
+    expect(all[0]!.data).toEqual({ i: 2 });
+    // seq did NOT advance on the failed append, so the survivor is seq 1.
+    expect(all[0]!.seq).toBe(1);
+  });
+});

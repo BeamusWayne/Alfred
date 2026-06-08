@@ -111,30 +111,42 @@ export class Journal {
    */
   append(entry: Omit<JournalEntry, "seq" | "ts">): Promise<JournalEntry> {
     let resolveEntry!: (e: JournalEntry) => void;
-    const entryPromise = new Promise<JournalEntry>((resolve) => {
+    let rejectEntry!: (err: unknown) => void;
+    const entryPromise = new Promise<JournalEntry>((resolve, reject) => {
       resolveEntry = resolve;
+      rejectEntry = reject;
     });
 
     this.writeQueue = this.writeQueue.then(async (): Promise<void> => {
-      await this.initSeq();
+      // The body is wrapped so a single failed write rejects only THIS caller's
+      // promise — the queued callback still resolves to void, keeping
+      // `this.writeQueue` healthy. Without this, one transient EIO/ENOSPC turns
+      // the queue into a permanently-rejected promise: every later append then
+      // silently never runs (resume tape stops recording) and replays the stale
+      // error. The sibling Ledger.append uses this same pattern.
+      try {
+        await this.initSeq();
 
-      this.seq += 1;
-      const full: JournalEntry = {
-        ...entry,
-        seq: this.seq,
-        ts: this.now(),
-      };
+        // Compute the next seq but only COMMIT it after the write lands, so a
+        // failed write does not desync the in-memory counter from disk.
+        const seq = this.seq + 1;
+        const full: JournalEntry = { ...entry, seq, ts: this.now() };
 
-      const line = JSON.stringify(full) + "\n";
-      const file = Bun.file(this.path);
-      const prior = (await file.exists()) ? await file.text() : "";
-      await Bun.write(this.path, prior + line);
+        const line = JSON.stringify(full) + "\n";
+        const file = Bun.file(this.path);
+        const prior = (await file.exists()) ? await file.text() : "";
+        await Bun.write(this.path, prior + line);
 
-      resolveEntry(full);
+        this.seq = seq;
+        resolveEntry(full);
+      } catch (err) {
+        rejectEntry(err);
+      }
     });
 
-    // Surface write errors to the caller while keeping the queue intact.
-    return this.writeQueue.then(() => entryPromise);
+    // Return the per-call promise directly (not chained off writeQueue) so a
+    // failed write cannot poison the queue for subsequent appends.
+    return entryPromise;
   }
 
   /**

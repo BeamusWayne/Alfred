@@ -145,7 +145,9 @@ export function createRuntime(runId: string, opts: RuntimeOptions): Runtime {
 
   const log = (message: string): void => {
     opts.onLog?.(message);
-    if (journal) void journal.append({ type: "log", label: "log", data: { message } });
+    // Fire-and-forget: a log write must never surface as an unhandled rejection
+    // (which can crash the run). Swallow — the message already went to onLog.
+    if (journal) journal.append({ type: "log", label: "log", data: { message } }).catch(() => undefined);
   };
 
   return { runId, agent, parallel, pipeline, log, budgetSnapshot: () => budget.snapshot() };
