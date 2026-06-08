@@ -76,6 +76,22 @@ export interface FetchWithPolicyOptions {
 
 const DEFAULT_MAX_BYTES = 100_000;
 
+/** Cap on redirect hops followed manually (each one is re-checked against egress). */
+const MAX_REDIRECTS = 5;
+
+/** HTTP status codes that represent a redirect we must follow manually. */
+function isRedirectStatus(status: number): boolean {
+  return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
+}
+
+/**
+ * Default fetcher: disables automatic redirect-following (`redirect: "manual"`)
+ * so `fetchWithPolicy` can re-apply the egress allow-list to every hop. Letting
+ * the platform follow 30x responses would let an allowed host bounce the
+ * request to a denied one, silently bypassing the allow-list (SSRF / ADR 0003).
+ */
+const defaultFetcher: Fetcher = (url) => fetch(url, { redirect: "manual" });
+
 /**
  * Fetch `url` subject to an egress policy.
  *
@@ -95,25 +111,46 @@ export async function fetchWithPolicy(
   url: string,
   opts: FetchWithPolicyOptions,
 ): Promise<{ ok: true; body: string; status: number } | { ok: false; error: string }> {
-  const { policy, fetcher = fetch, maxBytes = DEFAULT_MAX_BYTES } = opts;
+  const { policy, fetcher = defaultFetcher, maxBytes = DEFAULT_MAX_BYTES } = opts;
 
-  const egressResult = checkEgress(url, policy);
-  if (!egressResult.allowed) {
-    return { ok: false, error: egressResult.reason };
-  }
-
+  // Follow redirects manually, re-validating egress on EVERY hop. A single
+  // initial check is not enough: a permitted host can 30x to a denied one, and
+  // auto-follow would carry the request there, bypassing the allow-list.
+  let currentUrl = url;
   let response: Response;
-  try {
-    response = await fetcher(url);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: `Network error fetching ${url}: ${message}` };
+  for (let hop = 0; ; hop++) {
+    const egressResult = checkEgress(currentUrl, policy);
+    if (!egressResult.allowed) {
+      return { ok: false, error: egressResult.reason };
+    }
+
+    try {
+      response = await fetcher(currentUrl);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { ok: false, error: `Network error fetching ${currentUrl}: ${message}` };
+    }
+
+    if (!isRedirectStatus(response.status)) break;
+
+    if (hop >= MAX_REDIRECTS) {
+      return { ok: false, error: `Too many redirects (>${MAX_REDIRECTS}) starting at ${url}` };
+    }
+    const location = response.headers.get("location");
+    if (location === null || location.trim() === "") {
+      return { ok: false, error: `Redirect ${response.status} from ${currentUrl} had no Location header` };
+    }
+    try {
+      currentUrl = new URL(location, currentUrl).toString(); // resolve relative redirects
+    } catch {
+      return { ok: false, error: `Invalid redirect target "${location}" from ${currentUrl}` };
+    }
   }
 
   if (!response.ok) {
     return {
       ok: false,
-      error: `HTTP ${response.status} ${response.statusText} for ${url}`,
+      error: `HTTP ${response.status} ${response.statusText} for ${currentUrl}`,
     };
   }
 

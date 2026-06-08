@@ -390,3 +390,83 @@ describe("webFetchTool — metadata", () => {
     expect(webFetchTool.isReadOnly({ url: "https://example.com" })).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// fetchWithPolicy — redirect handling (egress re-checked on EVERY hop)
+// ---------------------------------------------------------------------------
+
+/** A redirect Response carrying a Location header. */
+function redirectResponse(location: string, status = 302): Response {
+  return new Response(null, { status, headers: { location } });
+}
+
+/**
+ * Fetcher serving scripted responses keyed by URL, recording every URL it is
+ * actually called with — so a test can assert a denied hop was never contacted.
+ */
+function routingFetcher(routes: Record<string, Response>): { fetcher: Fetcher; calls: string[] } {
+  const calls: string[] = [];
+  const fetcher: Fetcher = (url) => {
+    calls.push(url);
+    return Promise.resolve(routes[url] ?? fakeResponse("not found", 404));
+  };
+  return { fetcher, calls };
+}
+
+describe("fetchWithPolicy — redirect handling", () => {
+  test("a redirect to a denied host is blocked and never contacted (no SSRF)", async () => {
+    const policy = policyFromEnv({ ALFRED_EGRESS_ALLOW: "good.com" });
+    const { fetcher, calls } = routingFetcher({
+      "https://good.com/": redirectResponse("https://evil.com/exfil"),
+      "https://evil.com/exfil": fakeResponse("SECRET DATA", 200),
+    });
+
+    const result = await fetchWithPolicy("https://good.com/", { policy, fetcher });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatch(/not in the egress allow-list/i);
+    // The denied host must never have been fetched.
+    expect(calls).toEqual(["https://good.com/"]);
+  });
+
+  test("a redirect to an allow-listed host is followed to completion", async () => {
+    const policy = policyFromEnv({ ALFRED_EGRESS_ALLOW: "good.com,cdn.good.com" });
+    const { fetcher, calls } = routingFetcher({
+      "https://good.com/": redirectResponse("https://cdn.good.com/asset"),
+      "https://cdn.good.com/asset": fakeResponse("final body", 200),
+    });
+
+    const result = await fetchWithPolicy("https://good.com/", { policy, fetcher });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.body).toBe("final body");
+    expect(calls).toEqual(["https://good.com/", "https://cdn.good.com/asset"]);
+  });
+
+  test("relative redirects resolve against the current URL", async () => {
+    const policy = policyFromEnv({ ALFRED_EGRESS_ALLOW: "good.com" });
+    const { fetcher } = routingFetcher({
+      "https://good.com/a": redirectResponse("/b"),
+      "https://good.com/b": fakeResponse("landed", 200),
+    });
+    const result = await fetchWithPolicy("https://good.com/a", { policy, fetcher });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.body).toBe("landed");
+  });
+
+  test("a redirect loop is capped with a clear error", async () => {
+    const policy = policyFromEnv({ ALFRED_EGRESS_ALLOW: "good.com" });
+    const fetcher: Fetcher = () => Promise.resolve(redirectResponse("https://good.com/loop"));
+    const result = await fetchWithPolicy("https://good.com/start", { policy, fetcher });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatch(/too many redirects/i);
+  });
+
+  test("a redirect without a Location header is an error", async () => {
+    const policy = policyFromEnv({ ALFRED_EGRESS_ALLOW: "good.com" });
+    const fetcher: Fetcher = () => Promise.resolve(new Response(null, { status: 302 }));
+    const result = await fetchWithPolicy("https://good.com/", { policy, fetcher });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatch(/no Location header/i);
+  });
+});
