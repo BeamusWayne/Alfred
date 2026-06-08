@@ -78,7 +78,7 @@ export const DEFAULT_VERIFY_TIMEOUT_MS = 120_000;
 export interface AutonomousRunResult {
   readonly passing: number;
   readonly blocked: number;
-  readonly stopped: "all_resolved" | "max_features" | "too_many_blocked";
+  readonly stopped: "all_resolved" | "max_features" | "too_many_blocked" | "error";
   readonly ledgerOk: boolean;
 }
 
@@ -165,6 +165,9 @@ export async function autonomousRun(opts: AutonomousRunOptions): Promise<Autonom
     const iterationBudget = feature.iterationBudget ?? 3;
     let verify: VerifyResult | undefined;
     let feedback = "";
+    let rubric: Rubric | null = null;
+    let aborted: string | null = null;
+    try {
     for (let attempt = 1; attempt <= iterationBudget; attempt++) {
       opts.onEvent?.({ type: "attempt", featureId: feature.id, attempt });
       if (opts.bestOfN && opts.bestOfN > 1) {
@@ -214,16 +217,26 @@ export async function autonomousRun(opts: AutonomousRunOptions): Promise<Autonom
       schema: rubricSchema,
       label: `rubric:${feature.id}`,
     });
-    const rubric = rubricRun.data;
+    rubric = rubricRun.data;
+    } catch (err) {
+      // A throw mid-feature (budget exhausted, provider/abort error) must not
+      // crash the whole run with an unhandled rejection and leave the feature
+      // stuck in_progress with no run_end in the ledger. Fall through: record
+      // this feature as blocked below, then stop the run gracefully so the
+      // terminal run_end receipt is still written.
+      aborted = err instanceof Error ? err.message : String(err);
+    }
     const verifyOk = verify !== undefined && passed(verify);
     const rubricOk = rubric?.verification === 2;
-    const featurePassed = verifyOk && rubricOk;
+    const featurePassed = aborted === null && verifyOk && rubricOk;
     const gitSha = await currentSha(opts.cwd);
     const reason = featurePassed
       ? ""
-      : !verifyOk
-        ? `verify exit ${verify?.exitCode ?? "n/a"}`
-        : `rubric ${rubric?.verification ?? "null"}`;
+      : aborted !== null
+        ? `aborted: ${aborted}`
+        : !verifyOk
+          ? `verify exit ${verify?.exitCode ?? "n/a"}`
+          : `rubric ${rubric?.verification ?? "null"}`;
 
     if (featurePassed) {
       list = markPassing(list, feature.id);
@@ -277,6 +290,12 @@ export async function autonomousRun(opts: AutonomousRunOptions): Promise<Autonom
     );
     await saveFeatureList(opts.featureListPath, list);
 
+    if (aborted !== null) {
+      // Stop gracefully after recording the blocked feature — further model
+      // calls would just throw again (e.g. budget already exhausted).
+      stopped = "error";
+      break;
+    }
     if (consecutiveBlocked >= maxBlocked) {
       stopped = "too_many_blocked";
       break;

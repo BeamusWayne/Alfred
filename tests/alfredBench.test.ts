@@ -125,6 +125,45 @@ describe("benchPassed — empty feature list is not a pass", () => {
   });
 });
 
+describe("autonomousRun — resilient to a mid-run throw", () => {
+  test("a budget-exhausted throw blocks the feature and still writes run_end (no crash)", async () => {
+    const spec = await fixture();
+    const root = join(spec.targetDir, "..");
+    const journal = new Journal(join(root, "j-abort.jsonl"));
+    const ledger = new Ledger(join(root, "l-abort.jsonl"), "bench-secret");
+    const runtime = createRuntime("t", {
+      provider: new MockProvider([() => textResponse("done")]),
+      model: "mock",
+      permissions: { mode: "bypass", allowedTools: new Set(), deniedTools: new Set(), workingDir: spec.targetDir },
+      journal,
+      budget: { maxUsd: 0 }, // already exhausted → the first runtime.agent() throws
+    });
+
+    // Must NOT throw out of autonomousRun.
+    const result = await autonomousRun({
+      runtime,
+      ledger,
+      cwd: spec.targetDir,
+      featureListPath: spec.featureListPath,
+      verifyCmd: "true",
+    });
+    await journal.close();
+
+    expect(result.stopped).toBe("error"); // graceful stop
+    expect(result.ledgerOk).toBe(true); // chain still intact
+
+    // The terminal run_end receipt row was still written.
+    const rows = await ledger.readAll();
+    expect(rows.some((r) => r.kind === "run_end")).toBe(true);
+
+    // The feature is blocked, NOT left dangling in_progress.
+    const fl = JSON.parse(await Bun.file(spec.featureListPath).text()) as {
+      features: Array<{ status: string }>;
+    };
+    expect(fl.features[0]!.status).toBe("blocked");
+  });
+});
+
 describe("autonomousRun — verify gate is bounded", () => {
   test("a hanging verifyCmd times out instead of stalling the run forever", async () => {
     const spec = await fixture();
