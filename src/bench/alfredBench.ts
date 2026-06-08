@@ -29,6 +29,13 @@ import type { Runtime } from "../orchestrator/runtime.ts";
 import type { Ledger } from "../orchestrator/ledger.ts";
 import type { Journal } from "../orchestrator/journal.ts";
 
+/**
+ * Mandatory verify timeout for the bench. Generous enough for a real held-out
+ * suite, finite so a model that emits an infinite loop / hanging test cannot
+ * stall the bench forever.
+ */
+const BENCH_VERIFY_TIMEOUT_MS = 300_000;
+
 // ---------------------------------------------------------------------------
 // Public types
 // ---------------------------------------------------------------------------
@@ -137,8 +144,13 @@ export interface BenchDeps {
 export async function alfredBench(spec: BenchSpec, deps: BenchDeps): Promise<BenchResult> {
   const { runtime, ledger } = deps;
 
+  // Mandatory timeout for every verify run. The held-out suite and the inner
+  // gate both execute model-authored code, so without a bound an infinite loop
+  // / hanging test would wedge the whole bench forever.
+  const verifyTimeoutMs = BENCH_VERIFY_TIMEOUT_MS;
+
   // Step 1 — baseline: the held-out suite must fail before any work is done.
-  const pre = await runHeldOut(spec);
+  const pre = await runHeldOut(spec, verifyTimeoutMs);
   const baselineFailed = !passed(pre);
   await ledger.append("bench_baseline", { failed: baselineFailed, exitCode: pre.exitCode });
 
@@ -149,6 +161,7 @@ export async function alfredBench(spec: BenchSpec, deps: BenchDeps): Promise<Ben
     cwd: spec.targetDir,
     featureListPath: spec.featureListPath,
     verifyCmd: spec.buildCmd,
+    verifyTimeoutMs,
   });
 
   // Step 3 — post-check: run the held-out suite with the implementation present.
@@ -159,7 +172,7 @@ export async function alfredBench(spec: BenchSpec, deps: BenchDeps): Promise<Ben
   let dualPassConfirmed = 0;
   let postExitCode = -1;
   if (passingFeatures > 0) {
-    const post = await runHeldOut(spec);
+    const post = await runHeldOut(spec, verifyTimeoutMs);
     postExitCode = post.exitCode;
     const dualPass = baselineFailed && passed(post);
     // The held-out suite covers the implemented features as a whole; a green

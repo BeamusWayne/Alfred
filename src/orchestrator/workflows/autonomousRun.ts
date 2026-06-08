@@ -63,8 +63,17 @@ export interface AutonomousRunOptions {
   /** When > 1, each implement attempt runs N worktree-isolated candidates and
    * keeps the first that passes the verify gate (ADR 0001 §5.3 best-of-N). */
   readonly bestOfN?: number;
+  /**
+   * Per-attempt verify-gate timeout (ms). Without a bound, model-authored code
+   * (an infinite loop, a hanging test, a never-resolving import) wedges the run
+   * forever. Defaults to {@link DEFAULT_VERIFY_TIMEOUT_MS}.
+   */
+  readonly verifyTimeoutMs?: number;
   readonly onEvent?: (ev: AutonomousEvent) => void;
 }
+
+/** Default verify-gate timeout: generous for a real test suite, finite so a hung command cannot stall the run. */
+export const DEFAULT_VERIFY_TIMEOUT_MS = 120_000;
 
 export interface AutonomousRunResult {
   readonly passing: number;
@@ -164,6 +173,7 @@ export async function autonomousRun(opts: AutonomousRunOptions): Promise<Autonom
           cwd: opts.cwd,
           n: opts.bestOfN,
           verifyCmd: opts.verifyCmd,
+          verifyTimeoutMs: opts.verifyTimeoutMs ?? DEFAULT_VERIFY_TIMEOUT_MS,
           implement: async (worktreePath, candidate) => {
             await opts.runtime.agent(
               `${implementPrompt(feature, opts.verifyCmd, fb, [])}\n\n(Candidate ${candidate + 1} — explore a distinct approach.)`,
@@ -189,7 +199,10 @@ export async function autonomousRun(opts: AutonomousRunOptions): Promise<Autonom
           label: `implement:${feature.id}#${attempt}`,
         });
       }
-      verify = await runVerify(opts.verifyCmd, { cwd: opts.cwd });
+      verify = await runVerify(opts.verifyCmd, {
+        cwd: opts.cwd,
+        timeoutMs: opts.verifyTimeoutMs ?? DEFAULT_VERIFY_TIMEOUT_MS,
+      });
       opts.onEvent?.({ type: "verify", featureId: feature.id, attempt, exitCode: verify.exitCode, passed: passed(verify) });
       if (passed(verify)) break;
       feedback =

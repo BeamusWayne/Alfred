@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mkdtemp, mkdir, rm, readdir, writeFile } from "node:fs/promises";
 import { runHeldOut, alfredBench, type BenchSpec } from "../src/bench/alfredBench.ts";
+import { autonomousRun } from "../src/orchestrator/workflows/autonomousRun.ts";
 import { MockProvider, textResponse, toolUseResponse, type Script } from "../src/providers/mock.ts";
 import { createRuntime } from "../src/orchestrator/runtime.ts";
 import { Journal } from "../src/orchestrator/journal.ts";
@@ -107,4 +108,35 @@ describe("alfredBench — dual FAIL→PASS", () => {
     expect(result.dualPassConfirmed).toBe(0);
     expect(result.ledgerOk).toBe(true);
   });
+});
+
+describe("autonomousRun — verify gate is bounded", () => {
+  test("a hanging verifyCmd times out instead of stalling the run forever", async () => {
+    const spec = await fixture();
+    const root = join(spec.targetDir, "..");
+    // Model just stops; the verify command hangs and must be killed by the timeout.
+    const script: Script = (messages) => {
+      const firstUser = messages.find((m) => m.role === "user");
+      const t = firstUser && typeof firstUser.content === "string" ? firstUser.content : "";
+      if (t.includes("Assess whether")) {
+        return toolUseResponse("structured_output", { verification: 0, reasoning: "n/a" });
+      }
+      return textResponse("done");
+    };
+    const deps = benchDeps(spec.targetDir, root, script);
+
+    const start = Date.now();
+    await autonomousRun({
+      runtime: deps.runtime,
+      ledger: deps.ledger,
+      cwd: spec.targetDir,
+      featureListPath: spec.featureListPath,
+      verifyCmd: "sleep 30",
+      verifyTimeoutMs: 500,
+    });
+    await deps.journal.close();
+
+    // Bounded by the 500ms verify timeout, not the 30s sleep.
+    expect(Date.now() - start).toBeLessThan(8000);
+  }, 12000);
 });
