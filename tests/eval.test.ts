@@ -90,6 +90,24 @@ const casePassTwoToolsInOrder: EvalCase = {
   },
 };
 
+/**
+ * Regression: the required phrase appears only in an INTERMEDIATE tool-call turn,
+ * not the final answer. finalTextIncludes asserts the terminal answer, so this
+ * must FAIL — previously it passed because the whole transcript was concatenated.
+ */
+const caseFailIntermediateTextOnly: EvalCase = {
+  name: "intermediate-text-only",
+  prompt: "Compute it.",
+  scripts: [
+    toolUseResponse("glob", { pattern: "*" }, { text: "the answer is 42" }),
+    textResponse("done, see above"),
+  ],
+  expect: {
+    status: "success",
+    finalTextIncludes: ["the answer is 42"],
+  },
+};
+
 // ---------------------------------------------------------------------------
 // runEvalCase — individual assertions
 // ---------------------------------------------------------------------------
@@ -101,6 +119,12 @@ describe("runEvalCase", () => {
     expect(result.failures).toHaveLength(0);
     expect(result.status).toBe("success");
     expect(result.toolsUsed).toContain("glob");
+  });
+
+  test("finalTextIncludes checks only the final answer, not intermediate turns", async () => {
+    const result = await runEvalCase(caseFailIntermediateTextOnly);
+    expect(result.passed).toBe(false); // the phrase is only in the tool-call turn
+    expect(result.failures.join("\n")).toContain("finalTextIncludes");
   });
 
   test("failing case: wrong expectations produce clear, human-readable failure messages", async () => {

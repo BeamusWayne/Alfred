@@ -17,6 +17,9 @@
  */
 
 import { describe, test, expect } from "bun:test";
+import { mkdtemp, writeFile, rm, realpath } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { LspClient } from "../src/tools/lsp/client.ts";
 import { makeLspTools } from "../src/tools/lsp/tools.ts";
 import { encodeMessage, createFrameParser } from "../src/tools/lsp/protocol.ts";
@@ -532,5 +535,54 @@ describe("LSP tools — workspace containment", () => {
     t.deliver(successResponse(req["id"] as number, { contents: "type info" }));
     const result = await p;
     expect(result.untrusted).toBe(true);
+  });
+
+  test("concurrent calls on the same new file send didOpen exactly once (no race)", async () => {
+    const dir = await realpath(await mkdtemp(join(tmpdir(), "lsp-race-")));
+    await writeFile(join(dir, "a.ts"), "export const x = 1;\n", "utf8");
+    try {
+      const t = makeFakeTransport();
+      // Auto-respond to every request so the tool calls resolve; notifications
+      // (didOpen) are just recorded in t.sent.
+      t.send = (json: string) => {
+        t.sent.push(json);
+        const msg = JSON.parse(json) as { id?: number; method?: string };
+        if (msg.id !== undefined && msg.method) {
+          queueMicrotask(() =>
+            t.deliver(
+              JSON.stringify({
+                jsonrpc: "2.0",
+                id: msg.id,
+                result: msg.method === "initialize" ? { capabilities: {} } : null,
+              }),
+            ),
+          );
+        }
+      };
+      const client = new LspClient(t);
+      await client.initialize(`file://${dir}`);
+
+      const tools = makeLspTools(client);
+      const def = tools.find((x) => x.name === "lsp_definition")!;
+      const hov = tools.find((x) => x.name === "lsp_hover")!;
+      const ctx = { ...wsCtx, workingDir: dir, permissions: { ...wsCtx.permissions, workingDir: dir } };
+
+      // Two parallel calls for the SAME not-yet-opened file.
+      await Promise.all([
+        def.call({ path: join(dir, "a.ts"), line: 0, character: 0 }, ctx),
+        hov.call({ path: join(dir, "a.ts"), line: 0, character: 13 }, ctx),
+      ]);
+
+      const didOpens = t.sent.filter((s) => {
+        try {
+          return (JSON.parse(s) as { method?: string }).method === "textDocument/didOpen";
+        } catch {
+          return false;
+        }
+      });
+      expect(didOpens.length).toBe(1);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

@@ -138,11 +138,22 @@ export const bashTool = buildTool({
     const args = argv.slice(1);
 
     return await new Promise<ToolResult<string>>((resolve) => {
+      const onAbort = (): void => {
+        child.kill("SIGTERM");
+        // Escalate if the child ignores SIGTERM (the execFile timeout is only a
+        // backstop and does not fire on an external abort).
+        setTimeout(() => child.kill("SIGKILL"), 2000).unref?.();
+      };
       const child = execFile(
         file,
         args,
         { cwd, timeout, maxBuffer: 10 * 1024 * 1024 },
         (err, stdout, stderr) => {
+          // Detach the abort listener on normal completion. ctx.signal is the
+          // long-lived per-run signal shared by every tool call, and `{ once }`
+          // only self-removes if abort actually fires — without this, each
+          // completed bash call would leak a listener for the run's lifetime.
+          ctx.signal.removeEventListener("abort", onAbort);
           const out = (stdout ?? "") + (stderr ? `\n${stderr}` : "");
           if (err) {
             const code = typeof (err as { code?: number }).code === "number"
@@ -154,7 +165,6 @@ export const bashTool = buildTool({
           }
         },
       );
-      const onAbort = () => child.kill("SIGTERM");
       ctx.signal.addEventListener("abort", onAbort, { once: true });
     });
   },

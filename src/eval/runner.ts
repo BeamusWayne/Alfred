@@ -41,12 +41,25 @@ function collectToolsUsed(events: readonly QueryEvent[]): readonly string[] {
   return names;
 }
 
-/** Collect the concatenated text from all "text" events (the final assistant output). */
-function collectFinalText(events: readonly QueryEvent[]): string {
-  return events
-    .filter((e): e is Extract<QueryEvent, { type: "text" }> => e.type === "text")
-    .map((e) => e.text)
-    .join("");
+/**
+ * Text of the LAST assistant message — the terminal answer. Using the final
+ * turn (not a concatenation of every "text" event across all turns) is what
+ * `finalTextIncludes` is documented to assert: a regression where the FINAL
+ * answer drops the required phrase must fail even if the phrase appeared in an
+ * earlier planning/tool-call turn.
+ */
+function finalAssistantText(state: QueryState): string {
+  const messages = state.messages;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg !== undefined && msg.role === "assistant") {
+      return msg.content
+        .filter((b): b is Extract<typeof b, { type: "text" }> => b.type === "text")
+        .map((b) => b.text)
+        .join("");
+    }
+  }
+  return "";
 }
 
 // ---------------------------------------------------------------------------
@@ -72,7 +85,7 @@ export async function runEvalCase(c: EvalCase): Promise<EvalResult> {
 
   const { events, state } = await drain(gen);
   const toolsUsed = collectToolsUsed(events);
-  const finalText = collectFinalText(events);
+  const finalText = finalAssistantText(state);
   const failures: string[] = [];
   const { expect: exp } = c;
 

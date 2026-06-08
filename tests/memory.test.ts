@@ -327,6 +327,20 @@ describe("EpisodeStore", () => {
     expect(listed.length).toBe(2);
   });
 
+  test("list(limit) skips corrupt newest files and still returns valid older ones", async () => {
+    const a = await store.write({ goal: "Alpha", approach: "a", worked: [], failed: [] });
+    await Bun.sleep(2);
+    const b = await store.write({ goal: "Beta", approach: "b", worked: [], failed: [] });
+    // Files that sort NEWEST (lexicographically after ISO-timestamp ids) but are
+    // unparsable. The old limit*2 window would scan only these and return [].
+    for (let i = 0; i < 6; i++) {
+      await writeFile(join(episodeDir, `9999-corrupt-${i}.json`), "{ not valid json", "utf-8");
+    }
+    const listed = await store.list(2);
+    expect(listed.length).toBe(2);
+    expect(listed.map((e) => e.id).sort()).toEqual([a.id, b.id].sort());
+  });
+
   test("query finds episodes by keyword", async () => {
     await store.write({ goal: "Fix SQLite FTS bug", approach: "Debug index", worked: [], failed: [] });
     await store.write({ goal: "Add new endpoint", approach: "REST design", worked: [], failed: [] });

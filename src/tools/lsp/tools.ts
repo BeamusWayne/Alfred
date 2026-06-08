@@ -98,22 +98,39 @@ function languageIdFor(path: string): string {
 async function ensureOpen(
   client: LspClient,
   opened: Set<string>,
+  opening: Map<string, Promise<void>>,
   uri: string,
   path: string,
 ): Promise<void> {
   if (opened.has(uri)) return;
-  let text: string;
+  // Concurrency-safe: the LSP tools are isConcurrencySafe, so two calls for the
+  // SAME not-yet-opened uri can run in parallel. Dedupe via an in-flight map so
+  // exactly one didOpen is sent and the first-open settle fires exactly once.
+  const inflight = opening.get(uri);
+  if (inflight) return inflight;
+
+  const open = (async (): Promise<void> => {
+    let text: string;
+    try {
+      text = await Bun.file(path).text();
+    } catch {
+      return; // unreadable — let the query proceed and likely return empty
+    }
+    const isFirst = opened.size === 0;
+    client.didOpen(uri, languageIdFor(path), text);
+    opened.add(uri);
+    // First open of the session: give the server a moment to load the project so
+    // the immediately-following request sees a fully-indexed document.
+    if (isFirst) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 250));
+    }
+  })();
+
+  opening.set(uri, open);
   try {
-    text = await Bun.file(path).text();
-  } catch {
-    return; // unreadable — let the query proceed and likely return empty
-  }
-  client.didOpen(uri, languageIdFor(path), text);
-  opened.add(uri);
-  // First open of the session: give the server a moment to load the project so
-  // the immediately-following request sees a fully-indexed document.
-  if (opened.size === 1) {
-    await new Promise<void>((resolve) => setTimeout(resolve, 250));
+    await open;
+  } finally {
+    opening.delete(uri);
   }
 }
 
@@ -129,6 +146,9 @@ async function ensureOpen(
 export function makeLspTools(client: LspClient): readonly Tool[] {
   // URIs already sent to the server via didOpen, shared across all three tools.
   const opened = new Set<string>();
+  // In-flight opens, keyed by uri, so concurrent tool calls for the same file
+  // share one didOpen instead of racing (the tools are isConcurrencySafe).
+  const opening = new Map<string, Promise<void>>();
 
   const lspDefinition = buildTool({
     name: "lsp_definition",
@@ -151,7 +171,7 @@ export function makeLspTools(client: LspClient): readonly Tool[] {
       const uri = toFileUri(abs);
       const pos = { line: input.line, character: input.character };
       try {
-        await ensureOpen(client, opened, uri, abs);
+        await ensureOpen(client, opened, opening, uri, abs);
         const locations = await client.definition(uri, pos);
         return { content: formatLocations(locations), untrusted: true };
       } catch (err: unknown) {
@@ -182,7 +202,7 @@ export function makeLspTools(client: LspClient): readonly Tool[] {
       const uri = toFileUri(abs);
       const pos = { line: input.line, character: input.character };
       try {
-        await ensureOpen(client, opened, uri, abs);
+        await ensureOpen(client, opened, opening, uri, abs);
         const locations = await client.references(uri, pos);
         return { content: formatLocations(locations), untrusted: true };
       } catch (err: unknown) {
@@ -213,7 +233,7 @@ export function makeLspTools(client: LspClient): readonly Tool[] {
       const uri = toFileUri(abs);
       const pos = { line: input.line, character: input.character };
       try {
-        await ensureOpen(client, opened, uri, abs);
+        await ensureOpen(client, opened, opening, uri, abs);
         const text = await client.hover(uri, pos);
         return { content: text ?? "(no hover info)", untrusted: true };
       } catch (err: unknown) {

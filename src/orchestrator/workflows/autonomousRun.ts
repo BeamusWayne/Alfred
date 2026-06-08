@@ -172,6 +172,18 @@ export async function autonomousRun(opts: AutonomousRunOptions): Promise<Autonom
       opts.onEvent?.({ type: "attempt", featureId: feature.id, attempt });
       if (opts.bestOfN && opts.bestOfN > 1) {
         const fb = feedback;
+        // Honor the architect/editor split (ADR 0005) inside best-of-N: plan
+        // once with the architect, then run N editor candidates against it,
+        // instead of silently dropping the operator's split-model intent.
+        const steps = useSplit
+          ? (
+              await opts.runtime.agent<Plan>(planPrompt(feature, feedback), {
+                schema: planSchema,
+                model: opts.architectModel,
+                label: `architect:${feature.id}#${attempt}`,
+              })
+            ).data?.steps ?? []
+          : [];
         await bestOfNCode({
           cwd: opts.cwd,
           n: opts.bestOfN,
@@ -179,8 +191,9 @@ export async function autonomousRun(opts: AutonomousRunOptions): Promise<Autonom
           verifyTimeoutMs: opts.verifyTimeoutMs ?? DEFAULT_VERIFY_TIMEOUT_MS,
           implement: async (worktreePath, candidate) => {
             await opts.runtime.agent(
-              `${implementPrompt(feature, opts.verifyCmd, fb, [])}\n\n(Candidate ${candidate + 1} — explore a distinct approach.)`,
+              `${implementPrompt(feature, opts.verifyCmd, fb, steps)}\n\n(Candidate ${candidate + 1} — explore a distinct approach.)`,
               {
+                ...(useSplit ? { model: opts.editorModel } : {}),
                 permissions: { mode: "bypass", allowedTools: new Set(), deniedTools: new Set(), workingDir: worktreePath },
                 label: `bestof:${feature.id}#${attempt}.${candidate}`,
               },

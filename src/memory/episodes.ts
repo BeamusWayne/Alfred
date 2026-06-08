@@ -111,10 +111,12 @@ export class EpisodeStore {
       .sort() // ISO timestamps sort lexicographically = chronologically
       .reverse(); // newest-first
 
-    const candidates = limit !== undefined ? jsonFiles.slice(0, limit * 2) : jsonFiles;
-
+    // Scan newest-first across ALL files, stopping once `limit` VALID episodes
+    // are collected. (Previously capped the candidate window at limit*2, so a
+    // burst of corrupt/unparsable newest files could permanently shadow valid
+    // older episodes and return fewer than `limit`.)
     const episodes: Episode[] = [];
-    for (const filename of candidates) {
+    for (const filename of jsonFiles) {
       const id = filename.slice(0, -5); // strip .json
       const ep = await this.get(id);
       if (ep !== null) {
