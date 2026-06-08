@@ -66,27 +66,30 @@ export function shouldCompact(
 }
 
 /**
- * Find the latest index (exclusive) such that messages[splitIndex] is a `user`
- * message and the tail `messages[splitIndex..]` contains approximately
- * `keepRecent` messages — but never split a tool_result away from its
- * preceding assistant turn.
+ * Find the split index such that the tail `messages[splitIndex..]` keeps roughly
+ * `keepRecent` recent messages and STARTS at a turn boundary — an `assistant`
+ * or `user` message, never a `tool_result` (which must stay paired with the
+ * `tool_use` in its preceding assistant turn).
+ *
+ * Note: this intentionally does NOT require a `user` boundary. A real agent
+ * transcript has exactly one user message (index 0) followed entirely by
+ * `assistant`/`tool_result` turns, so a user-only search always collapsed to 0
+ * and made compaction a silent no-op. Landing on any non-tool_result boundary
+ * keeps tool_use/tool_result pairs intact while still reclaiming space.
  *
  * Returns 0 when no safe split is found (i.e. compact would be a no-op).
  */
 function findSplitIndex(messages: readonly Message[], keepRecent: number): number {
   if (messages.length <= keepRecent) return 0;
 
-  // Start scanning from the position that would give us `keepRecent` tail msgs.
+  // Start where the tail would hold ~keepRecent messages, then back off any
+  // tool_result so the tail begins at the assistant turn that produced it.
   let candidate = messages.length - keepRecent;
-
-  // Walk backwards until we land on a `user` role boundary.
-  while (candidate > 0 && messages[candidate]?.role !== "user") {
+  while (candidate > 0 && messages[candidate]?.role === "tool_result") {
     candidate--;
   }
 
-  // Ensure the candidate isn't a tool_result (shouldn't be at a user boundary,
-  // but be defensive: tool_result has role "tool_result" not "user").
-  // Also ensure we're not splitting after index 0 with nothing to summarise.
+  // Nothing to summarise (everything is within keepRecent, or only index 0 left).
   if (candidate <= 0) return 0;
 
   return candidate;

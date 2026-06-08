@@ -363,3 +363,35 @@ describe("compact — provider error handling", () => {
     expect(threw).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// compact — tool-driven transcript (regression: previously a silent no-op)
+// ---------------------------------------------------------------------------
+
+describe("compact — tool-driven transcript", () => {
+  test("compacts a single-user transcript of assistant/tool_result turns", async () => {
+    const provider = new MockProvider([textResponse("the summary")]);
+
+    // The real agent-loop shape: ONE user message, then many
+    // assistant(tool_use) → tool_result turns. The old user-boundary search
+    // walked back to index 0 here and made compact a no-op.
+    const messages: Message[] = [userMsg("do the task")];
+    for (let i = 0; i < 12; i++) {
+      messages.push(toolUseMsg(`id${i}`, "read_file"));
+      messages.push(toolResultMsg(`id${i}`, `result ${i}`));
+    }
+
+    const result = await compact(messages, {
+      provider,
+      model: "mock",
+      keepRecent: 6,
+      maxContextTokens: 100_000,
+    });
+
+    expect(provider.calls.length).toBe(1); // it actually summarised (not a no-op)
+    expect(result.length).toBeLessThan(messages.length);
+    expect(result[0]?.role).toBe("user"); // the summary message
+    // The tail must begin at a turn boundary, never orphaning a tool_result.
+    expect(result[1]?.role).not.toBe("tool_result");
+  });
+});
