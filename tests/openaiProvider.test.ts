@@ -351,3 +351,81 @@ describe("OpenAIProvider — missing API key", () => {
     expect((caught as ProviderError).retryable).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Malformed-response + network resilience
+// ---------------------------------------------------------------------------
+
+describe("OpenAIProvider — malformed response + network resilience", () => {
+  test("usage:{} yields finite zero tokens (no NaN that would defeat the budget guard)", async () => {
+    const { fetcher } = makeFetcher(200, {
+      id: "x",
+      model: "glm-4.6",
+      choices: [{ message: { role: "assistant", content: "hi" }, finish_reason: "stop" }],
+      usage: {},
+    });
+    const result = await new OpenAIProvider(fetcher).chat(USER_MESSAGES, [], BASE_CONFIG);
+    expect(result.usage.inputTokens).toBe(0);
+    expect(result.usage.outputTokens).toBe(0);
+    expect(Number.isNaN(result.usage.inputTokens)).toBe(false);
+  });
+
+  test("a choice without a message throws a clean ProviderError, not a TypeError", async () => {
+    const { fetcher } = makeFetcher(200, {
+      id: "x",
+      model: "glm-4.6",
+      choices: [{ finish_reason: "stop" }],
+      usage: { prompt_tokens: 1, completion_tokens: 1 },
+    });
+    let caught: unknown;
+    try {
+      await new OpenAIProvider(fetcher).chat(USER_MESSAGES, [], BASE_CONFIG);
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(ProviderError);
+  });
+
+  test("a thrown network error maps to a RETRYABLE ProviderError", async () => {
+    const fetcher: Fetcher = async () => {
+      throw new TypeError("fetch failed");
+    };
+    let caught: unknown;
+    try {
+      await new OpenAIProvider(fetcher).chat(USER_MESSAGES, [], BASE_CONFIG);
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(ProviderError);
+    expect((caught as ProviderError).retryable).toBe(true);
+  });
+
+  test("a user abort is NOT wrapped as retryable", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const fetcher: Fetcher = async () => {
+      const e = new Error("The operation was aborted");
+      e.name = "AbortError";
+      throw e;
+    };
+    let caught: unknown;
+    try {
+      await new OpenAIProvider(fetcher).chat(USER_MESSAGES, [], BASE_CONFIG, { signal: controller.signal });
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).not.toBeInstanceOf(ProviderError); // the AbortError propagates unchanged
+  });
+
+  test("504 Gateway Timeout is retryable", async () => {
+    const { fetcher } = makeFetcher(504, { error: { message: "gateway timeout" } });
+    let caught: unknown;
+    try {
+      await new OpenAIProvider(fetcher).chat(USER_MESSAGES, [], BASE_CONFIG);
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(ProviderError);
+    expect((caught as ProviderError).retryable).toBe(true);
+  });
+});

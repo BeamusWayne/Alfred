@@ -100,7 +100,10 @@ interface OpenAIRequestBody {
 // Status codes that warrant a retry
 // ---------------------------------------------------------------------------
 
-const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 529]);
+// Mirrors the Anthropic provider's set so both backends treat the same
+// transient statuses (incl. 408 Request Timeout and 504 Gateway Timeout)
+// consistently.
+const RETRYABLE_STATUS = new Set([408, 409, 429, 500, 502, 503, 504, 529]);
 
 // ---------------------------------------------------------------------------
 // Mapping helpers: Alfred → OpenAI
@@ -228,11 +231,23 @@ function fromOpenAIMessage(msg: OpenAIAssistantMessage): readonly ContentBlock[]
   return blocks;
 }
 
+/** Coerce to a finite number; anything else (undefined, NaN, "") becomes 0. */
+function finiteNum(v: unknown): number {
+  return typeof v === "number" && Number.isFinite(v) ? v : 0;
+}
+
 function fromOpenAIUsage(u: OpenAIUsage): Usage {
+  // An OpenAI-compatible endpoint (ALFRED_BASE_URL) may return `usage: {}` or
+  // omit token fields. Coercing to finite numbers prevents `undefined`/NaN from
+  // propagating into cost accounting and — critically — from making
+  // Budget.exceeded() compare `NaN >= max` (always false), which would silently
+  // disable the run's cost/token guardrail for the rest of the session.
+  const o = (u ?? {}) as unknown as Record<string, unknown>;
+  const details = o["prompt_tokens_details"] as Record<string, unknown> | undefined;
   return {
-    inputTokens: u.prompt_tokens,
-    outputTokens: u.completion_tokens,
-    cacheReadTokens: u.prompt_tokens_details?.cached_tokens ?? 0,
+    inputTokens: finiteNum(o["prompt_tokens"]),
+    outputTokens: finiteNum(o["completion_tokens"]),
+    cacheReadTokens: finiteNum(details?.["cached_tokens"]),
     cacheWriteTokens: 0,
   };
 }
@@ -329,15 +344,27 @@ export class OpenAIProvider implements Provider {
       ...(config.temperature !== undefined ? { temperature: config.temperature } : {}),
     };
 
-    const response = await this.#fetcher(`${this.#baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(body),
-      signal: options?.signal,
-    });
+    let response: Response;
+    try {
+      response = await this.#fetcher(`${this.#baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(body),
+        signal: options?.signal,
+      });
+    } catch (err) {
+      // A network-level failure (DNS, refused, TLS, reset) makes fetch throw a
+      // TypeError. Map it to a RETRYABLE ProviderError so the loop backs off
+      // instead of dying on the first blip — but preserve user-abort semantics.
+      if (options?.signal?.aborted || (err instanceof Error && err.name === "AbortError")) {
+        throw err;
+      }
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new ProviderError(`OpenAI request failed: ${msg}`, { retryable: true });
+    }
 
     if (!response.ok) {
       throw await toProviderError(response);
@@ -352,6 +379,11 @@ export class OpenAIProvider implements Provider {
     const choice = raw.choices[0];
     if (choice === undefined) {
       throw new ProviderError("OpenAI response had no choices", { retryable: false });
+    }
+    // A compatible endpoint may return a choice without `message`; guard so the
+    // caller gets a clean ProviderError, not a raw TypeError from msg.content.
+    if ((choice as { message?: unknown }).message == null) {
+      throw new ProviderError("OpenAI response choice had no message", { retryable: false });
     }
 
     return {
