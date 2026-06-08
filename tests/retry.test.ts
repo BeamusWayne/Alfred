@@ -13,6 +13,12 @@ describe("retry helpers", () => {
     expect(computeDelay(3, 1234)).toBe(1234);
   });
 
+  test("computeDelay clamps an oversized retryAfter (no multi-hour stall)", () => {
+    // A hostile/buggy endpoint sending Retry-After: 86400 must not stall for 24h.
+    expect(computeDelay(1, 86_400_000)).toBe(60_000);
+    expect(computeDelay(1, -5)).toBe(0); // never negative
+  });
+
   test("computeDelay is exponential with no jitter (rand=0)", () => {
     expect(computeDelay(1, undefined, () => 0)).toBe(200);
     expect(computeDelay(2, undefined, () => 0)).toBe(400);

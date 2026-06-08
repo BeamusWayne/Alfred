@@ -14,13 +14,21 @@ export function retryAfterMs(err: unknown): number | undefined {
   return err instanceof ProviderError ? err.retryAfterMs : undefined;
 }
 
-/** Delay before attempt N (1-based). Prefers `retryAfter`, else 200·2^(n-1) + jitter. */
+/**
+ * Upper bound on an honored server `Retry-After`. The header comes from the
+ * provider endpoint, which is operator/attacker-influenceable via
+ * ALFRED_BASE_URL, so an unclamped value (`Retry-After: 86400`) could stall an
+ * unattended autonomous run for hours. 60s is plenty for a real rate-limit.
+ */
+export const MAX_RETRY_AFTER_MS = 60_000;
+
+/** Delay before attempt N (1-based). Prefers `retryAfter` (clamped), else 200·2^(n-1) + jitter. */
 export function computeDelay(
   attempt: number,
   retryAfter?: number,
   rand: () => number = Math.random,
 ): number {
-  if (retryAfter !== undefined) return retryAfter;
+  if (retryAfter !== undefined) return Math.min(Math.max(0, retryAfter), MAX_RETRY_AFTER_MS);
   const base = 200 * 2 ** (attempt - 1);
   return Math.round(base + base * 0.25 * rand());
 }
