@@ -22,6 +22,33 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mkdtemp } from "node:fs/promises";
 import { runVerify, passed } from "../../harness/verify.ts";
+import { resolveInside, PathEscapeError } from "../../tools/lib/paths.ts";
+
+/**
+ * Copy one worktree file into `cwd`, refusing to read through a symlink that
+ * escapes the worktree (out-of-tree disclosure) or write through a symlink that
+ * escapes `cwd` (clobbering a host file). resolveInside resolves real paths, so
+ * a symlink pointing outside throws and the file is skipped rather than copied.
+ * Returns true if copied, false if skipped for containment.
+ */
+async function copyContained(
+  worktreePath: string,
+  cwd: string,
+  relativePath: string,
+): Promise<boolean> {
+  let src: string;
+  let dst: string;
+  try {
+    src = resolveInside(worktreePath, relativePath);
+    dst = resolveInside(cwd, relativePath);
+  } catch (err) {
+    if (err instanceof PathEscapeError) return false;
+    throw err;
+  }
+  const content = await Bun.file(src).arrayBuffer();
+  await Bun.write(dst, content);
+  return true;
+}
 
 // ---------------------------------------------------------------------------
 // Private git helper (mirrors checkpoint.ts §private git helper)
@@ -144,10 +171,7 @@ export async function applyWinner(
     .filter((p) => p.length > 0);
 
   for (const relativePath of trackedChanged) {
-    const src = join(worktreePath, relativePath);
-    const dst = join(cwd, relativePath);
-    const content = await Bun.file(src).arrayBuffer();
-    await Bun.write(dst, content);
+    await copyContained(worktreePath, cwd, relativePath);
   }
 
   // ── B: untracked files (not staged/committed yet in worktree) ──────────
@@ -167,10 +191,7 @@ export async function applyWinner(
     .filter((p) => p.length > 0);
 
   for (const relativePath of untrackedPaths) {
-    const src = join(worktreePath, relativePath);
-    const dst = join(cwd, relativePath);
-    const content = await Bun.file(src).arrayBuffer();
-    await Bun.write(dst, content);
+    await copyContained(worktreePath, cwd, relativePath);
   }
 }
 

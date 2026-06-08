@@ -9,7 +9,7 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile, symlink } from "node:fs/promises";
 import { bestOfNCode, applyWinner } from "../src/orchestrator/workflows/bestOfNCode.ts";
 
 // ---------------------------------------------------------------------------
@@ -284,5 +284,34 @@ describe("bestOfNCode — outcome metadata", () => {
       expect(typeof outcome!.worktreePath).toBe("string");
       expect(outcome!.worktreePath.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("applyWinner — symlink containment", () => {
+  test("does not write through a cwd symlink escaping the workspace, nor copy a worktree symlink pointing outside", async () => {
+    const worktree = await makeRepo(tmpBase);
+    const base = (await spawn(["git", "rev-parse", "HEAD"], worktree)).stdout;
+
+    // External victim (write target) and an out-of-tree secret (read source).
+    const victim = join(tmpBase, "victim.txt");
+    await writeFile(victim, "ORIGINAL");
+    const secretSource = join(tmpBase, "secret-source.txt");
+    await writeFile(secretSource, "TOP SECRET");
+
+    // cwd has a symlink `passthru -> victim` (escape-on-write).
+    const cwd = await mkdtemp(join(tmpBase, "cwd-"));
+    await symlink(victim, join(cwd, "passthru"));
+
+    // worktree (untracked): a regular `passthru` that would clobber victim via
+    // the cwd symlink, and a symlink `leak -> secret-source` that would disclose
+    // out-of-tree bytes into cwd.
+    await writeFile(join(worktree, "passthru"), "ATTACKER");
+    await symlink(secretSource, join(worktree, "leak"));
+
+    await applyWinner(cwd, worktree, base);
+
+    // External victim untouched (no write-through); secret not copied in.
+    expect(await Bun.file(victim).text()).toBe("ORIGINAL");
+    expect(await Bun.file(join(cwd, "leak")).exists()).toBe(false);
   });
 });
