@@ -62,4 +62,12 @@ describe("evaluatePermission", () => {
   test("acceptEdits allows a tool that opts into allow", async () => {
     expect((await decide({ check: allows, ctx: ctx("acceptEdits") })).behavior).toBe("allow");
   });
+
+  test("a tool-level deny (kill-list) is honored EVEN when classified read-only", async () => {
+    // Read-only is a per-call classification that can be wrong; it must not be a
+    // blanket bypass of the tool's kill-list. Previously isReadOnly skipped the
+    // check entirely and auto-allowed.
+    expect((await decide({ isReadOnly: true, check: denies, ctx: ctx("bypass") })).behavior).toBe("deny");
+    expect((await decide({ isReadOnly: true, check: denies, ctx: ctx("default") })).behavior).toBe("deny");
+  });
 });

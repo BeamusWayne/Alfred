@@ -35,12 +35,15 @@ export async function evaluatePermission(p: EvaluateParams): Promise<PermissionR
     return deny(`tool '${toolName}' is on the denylist`);
   }
 
-  // 2. Ask the tool. Dangerous-input kill-lists live in the tool's check; a
-  //    tool-level deny also beats bypass.
-  const toolDecision = isReadOnly ? allow(input) : await check(input, ctx);
+  // 2. Always consult the tool's own check so its per-input kill-list (deny)
+  //    is honored EVEN when the call was classified read-only. Read-only is a
+  //    per-call classification that can be wrong (e.g. a bash command that
+  //    looks read-only but writes), so it must not be a blanket bypass of the
+  //    kill-list. A tool-level deny beats bypass.
+  const toolDecision = await check(input, ctx);
   if (toolDecision.behavior === "deny") return toolDecision;
 
-  // 3. Read-only calls are always safe to run.
+  // 3. Read-only calls are safe to auto-run (the deny check above still applied).
   if (isReadOnly) return allow(input);
 
   // 4. Plan mode forbids any mutation.

@@ -27,10 +27,15 @@ const inputSchema = z.object({
 const DEFAULT_TIMEOUT = 120_000;
 const MAX_OUTPUT = 30_000;
 
+// Commands that only emit to stdout and cannot exec another program or write a
+// file by themselves. Deliberately EXCLUDES awk/sed (their program or -i flag
+// can write/exec) and env (runs an arbitrary command), which must never be
+// auto-classified read-only. find/sort stay but their write/exec flags are
+// caught by hasWriteIndicator below.
 const READ_ONLY = new Set([
   "ls", "cat", "head", "tail", "wc", "echo", "pwd", "which", "type", "find",
-  "grep", "rg", "tree", "stat", "file", "date", "whoami", "env", "printenv",
-  "basename", "dirname", "realpath", "diff", "sort", "uniq", "cut", "awk", "sed",
+  "grep", "rg", "tree", "stat", "file", "date", "whoami", "printenv",
+  "basename", "dirname", "realpath", "diff", "sort", "uniq", "cut",
 ]);
 const GIT_READ_ONLY = new Set(["status", "log", "diff", "branch", "show", "remote", "rev-parse"]);
 
@@ -60,7 +65,29 @@ function firstToken(segment: string): { cmd: string; rest: string } {
   return { cmd, rest: rest.join(" ") };
 }
 
+/**
+ * True when the command can write a file or execute another program despite
+ * naming only "read-only" tools — the cases that make naive classification
+ * dangerous (a read-only-classified call skips approval). Conservative: when in
+ * doubt it returns true, so the command falls through to a normal approval ask.
+ */
+function hasWriteIndicator(command: string): boolean {
+  // Command / process substitution can run arbitrary code.
+  if (command.includes("$(") || command.includes("`") || /[<>]\(/.test(command)) return true;
+  // find's executor/deleter actions write or run programs.
+  if (/\bfind\b[^|;&]*\s-(?:exec|execdir|ok|okdir|delete|fprint|fprintf|fls)\b/.test(command)) return true;
+  // sort -o writes its output to a file.
+  if (/\bsort\b[^|;&]*\s-o\b/.test(command)) return true;
+  // File-writing output redirection, excluding fd dups (2>&1) and the bit-bucket.
+  const redir = command
+    .replace(/\d?>&\d?/g, " ")
+    .replace(/>>?\s*\/dev\/null\b/g, " ");
+  if (/>>?/.test(redir)) return true;
+  return false;
+}
+
 function isReadOnlyCommand(command: string): boolean {
+  if (hasWriteIndicator(command)) return false;
   const segs = segments(command);
   if (segs.length === 0) return false;
   return segs.every((seg) => {

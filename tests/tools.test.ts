@@ -121,6 +121,38 @@ describe("bash safety", () => {
     expect(bashTool.isReadOnly({ command: "ls && rm x" })).toBe(false);
   });
 
+  test("write-capable commands are NOT classified read-only (no auto-run)", () => {
+    for (const cmd of [
+      "sed -i 's/a/b/' f",
+      "find . -delete",
+      "find /tmp -type f -exec rm {} ;",
+      "awk 'BEGIN{system(\"rm -rf x\")}'",
+      "cat x > out.txt",
+      "echo hi >> f",
+      "env rm -rf x",
+      "cat $(echo f)",
+      "grep p f `id`",
+      "sort -o /etc/passwd x",
+    ]) {
+      expect(bashTool.isReadOnly({ command: cmd })).toBe(false);
+    }
+  });
+
+  test("genuinely read-only commands stay read-only (incl. harmless fd/null redirects)", () => {
+    for (const cmd of [
+      "ls -la",
+      "cat file",
+      "grep p f",
+      "find . -name '*.ts'",
+      "which foo 2>/dev/null",
+      "diff a b",
+      "git status",
+      "wc -l f",
+    ]) {
+      expect(bashTool.isReadOnly({ command: cmd })).toBe(true);
+    }
+  });
+
   test("kill-list denies catastrophic commands (even before bypass)", async () => {
     const ctx = makeCtx();
     expect((await bashTool.checkPermissions({ command: "rm -rf /" }, ctx.permissions)).behavior).toBe("deny");
