@@ -159,6 +159,15 @@ describe("bash safety", () => {
     expect((await bashTool.checkPermissions({ command: "echo hi" }, ctx.permissions)).behavior).toBe("ask");
   });
 
+  test("kill-list is not defeated by quoting the destructive target", async () => {
+    const ctx = makeCtx();
+    for (const command of ['rm -rf "/"', "rm -rf '/'", 'rm -rf "/*"', 'rm -rf "$HOME"']) {
+      expect((await bashTool.checkPermissions({ command }, ctx.permissions)).behavior).toBe("deny");
+    }
+    // A quoted real subpath is still not the catastrophic target → not denied.
+    expect((await bashTool.checkPermissions({ command: 'rm -rf "/tmp/scratch"' }, ctx.permissions)).behavior).not.toBe("deny");
+  });
+
   test("runs a simple command and captures output", async () => {
     const ctx = makeCtx();
     const r = await bashTool.call({ command: "echo hi" }, ctx);

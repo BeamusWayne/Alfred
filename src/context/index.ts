@@ -76,12 +76,34 @@ export async function buildSystemContext(
   };
 }
 
+/**
+ * Neutralise any `<project-doc>`/`</project-doc>` tag inside doc content so a
+ * malicious repo file (AGENTS.md/CLAUDE.md from an untrusted clone) cannot break
+ * out of its data frame and forge higher-trust system sections. Mirrors the
+ * <untrusted-data> fence hardening in src/security/taint.ts.
+ */
+function neutraliseProjectDocTags(text: string): string {
+  return text.replace(/<\s*\/?\s*project-doc/gi, (m) => m.replace("<", "&lt;"));
+}
+
+/** Escape a value for safe inclusion in a double-quoted XML-ish attribute. */
+function escapeAttr(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 export function buildSystemPrompt(ctx: SystemContext): string {
   const parts: string[] = [BASE_SYSTEM_PROMPT];
 
   if (ctx.projectDocs.length > 0) {
     const docs = ctx.projectDocs
-      .map((d) => `<project-doc path="${d.path}">\n${d.content}\n</project-doc>`)
+      .map(
+        (d) =>
+          `<project-doc path="${escapeAttr(d.path)}">\n${neutraliseProjectDocTags(d.content)}\n</project-doc>`,
+      )
       .join("\n\n");
     parts.push(
       `## Project instructions\nThe following project files are guidance from the repository ` +

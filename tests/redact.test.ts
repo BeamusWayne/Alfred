@@ -57,6 +57,16 @@ describe("redact — contextual shapes", () => {
     );
   });
 
+  test("dotenv redaction fires mid-line, not just at line start", () => {
+    // A secret embedded in a log line / fetched page must still be scrubbed.
+    expect(redact("[info] DB_PASSWORD=Tr0ub4dor connecting")).toBe(
+      "[info] DB_PASSWORD=[REDACTED:dotenv] connecting",
+    );
+    expect(redact("url?API_KEY=abc123def456 trailing")).toBe(
+      "url?API_KEY=[REDACTED:dotenv] trailing",
+    );
+  });
+
   test("long hex and base64 blobs", () => {
     expect(redact("a".repeat(40)).startsWith("[REDACTED:")).toBe(true);
     const b64 = "QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVowMTIzNDU2Nzg5"; // 48 chars

@@ -101,7 +101,12 @@ function isReadOnlyCommand(command: string): boolean {
 }
 
 function isDangerous(command: string): boolean {
-  return KILL_LIST.some((re) => re.test(command));
+  // Also test a quote-stripped form so trivially-equivalent evasions like
+  // `rm -rf "/"` / `rm -rf '/'` (which break the bare-`/` anchor) are still
+  // caught. The kill-list is the one guard that survives bypass mode, so it
+  // must not be defeatable by quoting the destructive target.
+  const dequoted = command.replace(/['"]/g, "");
+  return KILL_LIST.some((re) => re.test(command) || re.test(dequoted));
 }
 
 function truncate(s: string): string {

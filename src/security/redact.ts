@@ -50,8 +50,12 @@ const RULES: readonly RedactionRule[] = [
   // Matches the VALUE portion; replaces the whole match.
   {
     kind: "dotenv",
+    // Match a secret-hinting KEY=VALUE anywhere it is not glued to the middle of
+    // another identifier — start-of-string or after any non-identifier char.
+    // (Was anchored to line start only, so `… DB_PASSWORD=secret …` mid-line in a
+    // log line or fetched page leaked through.)
     pattern:
-      /(?:^|(?<=\n))(?:export\s+)?(?:[A-Z0-9_]*(?:SECRET|TOKEN|KEY|PASSWORD|PASSWD|API)[A-Z0-9_]*)=\S+/gm,
+      /(?:^|(?<=[^A-Za-z0-9_]))(?:export\s+)?(?:[A-Z0-9_]*(?:SECRET|TOKEN|KEY|PASSWORD|PASSWD|API)[A-Z0-9_]*)=\S+/g,
   },
   // Anthropic keys: sk-ant-api03-… or sk-ant-…
   {
