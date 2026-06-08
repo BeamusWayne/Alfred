@@ -71,6 +71,27 @@ describe("seatbeltProfile", () => {
     expect(profile).toContain('\\"quotes\\"');
   });
 
+  test("drops a relative writable path (fail closed — no ineffective rule)", () => {
+    // Seatbelt subpath never matches a relative path; emit nothing for it.
+    const profile = seatbeltProfile({
+      writablePaths: ["relative/dir", "/abs/ok"],
+      allowNetwork: false,
+    });
+    expect(profile).not.toContain('subpath "relative/dir"');
+    expect(profile).toContain('(allow file-write* (subpath "/abs/ok"))');
+  });
+
+  test("drops a writable path containing a control character", () => {
+    // A newline would break out of the TinyScheme string literal; fail closed.
+    const profile = seatbeltProfile({
+      writablePaths: ["/abs/with\nnewline"],
+      allowNetwork: false,
+    });
+    expect(profile).not.toContain("file-write*"); // the only path was dropped
+    // Profile must remain a single rule per line — no smuggled extra line.
+    expect(profile).not.toContain("newline");
+  });
+
   test("lines are newline-separated", () => {
     const profile = seatbeltProfile(basePolicy);
     const lines = profile.split("\n");
