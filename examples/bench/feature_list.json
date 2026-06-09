@@ -1,0 +1,18 @@
+{
+  "features": [
+    {
+      "id": "slugify",
+      "title": "slugify",
+      "description": "Create src/slugify.ts exporting `export function slugify(input: string): string`. It lowercases the input, trims surrounding whitespace, replaces every run of one or more non-alphanumeric characters with a single hyphen, and removes leading and trailing hyphens. Examples: slugify('Hello, World!') === 'hello-world'; slugify('  Foo   Bar--Baz!! ') === 'foo-bar-baz'; slugify('') === ''; slugify('!!!wow!!!') === 'wow'.",
+      "status": "pending",
+      "iterationBudget": 4
+    },
+    {
+      "id": "truncate",
+      "title": "truncate",
+      "description": "Create src/truncate.ts exporting `export function truncate(input: string, max: number): string`. If input.length is less than or equal to max, return input unchanged; otherwise return the first max characters of input followed by a single ellipsis character '…' (U+2026). Examples: truncate('hi', 5) === 'hi'; truncate('hello', 5) === 'hello'; truncate('hello world', 5) === 'hello…'; truncate('abc', 0) === '…'.",
+      "status": "pending",
+      "iterationBudget": 4
+    }
+  ]
+}

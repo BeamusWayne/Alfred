@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "bun run src/index.ts",
     "alfred": "bun run src/index.ts",
-    "test": "bun test",
+    "test": "bun test tests",
     "typecheck": "tsc --noEmit",
     "lint": "biome lint src tests",
     "format": "biome format --write src tests",
