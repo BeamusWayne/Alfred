@@ -9,6 +9,7 @@ you point either one at any Anthropic-compatible endpoint.
 |-------------|---------------------|-----------------|
 | `anthropic` | `ANTHROPIC_API_KEY` | `@anthropic-ai/sdk` (official SDK, streaming, prompt caching) |
 | `openai` | `OPENAI_API_KEY` | Native `fetch` to `/v1/chat/completions` — no `openai` npm package required |
+| `google` | `GOOGLE_API_KEY` (or `GEMINI_API_KEY`) | Native `fetch` to Gemini `v1beta/:generateContent` — faithful `functionCall`/`functionResponse` tool calling |
 
 Select a provider:
 
@@ -18,10 +19,23 @@ alfred "…"
 
 # OpenAI
 ALFRED_PROVIDER=openai alfred "…"
+
+# Google Gemini (defaults to the gemini-2.5-flash model)
+ALFRED_PROVIDER=google GOOGLE_API_KEY=… alfred "…"
 ```
 
-Both providers implement the same `Provider` interface (`src/providers/types.ts`);
-no tool or engine code changes when you switch.
+All three providers implement the same `Provider` interface (`src/providers/types.ts`);
+no tool or engine code changes when you switch. Each provider has a sensible default
+model (`claude-sonnet-4-6` / `gpt-4o` / `gemini-2.5-flash`), overridable with `-m` or
+`ALFRED_MODEL`.
+
+::: tip Gemini tool-schema compatibility
+The Google provider rewrites each tool's JSON Schema down to the OpenAPI-3.0 subset
+Gemini's function-declaration parser accepts — Zod-emitted constraints like
+`exclusiveMinimum`, `format`, `pattern`, `$schema`, and `additionalProperties` are
+dropped (Gemini rejects unknown keys). Tool `type`/`description`/`enum`/`properties`/
+`required`/`items` are preserved.
+:::
 
 ## Selecting a model
 

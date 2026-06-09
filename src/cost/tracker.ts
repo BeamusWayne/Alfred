@@ -85,6 +85,25 @@ export const PRICING_TABLE: Readonly<Record<string, ModelPricing>> = {
     cacheReadPerMillion: 0.11,
     cacheWritePerMillion: 0.75,
   },
+  // Google Gemini — approximate public pricing (USD per 1M tokens).
+  "gemini-2.5-flash": {
+    inputPerMillion: 0.30,
+    outputPerMillion: 2.50,
+    cacheReadPerMillion: 0.075,
+    cacheWritePerMillion: 0.30,
+  },
+  "gemini-2.5-pro": {
+    inputPerMillion: 1.25,
+    outputPerMillion: 10.00,
+    cacheReadPerMillion: 0.31,
+    cacheWritePerMillion: 1.25,
+  },
+  "gemini-2.0-flash": {
+    inputPerMillion: 0.10,
+    outputPerMillion: 0.40,
+    cacheReadPerMillion: 0.025,
+    cacheWritePerMillion: 0.10,
+  },
 };
 
 /** Fallback pricing applied to unrecognised model ids. */

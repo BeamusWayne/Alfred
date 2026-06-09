@@ -3,7 +3,7 @@ import { z } from "zod";
 import { roleModelMapSchema, type RoleModelMap } from "./roles.ts";
 
 export const PERMISSION_MODES = ["default", "acceptEdits", "plan", "bypass"] as const;
-export const PROVIDERS = ["anthropic", "openai"] as const;
+export const PROVIDERS = ["anthropic", "openai", "google"] as const;
 export type ProviderId = (typeof PROVIDERS)[number];
 
 export const configSchema = z.object({
@@ -31,7 +31,13 @@ export interface ConfigOverrides {
   readonly roles?: RoleModelMap;
 }
 
-const DEFAULT_MODEL = "claude-sonnet-4-6";
+/** Sensible default model per provider (so `ALFRED_PROVIDER=google` doesn't
+ *  fall back to a Claude id the Gemini API would 404 on). */
+const DEFAULT_MODEL_BY_PROVIDER: Record<ProviderId, string> = {
+  anthropic: "claude-sonnet-4-6",
+  openai: "gpt-4o",
+  google: "gemini-2.5-flash",
+};
 
 /** Read per-role model overrides from the environment (ADR 0005). */
 function parseRolesFromEnv(): RoleModelMap | undefined {
@@ -46,13 +52,15 @@ function parseRolesFromEnv(): RoleModelMap | undefined {
 }
 
 function providerFromEnv(): ProviderId {
-  return process.env.ALFRED_PROVIDER === "openai" ? "openai" : "anthropic";
+  const p = process.env.ALFRED_PROVIDER;
+  return p === "openai" || p === "google" ? p : "anthropic";
 }
 
 export function loadConfig(overrides: ConfigOverrides = {}): AlfredConfig {
+  const provider = overrides.provider ?? providerFromEnv();
   return configSchema.parse({
-    provider: overrides.provider ?? providerFromEnv(),
-    model: overrides.model ?? process.env.ALFRED_MODEL ?? DEFAULT_MODEL,
+    provider,
+    model: overrides.model ?? process.env.ALFRED_MODEL ?? DEFAULT_MODEL_BY_PROVIDER[provider],
     baseUrl: overrides.baseUrl ?? process.env.ALFRED_BASE_URL,
     maxTurns: overrides.maxTurns,
     maxTokens: overrides.maxTokens,
