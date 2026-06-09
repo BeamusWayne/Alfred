@@ -22,9 +22,11 @@ import {
   type Provider,
   type ProviderConfig,
   type StopReason,
+  type StreamEvent,
   type ToolDefinition,
   type Usage,
 } from "./types.ts";
+import { sseData } from "./sse.ts";
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
 
@@ -265,6 +267,35 @@ async function toProviderError(response: Response): Promise<ProviderError> {
 
 export type Fetcher = (url: string, init: RequestInit) => Promise<Response>;
 
+/** Build the shared Gemini request body for both generateContent and stream. */
+function buildBody(
+  messages: readonly Message[],
+  tools: readonly ToolDefinition[],
+  config: ProviderConfig,
+): Record<string, unknown> {
+  return {
+    ...(config.systemPrompt
+      ? { systemInstruction: { parts: [{ text: config.systemPrompt }] } }
+      : {}),
+    contents: toGeminiContents(messages),
+    ...(tools.length > 0
+      ? { tools: [{ functionDeclarations: tools.map(toGeminiFunctionDecl) }] }
+      : {}),
+    generationConfig: {
+      ...(config.maxTokens !== undefined ? { maxOutputTokens: config.maxTokens } : {}),
+      ...(config.temperature !== undefined ? { temperature: config.temperature } : {}),
+    },
+  };
+}
+
+function resolveKey(config: ProviderConfig): string {
+  const apiKey = config.apiKey ?? process.env.GOOGLE_API_KEY ?? process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new ProviderError("GOOGLE_API_KEY is not configured", { retryable: false });
+  }
+  return apiKey;
+}
+
 // ---------------------------------------------------------------------------
 // Provider
 // ---------------------------------------------------------------------------
@@ -280,58 +311,135 @@ export class GoogleProvider implements Provider {
     this.#baseUrl = baseUrl ?? process.env.ALFRED_BASE_URL ?? GEMINI_BASE;
   }
 
-  async chat(
-    messages: readonly Message[],
-    tools: readonly ToolDefinition[],
+  /** Shared POST: resolves key, maps network throws to retryable errors, checks status. */
+  async #post(
+    method: string,
     config: ProviderConfig,
-    options?: ChatOptions,
-  ): Promise<LLMResponse> {
-    const apiKey =
-      config.apiKey ?? process.env.GOOGLE_API_KEY ?? process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new ProviderError("GOOGLE_API_KEY is not configured", { retryable: false });
-    }
-
+    body: Record<string, unknown>,
+    signal: AbortSignal | undefined,
+    query = "",
+  ): Promise<Response> {
+    const apiKey = resolveKey(config);
     const base = config.baseUrl ?? this.#baseUrl;
-    const body = {
-      ...(config.systemPrompt
-        ? { systemInstruction: { parts: [{ text: config.systemPrompt }] } }
-        : {}),
-      contents: toGeminiContents(messages),
-      ...(tools.length > 0
-        ? { tools: [{ functionDeclarations: tools.map(toGeminiFunctionDecl) }] }
-        : {}),
-      generationConfig: {
-        ...(config.maxTokens !== undefined ? { maxOutputTokens: config.maxTokens } : {}),
-        ...(config.temperature !== undefined ? { temperature: config.temperature } : {}),
-      },
-    };
-
-    const url = `${base}/models/${encodeURIComponent(config.model)}:generateContent`;
-
+    const url = `${base}/models/${encodeURIComponent(config.model)}:${method}${query}`;
     let response: Response;
     try {
       response = await this.#fetcher(url, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
         body: JSON.stringify(body),
-        signal: options?.signal,
+        signal,
       });
     } catch (err) {
-      // A network-level failure throws; map to a RETRYABLE ProviderError so the
-      // loop backs off, but preserve user-abort semantics.
-      if (options?.signal?.aborted || (err instanceof Error && err.name === "AbortError")) {
+      // Network-level failure → RETRYABLE ProviderError, but preserve abort.
+      if (signal?.aborted || (err instanceof Error && err.name === "AbortError")) {
         throw err;
       }
       const msg = err instanceof Error ? err.message : String(err);
       throw new ProviderError(`Gemini request failed: ${msg}`, { retryable: true });
     }
-
     if (!response.ok) {
       throw await toProviderError(response);
     }
+    return response;
+  }
 
+  async chat(
+    messages: readonly Message[],
+    tools: readonly ToolDefinition[],
+    config: ProviderConfig,
+    options?: ChatOptions,
+  ): Promise<LLMResponse> {
+    const response = await this.#post(
+      "generateContent",
+      config,
+      buildBody(messages, tools, config),
+      options?.signal,
+    );
     const raw: unknown = await response.json();
     return fromGeminiResponse(raw as GeminiResponse, config.model);
+  }
+
+  /**
+   * Streaming chat via `:streamGenerateContent?alt=sse`. Yields text deltas as
+   * they arrive and returns the assembled final response. Gemini sends each
+   * `functionCall` as a complete part (no fragment reassembly needed).
+   */
+  async *stream(
+    messages: readonly Message[],
+    tools: readonly ToolDefinition[],
+    config: ProviderConfig,
+    options?: ChatOptions,
+  ): AsyncGenerator<StreamEvent, LLMResponse> {
+    const response = await this.#post(
+      "streamGenerateContent",
+      config,
+      buildBody(messages, tools, config),
+      options?.signal,
+      "?alt=sse",
+    );
+
+    let text = "";
+    const toolCalls: ContentBlock[] = [];
+    let usage: Usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
+    let finishReason: string | undefined;
+    let modelVersion = config.model;
+    let callIdx = 0;
+
+    for await (const payload of sseData(response.body)) {
+      let chunk: GeminiResponse;
+      try {
+        chunk = JSON.parse(payload) as GeminiResponse;
+      } catch {
+        continue; // skip a malformed frame
+      }
+      if (chunk.modelVersion) modelVersion = chunk.modelVersion;
+      const cand = chunk.candidates?.[0];
+      if (cand?.finishReason) finishReason = cand.finishReason;
+      for (const p of cand?.content?.parts ?? []) {
+        if (typeof p.text === "string" && p.text.length > 0) {
+          text += p.text;
+          yield { type: "text_delta", text: p.text };
+        } else if (p.functionCall && typeof p.functionCall.name === "string") {
+          toolCalls.push({
+            type: "tool_use",
+            id: `call_${p.functionCall.name}_${callIdx++}`,
+            name: p.functionCall.name,
+            input: p.functionCall.args ?? {},
+          });
+        }
+      }
+      const u = chunk.usageMetadata;
+      if (u) {
+        usage = {
+          inputTokens: finiteNum(u.promptTokenCount),
+          outputTokens: finiteNum(u.candidatesTokenCount),
+          cacheReadTokens: finiteNum(u.cachedContentTokenCount),
+          cacheWriteTokens: 0,
+        };
+      }
+    }
+
+    const blocks: ContentBlock[] = [];
+    if (text.length > 0) blocks.push({ type: "text", text });
+    blocks.push(...toolCalls);
+    const stopReason: StopReason =
+      toolCalls.length > 0 ? "tool_use" : fromGeminiFinish(finishReason);
+    return { content: blocks, stopReason, usage, model: modelVersion };
+  }
+
+  /** Accurate prompt token count via Gemini `:countTokens`. */
+  async countTokens(
+    messages: readonly Message[],
+    tools: readonly ToolDefinition[],
+    config: ProviderConfig,
+  ): Promise<number> {
+    // countTokens accepts only `contents` (+ optional tools/systemInstruction);
+    // generationConfig is not part of its request.
+    const body = buildBody(messages, tools, config);
+    delete (body as Record<string, unknown>)["generationConfig"];
+    const response = await this.#post("countTokens", config, body, undefined);
+    const raw = (await response.json()) as { totalTokens?: number };
+    return finiteNum(raw.totalTokens);
   }
 }

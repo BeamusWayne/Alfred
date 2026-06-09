@@ -18,9 +18,11 @@ import {
   type Provider,
   type ProviderConfig,
   type StopReason,
+  type StreamEvent,
   type ToolDefinition,
   type Usage,
 } from "./types.ts";
+import { sseData } from "./sse.ts";
 
 // ---------------------------------------------------------------------------
 // Internal OpenAI wire types (unknown at HTTP boundary, narrowed below)
@@ -63,6 +65,25 @@ interface OpenAIResponse {
 
 interface OpenAIErrorBody {
   readonly error?: { readonly message?: string };
+}
+
+// Streaming chunk wire types (chat.completion.chunk).
+interface OpenAIStreamToolCallDelta {
+  readonly index?: number;
+  readonly id?: string;
+  readonly function?: { readonly name?: string; readonly arguments?: string };
+}
+interface OpenAIStreamChoice {
+  readonly delta?: {
+    readonly content?: string | null;
+    readonly tool_calls?: readonly OpenAIStreamToolCallDelta[];
+  };
+  readonly finish_reason?: string | null;
+}
+interface OpenAIStreamChunk {
+  readonly model?: string;
+  readonly choices?: readonly OpenAIStreamChoice[];
+  readonly usage?: OpenAIUsage | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -392,5 +413,94 @@ export class OpenAIProvider implements Provider {
       usage: fromOpenAIUsage(raw.usage),
       model: raw.model,
     };
+  }
+
+  /**
+   * Streaming chat (`stream: true` + `stream_options.include_usage`). Yields
+   * text deltas as they arrive and returns the assembled final response,
+   * reassembling tool-call fragments by their `index` (OpenAI streams a tool
+   * call's id/name in the first fragment and its arguments across later ones).
+   */
+  async *stream(
+    messages: readonly Message[],
+    tools: readonly ToolDefinition[],
+    config: ProviderConfig,
+    options?: ChatOptions,
+  ): AsyncGenerator<StreamEvent, LLMResponse> {
+    const apiKey = config.apiKey ?? process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new ProviderError("OPENAI_API_KEY is not configured", { retryable: false });
+    }
+
+    const body = {
+      model: config.model,
+      messages: toOpenAIMessages(messages, config.systemPrompt),
+      ...(tools.length > 0 ? { tools: toOpenAITools(tools) } : {}),
+      ...(config.maxTokens !== undefined ? { max_tokens: config.maxTokens } : {}),
+      ...(config.temperature !== undefined ? { temperature: config.temperature } : {}),
+      stream: true,
+      stream_options: { include_usage: true },
+    };
+
+    let response: Response;
+    try {
+      response = await this.#fetcher(`${this.#baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify(body),
+        signal: options?.signal,
+      });
+    } catch (err) {
+      if (options?.signal?.aborted || (err instanceof Error && err.name === "AbortError")) {
+        throw err;
+      }
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new ProviderError(`OpenAI request failed: ${msg}`, { retryable: true });
+    }
+    if (!response.ok) {
+      throw await toProviderError(response);
+    }
+
+    let text = "";
+    const toolAcc = new Map<number, { id: string; name: string; args: string }>();
+    let finishReason = "stop";
+    let usage: Usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
+    let model = config.model;
+
+    for await (const payload of sseData(response.body)) {
+      let chunk: OpenAIStreamChunk;
+      try {
+        chunk = JSON.parse(payload) as OpenAIStreamChunk;
+      } catch {
+        continue; // skip a malformed frame
+      }
+      if (chunk.model) model = chunk.model;
+      const choice = chunk.choices?.[0];
+      if (choice) {
+        if (choice.finish_reason) finishReason = choice.finish_reason;
+        const delta = choice.delta;
+        if (delta?.content) {
+          text += delta.content;
+          yield { type: "text_delta", text: delta.content };
+        }
+        for (const tc of delta?.tool_calls ?? []) {
+          const idx = tc.index ?? 0;
+          const cur = toolAcc.get(idx) ?? { id: "", name: "", args: "" };
+          if (tc.id) cur.id = tc.id;
+          if (tc.function?.name) cur.name = tc.function.name;
+          if (tc.function?.arguments) cur.args += tc.function.arguments;
+          toolAcc.set(idx, cur);
+        }
+      }
+      if (chunk.usage) usage = fromOpenAIUsage(chunk.usage);
+    }
+
+    const blocks: ContentBlock[] = [];
+    if (text.length > 0) blocks.push({ type: "text", text });
+    for (const [, tc] of [...toolAcc.entries()].sort((a, b) => a[0] - b[0])) {
+      blocks.push({ type: "tool_use", id: tc.id || `call_${tc.name}`, name: tc.name, input: parseToolInput(tc.args) });
+    }
+    const stopReason: StopReason = toolAcc.size > 0 ? "tool_use" : fromFinishReason(finishReason);
+    return { content: blocks, stopReason, usage, model };
   }
 }

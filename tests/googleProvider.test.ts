@@ -201,3 +201,66 @@ describe("GoogleProvider — resilience", () => {
     expect((e as ProviderError).retryable).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Streaming (:streamGenerateContent?alt=sse)
+// ---------------------------------------------------------------------------
+
+function sse(...objs: unknown[]): string {
+  return objs.map((o) => `data: ${JSON.stringify(o)}\n\n`).join("");
+}
+function sseFetcher(body: string): Fetcher {
+  return async () => new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } });
+}
+async function drainStream(
+  gen: AsyncGenerator<{ type: "text_delta"; text: string }, import("../src/providers/types.ts").LLMResponse>,
+): Promise<{ deltas: string[]; final: import("../src/providers/types.ts").LLMResponse }> {
+  const deltas: string[] = [];
+  let r = await gen.next();
+  while (!r.done) {
+    if (r.value.type === "text_delta") deltas.push(r.value.text);
+    r = await gen.next();
+  }
+  return { deltas, final: r.value };
+}
+
+describe("GoogleProvider — streaming", () => {
+  test("yields text deltas and assembles the final response + usage", async () => {
+    const body = sse(
+      { candidates: [{ content: { role: "model", parts: [{ text: "Hel" }] } }] },
+      {
+        candidates: [{ content: { role: "model", parts: [{ text: "lo" }] }, finishReason: "STOP" }],
+        usageMetadata: { promptTokenCount: 4, candidatesTokenCount: 2 },
+      },
+    );
+    const { deltas, final } = await drainStream(
+      new GoogleProvider(sseFetcher(body)).stream(USER, [], CONFIG),
+    );
+    expect(deltas).toEqual(["Hel", "lo"]);
+    expect(final.content).toEqual([{ type: "text", text: "Hello" }]);
+    expect(final.stopReason).toBe("end_turn");
+    expect(final.usage.inputTokens).toBe(4);
+    expect(final.usage.outputTokens).toBe(2);
+  });
+
+  test("a streamed functionCall becomes a tool_use with stopReason tool_use", async () => {
+    const body = sse({
+      candidates: [
+        {
+          content: { role: "model", parts: [{ functionCall: { name: "get_weather", args: { city: "Paris" } } }] },
+          finishReason: "STOP",
+        },
+      ],
+    });
+    const { final } = await drainStream(
+      new GoogleProvider(sseFetcher(body)).stream(USER, [], CONFIG),
+    );
+    expect(final.stopReason).toBe("tool_use");
+    const tu = final.content[0]!;
+    expect(tu.type).toBe("tool_use");
+    if (tu.type === "tool_use") {
+      expect(tu.name).toBe("get_weather");
+      expect(tu.input).toEqual({ city: "Paris" });
+    }
+  });
+});

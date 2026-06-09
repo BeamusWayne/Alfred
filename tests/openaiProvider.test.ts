@@ -429,3 +429,61 @@ describe("OpenAIProvider — malformed response + network resilience", () => {
     expect((caught as ProviderError).retryable).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Streaming
+// ---------------------------------------------------------------------------
+
+/** Build an SSE body from chunk objects (avoids manual JSON escaping). */
+function sse(...objs: unknown[]): string {
+  return objs.map((o) => `data: ${JSON.stringify(o)}\n\n`).join("") + "data: [DONE]\n\n";
+}
+function sseFetcher(body: string): Fetcher {
+  return async () => new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } });
+}
+async function drainStream(
+  gen: AsyncGenerator<{ type: "text_delta"; text: string }, import("../src/providers/types.ts").LLMResponse>,
+): Promise<{ deltas: string[]; final: import("../src/providers/types.ts").LLMResponse }> {
+  const deltas: string[] = [];
+  let r = await gen.next();
+  while (!r.done) {
+    if (r.value.type === "text_delta") deltas.push(r.value.text);
+    r = await gen.next();
+  }
+  return { deltas, final: r.value };
+}
+
+describe("OpenAIProvider — streaming", () => {
+  test("yields text deltas and assembles the final response + usage", async () => {
+    const body = sse(
+      { model: "gpt-4o", choices: [{ delta: { content: "Hel" }, finish_reason: null }] },
+      { choices: [{ delta: { content: "lo" }, finish_reason: "stop" }] },
+      { usage: { prompt_tokens: 3, completion_tokens: 2 }, choices: [] },
+    );
+    const { deltas, final } = await drainStream(
+      new OpenAIProvider(sseFetcher(body)).stream(USER_MESSAGES, [], BASE_CONFIG),
+    );
+    expect(deltas).toEqual(["Hel", "lo"]);
+    expect(final.content).toEqual([{ type: "text", text: "Hello" }]);
+    expect(final.stopReason).toBe("end_turn");
+    expect(final.usage.inputTokens).toBe(3);
+    expect(final.usage.outputTokens).toBe(2);
+  });
+
+  test("reassembles a tool call streamed in fragments", async () => {
+    const body = sse(
+      { choices: [{ delta: { tool_calls: [{ index: 0, id: "call_1", function: { name: "bash", arguments: '{"comm' } }] }, finish_reason: null }] },
+      { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: 'and":"ls"}' } }] }, finish_reason: "tool_calls" }] },
+    );
+    const { final } = await drainStream(
+      new OpenAIProvider(sseFetcher(body)).stream(USER_MESSAGES, [], BASE_CONFIG),
+    );
+    expect(final.stopReason).toBe("tool_use");
+    const tu = final.content[0]!;
+    expect(tu.type).toBe("tool_use");
+    if (tu.type === "tool_use") {
+      expect(tu.name).toBe("bash");
+      expect(tu.input).toEqual({ command: "ls" });
+    }
+  });
+});
