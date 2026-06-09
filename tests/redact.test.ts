@@ -9,34 +9,36 @@ import { describe, test, expect } from "bun:test";
 import { redact } from "../src/security/redact.ts";
 
 describe("redact — provider key shapes", () => {
+  // Fixtures are built at runtime (prefix + repeat) so no contiguous, scannable
+  // credential literal lives in the source — they match the redaction regexes
+  // without tripping GitHub secret-scanning.
   test("Anthropic keys", () => {
-    expect(redact("key REDACTED_ANTHROPIC_KEY end")).toBe(
-      "key [REDACTED:anthropic-key] end",
-    );
+    const k = "sk-ant-" + "a".repeat(24);
+    expect(redact(`key ${k} end`)).toBe("key [REDACTED:anthropic-key] end");
   });
 
   test("OpenAI keys (project and classic)", () => {
-    expect(redact("REDACTED_OPENAI_KEY")).toBe("[REDACTED:openai-key]");
-    expect(redact("REDACTED_OPENAI_KEY")).toBe("[REDACTED:openai-key]");
+    expect(redact("sk-proj-" + "a".repeat(24))).toBe("[REDACTED:openai-key]");
+    expect(redact("sk-" + "a".repeat(26))).toBe("[REDACTED:openai-key]");
   });
 
   test("AWS access key IDs", () => {
-    expect(redact("REDACTED_AWS_KEY")).toBe("[REDACTED:aws-access-key]");
+    expect(redact("AKIA" + "A".repeat(16))).toBe("[REDACTED:aws-access-key]");
   });
 
   test("GitHub tokens", () => {
-    expect(redact("REDACTED_GITHUB_TOKEN")).toBe("[REDACTED:github-token]");
+    expect(redact("ghp_" + "a".repeat(30))).toBe("[REDACTED:github-token]");
   });
 
   test("Google API keys", () => {
-    expect(redact("REDACTED_GOOGLE_KEY")).toBe("[REDACTED:google-api-key]");
+    expect(redact("AIza" + "a".repeat(35))).toBe("[REDACTED:google-api-key]");
   });
 
   test("Zhipu GLM keys (<32 hex>.<16 alnum>) are redacted", () => {
-    // The exact shape the project's own GLM credential uses. The hex half is
-    // only 32 chars (below the hex-blob threshold), so this rule is what stops
-    // it leaking into logs / ledger / telemetry.
-    const glm = "REDACTED_GLM_KEY";
+    // The shape the project's own GLM credential uses: <32 hex>.<16 alnum>. The
+    // hex half is only 32 chars (below the hex-blob threshold), so this rule is
+    // what stops it leaking into logs / ledger / telemetry.
+    const glm = "a".repeat(32) + "." + "b".repeat(16);
     expect(redact(`ANTHROPIC_API_KEY is ${glm} ok`)).toBe(
       "ANTHROPIC_API_KEY is [REDACTED:zhipu-glm-key] ok",
     );

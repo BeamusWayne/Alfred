@@ -314,14 +314,14 @@ describe("webFetchTool — redaction and taint", () => {
   });
 
   test("AWS access key in body is redacted", async () => {
-    const body = "Credentials: REDACTED_AWS_KEY end";
+    const key = "AKIA" + "A".repeat(16); // built at runtime — no scannable literal
     const result = await callTool(
       "https://docs.python.org/3/",
-      body,
+      `Credentials: ${key} end`,
       "docs.python.org",
     );
     expect(result.isError).toBeFalsy();
-    expect(result.content).not.toContain("REDACTED_AWS_KEY");
+    expect(result.content).not.toContain(key);
     expect(result.content as string).toMatch(/\[REDACTED:/);
   });
 

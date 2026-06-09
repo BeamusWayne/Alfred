@@ -243,7 +243,8 @@ describe("redact() — catches secrets", () => {
   });
 
   test("redacts Anthropic sk-ant- key", () => {
-    const key = "REDACTED_ANTHROPIC_KEY";
+    // Built at runtime so no scannable credential literal lives in the source.
+    const key = "sk-ant-" + "a".repeat(30);
     const result = redact(`key is ${key}`);
     expect(result).toContain("[REDACTED:anthropic-key]");
     expect(result).not.toContain(key);
@@ -256,28 +257,28 @@ describe("redact() — catches secrets", () => {
   });
 
   test("redacts AWS access key ID", () => {
-    const key = "REDACTED_AWS_KEY";
+    const key = "AKIA" + "A".repeat(16);
     const result = redact(`aws_access_key_id = ${key}`);
     expect(result).toContain("[REDACTED:aws-access-key]");
     expect(result).not.toContain(key);
   });
 
   test("redacts GitHub personal access token ghp_", () => {
-    const token = "REDACTED_GITHUB_TOKEN";
+    const token = "ghp_" + "a".repeat(30);
     const result = redact(`token: ${token}`);
     expect(result).toContain("[REDACTED:github-token]");
     expect(result).not.toContain(token);
   });
 
   test("redacts GitHub OAuth token gho_", () => {
-    const token = "REDACTED_GITHUB_TOKEN";
+    const token = "gho_" + "a".repeat(30);
     const result = redact(`access_token=${token}`);
     expect(result).toContain("[REDACTED:github-token]");
     expect(result).not.toContain(token);
   });
 
   test("redacts Google API key AIza…", () => {
-    const key = "REDACTED_GOOGLE_KEY";
+    const key = "AIza" + "a".repeat(35);
     const result = redact(`google_key=${key}`);
     expect(result).toContain("[REDACTED:google-api-key]");
     expect(result).not.toContain(key);
