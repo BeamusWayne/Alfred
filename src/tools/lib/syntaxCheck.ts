@@ -34,7 +34,7 @@ export const LOADER_MAP: Readonly<Record<string, BunLoader>> = {
  */
 export function isCheckable(path: string): boolean {
   const ext = extensionOf(path);
-  return ext === ".json" || Object.prototype.hasOwnProperty.call(LOADER_MAP, ext);
+  return ext === ".json" || Object.hasOwn(LOADER_MAP, ext);
 }
 
 // ---------------------------------------------------------------------------

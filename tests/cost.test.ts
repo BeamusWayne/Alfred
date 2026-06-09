@@ -48,7 +48,7 @@ describe("PRICING_TABLE", () => {
   });
 
   test("all prices are positive numbers", () => {
-    for (const [model, p] of Object.entries(PRICING_TABLE)) {
+    for (const [_model, p] of Object.entries(PRICING_TABLE)) {
       expect(p.inputPerMillion).toBeGreaterThan(0);
       expect(p.outputPerMillion).toBeGreaterThan(0);
       expect(p.cacheReadPerMillion).toBeGreaterThan(0);

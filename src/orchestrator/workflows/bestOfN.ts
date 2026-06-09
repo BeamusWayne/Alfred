@@ -16,7 +16,7 @@
  * so nested fan-out is automatically rate-limited.
  */
 
-import { z } from "zod";
+import type { z } from "zod";
 import type { Runtime } from "../runtime.ts";
 import type { AgentRun } from "../agent.ts";
 

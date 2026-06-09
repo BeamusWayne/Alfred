@@ -11,6 +11,9 @@
     "alfred": "bun run src/index.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
+    "lint": "biome lint src tests",
+    "format": "biome format --write src tests",
+    "check": "biome check src tests",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs"
@@ -21,6 +24,7 @@
     "zod": "^4.1.12"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.16",
     "@types/bun": "^1.2.14",
     "typescript": "^5.9.3",
     "vitepress": "^1.6.4"

@@ -21,7 +21,6 @@ import {
 } from "./protocol.ts";
 import type {
   Diagnostic,
-  Hover,
   Location,
   Position,
   LspTransport,

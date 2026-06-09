@@ -28,7 +28,7 @@ import { FactFrontmatterSchema } from "./types.ts";
 
 const CORE_TOKEN_BUDGET = 1500;
 const FACTS_DIR = "facts";
-const EPISODES_DIR = "episodes";
+const _EPISODES_DIR = "episodes";
 const ARCHIVE_DIR = "archive";
 const USER_MD = "USER.md";
 const MEMORY_MD = "MEMORY.md";
@@ -131,10 +131,6 @@ export class LocalFileProvider implements MemoryProvider {
 
   private factsDir(): string {
     return join(this.root, FACTS_DIR);
-  }
-
-  private episodesDir(): string {
-    return join(this.root, EPISODES_DIR);
   }
 
   private archiveDir(): string {
@@ -336,7 +332,7 @@ export class LocalFileProvider implements MemoryProvider {
       // TTL check
       if (fact.ttl !== undefined) {
         const expiry = new Date(fact.ttl);
-        if (!isNaN(expiry.getTime()) && now > expiry) {
+        if (!Number.isNaN(expiry.getTime()) && now > expiry) {
           stale = true;
           reason = `ttl expired (${fact.ttl})`;
         }

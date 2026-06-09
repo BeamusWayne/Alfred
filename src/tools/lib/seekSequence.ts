@@ -72,7 +72,7 @@ export function locate(haystack: string, needle: string): Located | null {
   if (needle.length === 0) return null;
 
   // 1. Exact — count occurrences to detect ambiguity.
-  let idx = haystack.indexOf(needle);
+  const idx = haystack.indexOf(needle);
   if (idx !== -1) {
     const second = haystack.indexOf(needle, idx + 1);
     if (second === -1) {

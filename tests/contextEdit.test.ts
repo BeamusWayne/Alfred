@@ -33,7 +33,7 @@ function toolResultMsg(toolUseId: string, content: string, isError = false): Mes
 }
 
 /** Build a list large enough to exceed the default 0.8 threshold for a given maxContextTokens. */
-function bigToolResult(chars: number): Message {
+function _bigToolResult(chars: number): Message {
   return toolResultMsg("id-big", "x".repeat(chars));
 }
 

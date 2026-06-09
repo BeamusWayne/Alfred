@@ -139,9 +139,9 @@ async function ensureOpen(
 // ---------------------------------------------------------------------------
 
 /**
- * Build the set of LSP tools backed by `client`.
- * Pass the returned array as extra `tools` to `runQuery` (see INTEGRATION NOTES
- * in src/index.ts once `bootstrapLsp` is wired up).
+ * Build the set of LSP tools backed by `client`. These are wired into the
+ * engine's tool set at startup by `bootstrapExtensions` (src/extensions/
+ * bootstrap.ts) whenever `.alfred/lsp.json` declares a server.
  */
 export function makeLspTools(client: LspClient): readonly Tool[] {
   // URIs already sent to the server via didOpen, shared across all three tools.

@@ -18,7 +18,6 @@ import type {
   JsonRpcRequest,
   JsonRpcNotification,
   JsonRpcResponse,
-  McpCallResult,
   McpContentItem,
   McpTool,
   McpTransport,

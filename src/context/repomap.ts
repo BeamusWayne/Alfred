@@ -13,7 +13,7 @@
  */
 
 import { readdir } from "node:fs/promises";
-import { join, relative, extname } from "node:path";
+import { join, relative, } from "node:path";
 import { extractSymbols, langFor, type SymbolMap } from "./lib/symbols.ts";
 import { pageRank, type Edge } from "./lib/pagerank.ts";
 
@@ -67,7 +67,7 @@ async function walkRepo(rootDir: string): Promise<readonly string[]> {
   const results: string[] = [];
 
   async function visit(dir: string): Promise<void> {
-    let entries;
+    let entries: import("node:fs").Dirent[];
     try {
       entries = await readdir(dir, { withFileTypes: true });
     } catch {

@@ -11,7 +11,7 @@
  * ADR 0003 (dual-LLM / CaMeL quarantine)
  */
 
-import { z } from "zod";
+import type { z } from "zod";
 import { runAgent } from "../orchestrator/agent.ts";
 import { fence } from "./taint.ts";
 import type { TaintSource } from "./taint.ts";

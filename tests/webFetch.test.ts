@@ -9,7 +9,7 @@ import {
   fetchWithPolicy,
   webFetchTool,
 } from "../src/tools/webFetch.ts";
-import type { FetchWithPolicyOptions, Fetcher } from "../src/tools/webFetch.ts";
+import type { Fetcher } from "../src/tools/webFetch.ts";
 import { DEFAULT_EGRESS_POLICY } from "../src/security/egress.ts";
 
 // ---------------------------------------------------------------------------

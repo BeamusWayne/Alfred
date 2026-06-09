@@ -9,7 +9,7 @@
  * returning a typed `AgentRun` without leaking events to the caller.
  */
 
-import { z } from "zod";
+import type { z } from "zod";
 import { runQuery } from "../query/engine.ts";
 import type { QueryState } from "../query/types.ts";
 import type { Provider } from "../providers/types.ts";
@@ -93,7 +93,7 @@ export async function runAgent<T = unknown>(
   } = opts;
 
   // When schema mode is active we wire a capture closure into the tool.
-  let captured: unknown = undefined;
+  let captured: unknown ;
 
   const resolvedTools: readonly Tool[] | undefined = (() => {
     if (!schema) return tools;

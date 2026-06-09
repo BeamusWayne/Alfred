@@ -136,7 +136,7 @@ process.stderr.write(
 // Run
 // ---------------------------------------------------------------------------
 
-let result;
+let result: Awaited<ReturnType<typeof alfredBench>>;
 try {
   result = await alfredBench(spec, { runtime, ledger, journal });
 } catch (err) {
