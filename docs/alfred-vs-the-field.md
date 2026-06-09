@@ -8,6 +8,17 @@
 
 > Every gap and recommendation below was checked against the actual source tree at the time of writing (`src/query/engine.ts`, `src/providers/anthropic.ts`, `src/repl.ts`, `src/context/index.ts`, `src/compact/engine.ts`, `src/tools/*`, `src/permissions/types.ts`, `src/tasks/store.ts`, `init.sh`, `feature_list.json`). Severities are honest, not generous.
 
+::: warning Historical review — most gaps are now resolved
+This is a point-in-time review (2026-06-05). Since then the P0/P1 recommendations
+were implemented and a full security/correctness audit closed 31 findings, so the
+**"Alfred's gap" subsections below are largely out of date** — e.g. compaction now
+LLM-summarises and is invoked by the loop, the system prompt + memory are injected,
+prompt caching and `count_tokens` are wired, streaming exists for all three
+providers, and the autonomous harness runs. Read the gap lists as the *original
+diagnosis*, not the current state; the **"Best practice" and "Top recommendations"
+sections remain a useful reference**. See the git history and current `src/` for what shipped.
+:::
+
 ---
 
 ## 1. Executive summary
