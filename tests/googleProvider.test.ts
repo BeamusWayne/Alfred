@@ -193,12 +193,25 @@ describe("GoogleProvider — resilience", () => {
   });
 
   test("missing api key throws a non-retryable ProviderError", async () => {
-    const { fetcher } = makeFetcher(200, geminiText("x"));
-    const e = await new GoogleProvider(fetcher)
-      .chat(USER, [], { model: "gemini-2.5-flash" })
-      .catch((x) => x);
-    expect(e).toBeInstanceOf(ProviderError);
-    expect((e as ProviderError).retryable).toBe(false);
+    // Isolate from ambient credentials (a project .env auto-loaded by Bun
+    // would otherwise satisfy resolveKey and void this test).
+    const saved = {
+      google: process.env.GOOGLE_API_KEY,
+      gemini: process.env.GEMINI_API_KEY,
+    };
+    delete process.env.GOOGLE_API_KEY;
+    delete process.env.GEMINI_API_KEY;
+    try {
+      const { fetcher } = makeFetcher(200, geminiText("x"));
+      const e = await new GoogleProvider(fetcher)
+        .chat(USER, [], { model: "gemini-2.5-flash" })
+        .catch((x) => x);
+      expect(e).toBeInstanceOf(ProviderError);
+      expect((e as ProviderError).retryable).toBe(false);
+    } finally {
+      if (saved.google !== undefined) process.env.GOOGLE_API_KEY = saved.google;
+      if (saved.gemini !== undefined) process.env.GEMINI_API_KEY = saved.gemini;
+    }
   });
 });
 

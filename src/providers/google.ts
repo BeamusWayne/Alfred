@@ -339,7 +339,10 @@ export class GoogleProvider implements Provider {
 
   constructor(fetcher: Fetcher = fetch, baseUrl?: string) {
     this.#fetcher = fetcher;
-    this.#baseUrl = baseUrl ?? process.env.ALFRED_BASE_URL ?? GEMINI_BASE;
+    // GEMINI_BASE_URL is the provider-scoped override. ALFRED_BASE_URL is
+    // deliberately NOT read here: it means "Anthropic-compatible endpoint"
+    // (e.g. Zhipu) and must never leak into Gemini request URLs.
+    this.#baseUrl = baseUrl ?? process.env.GEMINI_BASE_URL ?? GEMINI_BASE;
   }
 
   /** Shared POST: resolves key, maps network throws to retryable errors, checks status. */

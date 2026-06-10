@@ -98,7 +98,10 @@ export function loadConfig(overrides: ConfigOverrides = {}): AlfredConfig {
   return configSchema.parse({
     provider,
     model: overrides.model ?? process.env.ALFRED_MODEL ?? DEFAULT_MODEL_BY_PROVIDER[provider],
-    baseUrl: overrides.baseUrl ?? process.env.ALFRED_BASE_URL,
+    // ALFRED_BASE_URL means "Anthropic-compatible endpoint" (e.g. Zhipu GLM)
+    // and is scoped to the anthropic provider — feeding it to google/openai
+    // would point their requests at the wrong API.
+    baseUrl: overrides.baseUrl ?? (provider === "anthropic" ? process.env.ALFRED_BASE_URL : undefined),
     maxTurns: overrides.maxTurns,
     maxTokens: overrides.maxTokens,
     maxContextTokens: overrides.maxContextTokens,
