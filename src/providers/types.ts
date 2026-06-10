@@ -36,8 +36,24 @@ export interface RedactedThinkingBlock {
   readonly data: string;
 }
 
+/**
+ * A server-side compaction summary (beta compact-2026-01-12). Must be
+ * round-tripped verbatim — the API uses it to replace the compacted history
+ * on the next request. Null content = failed compaction (server no-ops it).
+ */
+export interface CompactionBlock {
+  readonly type: "compaction";
+  readonly content: string | null;
+  readonly encryptedContent: string | null;
+}
+
 /** Assistant-authored content. */
-export type ContentBlock = TextBlock | ToolUseBlock | ThinkingBlock | RedactedThinkingBlock;
+export type ContentBlock =
+  | TextBlock
+  | ToolUseBlock
+  | ThinkingBlock
+  | RedactedThinkingBlock
+  | CompactionBlock;
 
 export interface UserMessage {
   readonly role: "user";
@@ -142,6 +158,12 @@ export interface ProviderConfig {
    * on models without support — callers keep a parse-and-validate fallback.
    */
   readonly responseSchema?: Record<string, unknown>;
+  /**
+   * Server-side compaction (Anthropic beta compact-2026-01-12): the API
+   * summarises earlier context once input exceeds `triggerTokens`. Only sent
+   * on supporting models; ignored by other providers.
+   */
+  readonly serverCompaction?: { readonly triggerTokens: number };
 }
 
 export interface ChatOptions {

@@ -201,6 +201,7 @@ async function* chatWithRetry(
   messages: readonly Message[],
   toolDefs: readonly ToolDefinition[],
   signal: AbortSignal,
+  serverCompaction?: { readonly triggerTokens: number },
 ): AsyncGenerator<QueryEvent, LLMResponse> {
   const maxRetries = config.maxRetries ?? DEFAULT_MAX_RETRIES;
   const chain = fallbackChain(config.model, config.roles ?? {}, config.role);
@@ -224,6 +225,7 @@ async function* chatWithRetry(
       effort: config.effort ?? defaultEffortForRole(config.role),
       taskBudgetTokens: config.taskBudgetTokens,
       responseSchema: config.responseSchema,
+      serverCompaction,
     };
     try {
       if (provider.stream) {
@@ -299,6 +301,19 @@ export async function* runQuery(
   // 1M-context model is no longer compacted at 160K and a small-window model
   // never overflows. Callers can still pin an explicit ceiling.
   const maxContextTokens = config.maxContextTokens ?? modelProfile(config.model).contextWindow;
+  // Server-side compaction (beta): on supporting Anthropic models the API
+  // summarises earlier context itself — better summaries, cache-friendly,
+  // no local split heuristics. Local editing/compaction is skipped while it
+  // is active; the window-overflow forced compact below stays as a backstop
+  // (e.g. after a fallback-chain switch to a non-supporting model).
+  // Opt out with ALFRED_SERVER_COMPACT=0.
+  const serverCompaction =
+    modelProfile(config.model).supportsServerCompaction &&
+    config.provider.name === "anthropic" &&
+    process.env.ALFRED_SERVER_COMPACT !== "0"
+      ? { triggerTokens: Math.floor(maxContextTokens * 0.8) }
+      : undefined;
+
   // Summaries are mechanical work — route them to the cheapest configured
   // role target instead of burning architect-tier tokens on them.
   const summarySpec: RoleSpec | undefined = config.roles?.subagent ?? config.roles?.editor;
@@ -452,27 +467,32 @@ export async function* runQuery(
     turns++;
     if (signal.aborted) return finish("aborted");
 
-    // Context editing first (ADR 0001 §4): cheaply evict stale tool-result
-    // bodies; only summarise (compact) if still over budget afterward.
-    const edited = editContext(messages, { maxContextTokens, actualTokens: lastInputTokens });
-    if (edited.evicted > 0) {
-      messages.length = 0;
-      messages.push(...edited.messages);
-      lastInputTokens = 0; // stale after eviction; fall back to the estimate below
-    }
-
-    // Compact older context at a user boundary when near the budget, using the
-    // provider's real token count when available (ADR 0001 §7.4).
-    if (shouldCompact(messages, { maxContextTokens, actualTokens: lastInputTokens })) {
-      const compacted = await compact(messages, {
-        provider: summaryProvider,
-        model: summaryModel,
-        maxContextTokens,
-      });
-      if (compacted !== messages) {
+    // Local context management runs only when server-side compaction is off —
+    // the two must not both rewrite history (local rewrites would destroy the
+    // server's cached prefix and its compaction anchors).
+    if (serverCompaction === undefined) {
+      // Context editing first (ADR 0001 §4): cheaply evict stale tool-result
+      // bodies; only summarise (compact) if still over budget afterward.
+      const edited = editContext(messages, { maxContextTokens, actualTokens: lastInputTokens });
+      if (edited.evicted > 0) {
         messages.length = 0;
-        messages.push(...compacted);
-        lastInputTokens = 0; // re-measure after compaction
+        messages.push(...edited.messages);
+        lastInputTokens = 0; // stale after eviction; fall back to the estimate below
+      }
+
+      // Compact older context at a user boundary when near the budget, using
+      // the provider's real token count when available (ADR 0001 §7.4).
+      if (shouldCompact(messages, { maxContextTokens, actualTokens: lastInputTokens })) {
+        const compacted = await compact(messages, {
+          provider: summaryProvider,
+          model: summaryModel,
+          maxContextTokens,
+        });
+        if (compacted !== messages) {
+          messages.length = 0;
+          messages.push(...compacted);
+          lastInputTokens = 0; // re-measure after compaction
+        }
       }
     }
 
@@ -487,7 +507,7 @@ export async function* runQuery(
       agentSpan,
     );
     try {
-      response = yield* chatWithRetry(config, messages, toolDefs, signal);
+      response = yield* chatWithRetry(config, messages, toolDefs, signal, serverCompaction);
     } catch (err) {
       chatSpan.setStatus("error").end();
       const msg = err instanceof ProviderError ? err.message : err instanceof Error ? err.message : String(err);

@@ -35,6 +35,15 @@ function blockToParam(block: ContentBlock): Anthropic.ContentBlockParam {
   if (block.type === "redacted_thinking") {
     return { type: "redacted_thinking", data: block.data };
   }
+  // Compaction blocks (beta) replace compacted history server-side; the GA
+  // param union doesn't know them yet, hence the cast.
+  if (block.type === "compaction") {
+    return {
+      type: "compaction",
+      content: block.content,
+      encrypted_content: block.encryptedContent,
+    } as unknown as Anthropic.ContentBlockParam;
+  }
   return { type: "tool_use", id: block.id, name: block.name, input: block.input };
 }
 
@@ -123,10 +132,17 @@ function fromStopReason(reason: string | null): StopReason {
   }
 }
 
-/** Exported for tests: response blocks → Alfred blocks (thinking preserved). */
+/** A compaction block as it appears on the wire when the beta is active. */
+interface WireCompactionBlock {
+  readonly type: "compaction";
+  readonly content: string | null;
+  readonly encrypted_content: string | null;
+}
+
+/** Exported for tests: response blocks → Alfred blocks (thinking + compaction preserved). */
 export function fromContent(blocks: Anthropic.ContentBlock[]): ContentBlock[] {
   const out: ContentBlock[] = [];
-  for (const b of blocks) {
+  for (const b of blocks as ReadonlyArray<Anthropic.ContentBlock | WireCompactionBlock>) {
     if (b.type === "text") out.push({ type: "text", text: b.text });
     else if (b.type === "tool_use") {
       out.push({ type: "tool_use", id: b.id, name: b.name, input: b.input as Record<string, unknown> });
@@ -134,6 +150,12 @@ export function fromContent(blocks: Anthropic.ContentBlock[]): ContentBlock[] {
       out.push({ type: "thinking", thinking: b.thinking, signature: b.signature });
     } else if (b.type === "redacted_thinking") {
       out.push({ type: "redacted_thinking", data: b.data });
+    } else if (b.type === "compaction") {
+      out.push({
+        type: "compaction",
+        content: b.content,
+        encryptedContent: b.encrypted_content,
+      });
     }
   }
   return out;
@@ -204,6 +226,9 @@ function systemBlocks(config: ProviderConfig): Anthropic.TextBlockParam[] | unde
 /** Beta header required for `output_config.task_budget`. */
 const TASK_BUDGET_BETA = "task-budgets-2026-03-13";
 
+/** Beta header required for server-side compaction. */
+const COMPACTION_BETA = "compact-2026-01-12";
+
 /** Minimum whole-task budget the API accepts. */
 const MIN_TASK_BUDGET_TOKENS = 20_000;
 
@@ -257,7 +282,27 @@ export function buildRequest(
         } as Anthropic.OutputConfig)
       : undefined;
 
-  const params: Anthropic.MessageCreateParamsNonStreaming = {
+  // Server-side compaction (beta): the API summarises earlier context once
+  // input exceeds the trigger. The GA param type doesn't know the field, so
+  // the merged object is cast once below.
+  const compaction =
+    profile.supportsServerCompaction && config.serverCompaction !== undefined
+      ? {
+          context_management: {
+            edits: [
+              {
+                type: "compact_20260112",
+                trigger: {
+                  type: "input_tokens",
+                  value: Math.floor(config.serverCompaction.triggerTokens),
+                },
+              },
+            ],
+          },
+        }
+      : undefined;
+
+  const params = {
     model: config.model,
     max_tokens: Math.min(
       config.maxTokens ?? defaultMaxTokens(profile, streaming),
@@ -270,11 +315,16 @@ export function buildRequest(
       ? { temperature: config.temperature }
       : {}),
     ...(profile.thinking === "adaptive" && config.thinking !== "none"
-      ? { thinking: { type: "adaptive" } }
+      ? { thinking: { type: "adaptive" as const } }
       : {}),
     ...(outputConfig !== undefined ? { output_config: outputConfig } : {}),
-  };
-  return { params, betas: taskBudget !== undefined ? [TASK_BUDGET_BETA] : [] };
+    ...(compaction ?? {}),
+  } as Anthropic.MessageCreateParamsNonStreaming;
+  const betas = [
+    ...(taskBudget !== undefined ? [TASK_BUDGET_BETA] : []),
+    ...(compaction !== undefined ? [COMPACTION_BETA] : []),
+  ];
+  return { params, betas };
 }
 
 function requestOptions(

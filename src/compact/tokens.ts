@@ -35,6 +35,8 @@ function estimateBlock(block: ContentBlock): number {
       return estimateTokens(block.thinking);
     case "redacted_thinking":
       return estimateTokens(block.data);
+    case "compaction":
+      return estimateTokens(block.content ?? "") + estimateTokens(block.encryptedContent ?? "");
   }
 }
 

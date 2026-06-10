@@ -112,6 +112,8 @@ function renderBlock(b: ContentBlock, withInput: boolean): string {
   // Thinking blocks are internal reasoning — they carry no decisions the
   // summary needs beyond what the visible text already states. Skip them.
   if (b.type === "thinking" || b.type === "redacted_thinking") return "";
+  // A server-side compaction summary IS already a summary — inline its text.
+  if (b.type === "compaction") return b.content ?? "";
   if (b.type === "text") return b.text;
   return withInput ? `[tool_use: ${b.name}(${JSON.stringify(b.input)})]` : `[tool_use: ${b.name}]`;
 }
