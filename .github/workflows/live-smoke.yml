@@ -1,0 +1,69 @@
+# Provider drift sentinel — live smoke + end-to-end bench against real model
+# APIs. Providers change behaviour without notice (e.g. Gemini 3.x started
+# hard-rejecting tool history without thought signatures); this catches the
+# next one as a red CI run instead of a user bug report.
+#
+# Requires repository secrets (steps skip gracefully when absent):
+#   ZHIPU_API_KEY    — Zhipu key for GLM via the Anthropic-compatible endpoint
+#   GOOGLE_API_KEY   — Gemini API key
+#
+# Cost per run is a few US cents (two smokes + two 2-feature bench runs).
+name: Live Smoke
+
+on:
+  schedule:
+    - cron: "17 3 * * 1" # weekly, Monday 03:17 UTC
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Forks have no secrets and should not attempt live calls.
+    if: github.repository == 'BeamusWayne/Alfred'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: GLM smoke + bench (Zhipu, Anthropic-compatible endpoint)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
+          ALFRED_BASE_URL: https://open.bigmodel.cn/api/anthropic
+          ALFRED_MODEL: glm-5.1
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::notice::ZHIPU_API_KEY secret not set — skipping GLM live checks"
+            exit 0
+          fi
+          out=$(bun run src/index.ts -p --model glm-5.1 "Reply with exactly: ALFRED-OK")
+          echo "$out"
+          echo "$out" | grep -q "ALFRED-OK"
+          bash examples/bench/run.sh | tee /tmp/glm-bench.txt
+          grep -q '"passing":2' /tmp/glm-bench.txt
+          grep -q '"dualPassConfirmed":2' /tmp/glm-bench.txt
+          grep -q '"ledgerOk":true' /tmp/glm-bench.txt
+
+      - name: Gemini smoke + bench
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          ALFRED_PROVIDER: google
+          # Bump when the preview id is retired — a 404 here IS drift detection.
+          ALFRED_MODEL: gemini-3.1-pro-preview
+        run: |
+          if [ -z "$GOOGLE_API_KEY" ]; then
+            echo "::notice::GOOGLE_API_KEY secret not set — skipping Gemini live checks"
+            exit 0
+          fi
+          out=$(ALFRED_PROVIDER=google bun run src/index.ts -p --model "$ALFRED_MODEL" "Reply with exactly: ALFRED-OK")
+          echo "$out"
+          echo "$out" | grep -q "ALFRED-OK"
+          bash examples/bench/run.sh | tee /tmp/gemini-bench.txt
+          grep -q '"passing":2' /tmp/gemini-bench.txt
+          grep -q '"dualPassConfirmed":2' /tmp/gemini-bench.txt
+          grep -q '"ledgerOk":true' /tmp/gemini-bench.txt
