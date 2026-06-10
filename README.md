@@ -4,7 +4,7 @@
 
 Alfred is not another Claude Code clone. Its thesis: the long-running harness is *executable*, "done" is a *machine-enforced gate*, memory is *agent-curated but inspectable*, and every hands-off run leaves a *signed, replayable receipt*. Where the field is ahead on streaming/sandbox/caching parity, Alfred leans into the one thing it designs better — **enforced, auditable autonomy** — while still adopting the best ideas from across the ecosystem (`docs/improvement-proposal.md`).
 
-> Status: 538 tests passing · `tsc --noEmit` clean · zero runtime dependencies beyond `@anthropic-ai/sdk`, `commander`, `zod`.
+> Status: 739 tests passing · `tsc --noEmit` clean · zero runtime dependencies beyond `@anthropic-ai/sdk`, `commander`, `zod`.
 
 **📖 Full documentation** lives in [`docs/`](./docs/) as a VitePress site — run `bun run docs:dev` locally, or deploy to GitHub Pages via [`.github/workflows/docs.yml`](./.github/workflows/docs.yml). Jump to [Quickstart](./docs/guide/quickstart.md) · [CLI reference](./docs/cli/overview.md) · [Subsystems](./docs/subsystems/agent-loop.md) · [Architecture](./docs/architecture/overview.md).
 
@@ -26,7 +26,7 @@ ALFRED_LEDGER_SECRET=$(openssl rand -hex 32) \
 # Replay recorded trajectories as regression tests (CI gating)
 bun run src/index.ts eval ./my-cases.ts
 
-bun test          # 538 tests
+bun test tests     # 739 tests
 bun run typecheck # tsc --noEmit
 ```
 
@@ -82,7 +82,9 @@ Layers over a clean agent loop — each new piece is additive, not a rewrite. Th
 | `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | Provider credentials. |
 | `ALFRED_PROVIDER` | `anthropic` (default) or `openai`. |
 | `ALFRED_BASE_URL` | Override the provider base URL — point at any Anthropic-compatible endpoint (e.g. Zhipu GLM). |
-| `ALFRED_MODEL` | Default model. `ALFRED_MODEL_{ARCHITECT,EDITOR,SUBAGENT}` for role routing. |
+| `ALFRED_MODEL` | Default model. `ALFRED_MODEL_{ARCHITECT,EDITOR,SUBAGENT}` for role routing — a bare model id, or `provider:model` (e.g. `openai:gpt-5.2`) to pin a role to another provider. |
+| `ALFRED_EFFORT` | Reasoning effort on supporting models: `low`/`medium`/`high`/`xhigh`/`max`. Defaults per role (architect `xhigh`, editor `medium`, subagent `low`). |
+| `ALFRED_THINKING=none` | Opt out of adaptive thinking (on by default for models that support it, e.g. Claude Fable 5 / Opus 4.6+ / Sonnet 4.6). |
 | `ALFRED_MEMORY=1` | Inject agent memory Core + run staleness GC on session end. |
 | `ALFRED_REPOMAP=1` | Inject a repo map into the system prompt. |
 | `ALFRED_SANDBOX=1` | Run `bash` inside an OS sandbox (macOS seatbelt; no-op elsewhere). |
