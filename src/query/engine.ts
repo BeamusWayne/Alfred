@@ -46,8 +46,9 @@ import {
 import { shouldCompact, compact } from "../compact/engine.ts";
 import { editContext } from "../compact/contextEdit.ts";
 import { estimateMessages } from "../compact/tokens.ts";
-import { fallbackChain } from "../config/roles.ts";
+import { fallbackChain, type RoleSpec, type RoleTarget } from "../config/roles.ts";
 import { defaultEffortForRole, modelProfile } from "../config/modelCatalog.ts";
+import { getProvider } from "../providers/index.ts";
 import { fence, type TaintSource } from "../security/taint.ts";
 import { quarantineExtract } from "../security/quarantine.ts";
 import { runHooks } from "../hooks/engine.ts";
@@ -204,10 +205,15 @@ async function* chatWithRetry(
   const chain = fallbackChain(config.model, config.roles ?? {}, config.role);
   let chainIdx = 0;
   for (let attempt = 1; ; attempt++) {
+    const target: RoleTarget = chain[chainIdx] ?? { model: config.model };
+    // A provider-qualified target resolves its own backend and must NOT
+    // inherit the default provider's apiKey/baseUrl (e.g. an Anthropic-
+    // compatible GLM baseUrl would break an openai fallback target).
+    const provider = target.provider ? getProvider(target.provider) : config.provider;
     const providerConfig = {
-      model: chain[chainIdx] ?? config.model,
-      apiKey: config.apiKey,
-      baseUrl: config.baseUrl,
+      model: target.model,
+      apiKey: target.provider ? undefined : config.apiKey,
+      baseUrl: target.provider ? undefined : config.baseUrl,
       systemPrompt: config.systemPrompt,
       maxTokens: config.maxTokens,
       temperature: config.temperature,
@@ -218,8 +224,8 @@ async function* chatWithRetry(
       taskBudgetTokens: config.taskBudgetTokens,
     };
     try {
-      if (config.provider.stream) {
-        const gen = config.provider.stream(messages, toolDefs, providerConfig, { signal });
+      if (provider.stream) {
+        const gen = provider.stream(messages, toolDefs, providerConfig, { signal });
         let step = await gen.next();
         while (!step.done) {
           if (step.value.type === "text_delta" && step.value.text.length > 0) {
@@ -229,7 +235,7 @@ async function* chatWithRetry(
         }
         return step.value;
       }
-      const response = await config.provider.chat(messages, toolDefs, providerConfig, { signal });
+      const response = await provider.chat(messages, toolDefs, providerConfig, { signal });
       for (const block of response.content) {
         if (block.type === "text" && block.text.length > 0) {
           yield { type: "text", text: block.text };
@@ -238,13 +244,19 @@ async function* chatWithRetry(
       return response;
     } catch (err) {
       if (!isRetryable(err) || attempt >= maxRetries) throw err;
+      const fromModel = target.model;
       if (chainIdx + 1 < chain.length) chainIdx++;
+      const next = chain[chainIdx] ?? { model: config.model };
       const delay = computeDelay(attempt, retryAfterMs(err));
+      // fromModel/toModel make a silent fallback-chain downgrade observable
+      // (equal values = same model retried).
       yield {
         type: "retrying",
         attempt,
         delayMs: delay,
         reason: err instanceof Error ? err.message : String(err),
+        fromModel,
+        toModel: next.model,
       };
       await sleep(delay, signal);
     }
@@ -268,8 +280,18 @@ export async function* runQuery(
   // never overflows. Callers can still pin an explicit ceiling.
   const maxContextTokens = config.maxContextTokens ?? modelProfile(config.model).contextWindow;
   // Summaries are mechanical work — route them to the cheapest configured
-  // role model instead of burning architect-tier tokens on them.
-  const summaryModel = config.roles?.subagent ?? config.roles?.editor ?? config.model;
+  // role target instead of burning architect-tier tokens on them.
+  const summarySpec: RoleSpec | undefined = config.roles?.subagent ?? config.roles?.editor;
+  const summaryTarget: RoleTarget =
+    summarySpec === undefined
+      ? { model: config.model }
+      : typeof summarySpec === "string"
+        ? { model: summarySpec }
+        : summarySpec;
+  const summaryProvider = summaryTarget.provider
+    ? getProvider(summaryTarget.provider)
+    : config.provider;
+  const summaryModel = summaryTarget.model;
   const hooks = config.hooks;
 
   const ctx: ToolContext = {
@@ -383,7 +405,7 @@ export async function* runQuery(
     // provider's real token count when available (ADR 0001 §7.4).
     if (shouldCompact(messages, { maxContextTokens, actualTokens: lastInputTokens })) {
       const compacted = await compact(messages, {
-        provider: config.provider,
+        provider: summaryProvider,
         model: summaryModel,
         maxContextTokens,
       });
@@ -457,7 +479,7 @@ export async function* runQuery(
         return finish("provider_error");
       }
       const compacted = await compact(messages, {
-        provider: config.provider,
+        provider: summaryProvider,
         model: summaryModel,
         maxContextTokens,
       });

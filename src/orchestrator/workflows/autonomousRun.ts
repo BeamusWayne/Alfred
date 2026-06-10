@@ -27,6 +27,7 @@ import {
   type Feature,
 } from "../../harness/featureList.ts";
 import { runVerify, passed, type VerifyResult } from "../../harness/verify.ts";
+import { modelProfile, tierIterationBudget } from "../../config/modelCatalog.ts";
 import { checkpoint, rollback, currentSha, type Checkpoint } from "../../harness/checkpoint.ts";
 import { bestOfNCode } from "./bestOfNCode.ts";
 
@@ -164,7 +165,11 @@ export async function autonomousRun(opts: AutonomousRunOptions): Promise<Autonom
 
     const cp: Checkpoint | null = opts.rollbackOnBlock ? await checkpoint(opts.cwd) : null;
 
-    const iterationBudget = feature.iterationBudget ?? 3;
+    // Per-feature override → tier default for the model doing the implementing
+    // (frontier converges in 1-2 attempts; small models need more rounds).
+    const implementModel = opts.editorModel ?? opts.runtime.model;
+    const iterationBudget =
+      feature.iterationBudget ?? tierIterationBudget(modelProfile(implementModel).tier);
     let verify: VerifyResult | undefined;
     let feedback = "";
     let rubric: Rubric | null = null;

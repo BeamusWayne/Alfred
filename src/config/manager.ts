@@ -1,6 +1,6 @@
 /** Zod-validated configuration with env + override layering. */
 import { z } from "zod";
-import { roleModelMapSchema, type RoleModelMap } from "./roles.ts";
+import { roleModelMapSchema, type RoleModelMap, type RoleSpec } from "./roles.ts";
 
 export const PERMISSION_MODES = ["default", "acceptEdits", "plan", "bypass"] as const;
 export const PROVIDERS = ["anthropic", "openai", "google"] as const;
@@ -61,15 +61,30 @@ const DEFAULT_MODEL_BY_PROVIDER: Record<ProviderId, string> = {
   google: "gemini-2.5-flash",
 };
 
+/**
+ * Parse a role env value: a bare model id, or "provider:model" to pin the
+ * role to a different provider (e.g. ALFRED_MODEL_EDITOR=openai:gpt-5.2).
+ */
+function parseRoleSpec(raw: string): RoleSpec {
+  const idx = raw.indexOf(":");
+  if (idx > 0) {
+    const prefix = raw.slice(0, idx);
+    if ((PROVIDERS as readonly string[]).includes(prefix)) {
+      return { provider: prefix as ProviderId, model: raw.slice(idx + 1) };
+    }
+  }
+  return raw;
+}
+
 /** Read per-role model overrides from the environment (ADR 0005). */
 function parseRolesFromEnv(): RoleModelMap | undefined {
-  const map: Record<string, string> = {};
+  const map: Record<string, RoleSpec> = {};
   const architect = process.env.ALFRED_MODEL_ARCHITECT;
   const editor = process.env.ALFRED_MODEL_EDITOR;
   const subagent = process.env.ALFRED_MODEL_SUBAGENT;
-  if (architect) map.architect = architect;
-  if (editor) map.editor = editor;
-  if (subagent) map.subagent = subagent;
+  if (architect) map.architect = parseRoleSpec(architect);
+  if (editor) map.editor = parseRoleSpec(editor);
+  if (subagent) map.subagent = parseRoleSpec(subagent);
   return Object.keys(map).length > 0 ? (map as RoleModelMap) : undefined;
 }
 

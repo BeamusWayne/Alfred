@@ -65,9 +65,13 @@ describe("resolveRole", () => {
 // fallbackChain
 // ---------------------------------------------------------------------------
 
+/** Dedupe key mirroring the implementation's provider+model identity. */
+const keyOf = (t: { readonly model: string; readonly provider?: string }) =>
+  `${t.provider ?? ""}:${t.model}`;
+
 describe("fallbackChain", () => {
   it("returns [primary] when map is empty and no role is given", () => {
-    expect(fallbackChain("claude-sonnet-4-6", {})).toEqual(["claude-sonnet-4-6"]);
+    expect(fallbackChain("claude-sonnet-4-6", {})).toEqual([{ model: "claude-sonnet-4-6" }]);
   });
 
   it("primary is always first", () => {
@@ -76,7 +80,7 @@ describe("fallbackChain", () => {
       editor: "claude-haiku-4-5",
     };
     const chain = fallbackChain("claude-sonnet-4-6", map);
-    expect(chain[0]).toBe("claude-sonnet-4-6");
+    expect(chain[0]).toEqual({ model: "claude-sonnet-4-6" });
   });
 
   it("includes all distinct mapped models after primary", () => {
@@ -85,7 +89,11 @@ describe("fallbackChain", () => {
       editor: "claude-haiku-4-5",
     };
     const chain = fallbackChain("claude-sonnet-4-6", map);
-    expect(chain).toEqual(["claude-sonnet-4-6", "claude-opus-4-5", "claude-haiku-4-5"]);
+    expect(chain).toEqual([
+      { model: "claude-sonnet-4-6" },
+      { model: "claude-opus-4-5" },
+      { model: "claude-haiku-4-5" },
+    ]);
   });
 
   it("deduplicates: primary that also appears in map is not repeated", () => {
@@ -94,8 +102,8 @@ describe("fallbackChain", () => {
       editor: "claude-haiku-4-5",
     };
     const chain = fallbackChain("claude-sonnet-4-6", map);
-    expect(chain).toEqual(["claude-sonnet-4-6", "claude-haiku-4-5"]);
-    expect(new Set(chain).size).toBe(chain.length);
+    expect(chain.map((t) => t.model)).toEqual(["claude-sonnet-4-6", "claude-haiku-4-5"]);
+    expect(new Set(chain.map(keyOf)).size).toBe(chain.length);
   });
 
   it("deduplicates: two roles sharing the same model appear once", () => {
@@ -105,8 +113,12 @@ describe("fallbackChain", () => {
       subagent: "claude-haiku-4-5",
     };
     const chain = fallbackChain("claude-sonnet-4-6", map);
-    expect(chain).toEqual(["claude-sonnet-4-6", "claude-opus-4-5", "claude-haiku-4-5"]);
-    expect(new Set(chain).size).toBe(chain.length);
+    expect(chain.map((t) => t.model)).toEqual([
+      "claude-sonnet-4-6",
+      "claude-opus-4-5",
+      "claude-haiku-4-5",
+    ]);
+    expect(new Set(chain.map(keyOf)).size).toBe(chain.length);
   });
 
   it("with role: resolved role model becomes head even if different from primary", () => {
@@ -115,25 +127,23 @@ describe("fallbackChain", () => {
       editor: "claude-haiku-4-5",
     };
     const chain = fallbackChain("claude-sonnet-4-6", map, "architect");
-    expect(chain[0]).toBe("claude-opus-4-5");
+    expect(chain[0]).toEqual({ model: "claude-opus-4-5" });
   });
 
-  it("with role: primary appears in chain when distinct from resolved role model", () => {
+  it("with role: other mapped models stay in the chain", () => {
     const map: RoleModelMap = {
       architect: "claude-opus-4-5",
       editor: "claude-haiku-4-5",
     };
     const chain = fallbackChain("claude-sonnet-4-6", map, "architect");
-    // head = opus, then remaining mapped (haiku), primary (sonnet) not in map → not appended
-    // only mapped models are appended; primary is only head when no role given
-    expect(chain).toContain("claude-haiku-4-5");
-    expect(new Set(chain).size).toBe(chain.length);
+    expect(chain.map((t) => t.model)).toContain("claude-haiku-4-5");
+    expect(new Set(chain.map(keyOf)).size).toBe(chain.length);
   });
 
   it("with role: role absent from map falls back to primary as head", () => {
     const map: RoleModelMap = { editor: "claude-haiku-4-5" };
     const chain = fallbackChain("claude-sonnet-4-6", map, "architect");
-    expect(chain[0]).toBe("claude-sonnet-4-6");
+    expect(chain[0]).toEqual({ model: "claude-sonnet-4-6" });
   });
 
   it("with role: no duplicates when resolved model matches another map entry", () => {
@@ -143,8 +153,29 @@ describe("fallbackChain", () => {
       editor: "claude-haiku-4-5",
     };
     const chain = fallbackChain("claude-sonnet-4-6", map, "architect");
-    expect(new Set(chain).size).toBe(chain.length);
-    expect(chain[0]).toBe("claude-opus-4-5");
+    expect(new Set(chain.map(keyOf)).size).toBe(chain.length);
+    expect(chain[0]).toEqual({ model: "claude-opus-4-5" });
+  });
+
+  it("cross-provider: a provider-qualified role rides the chain intact", () => {
+    const map: RoleModelMap = {
+      architect: "claude-fable-5",
+      editor: { provider: "openai", model: "gpt-5.2" },
+    };
+    const chain = fallbackChain("claude-sonnet-4-6", map, "architect");
+    expect(chain).toEqual([
+      { model: "claude-fable-5" },
+      { provider: "openai", model: "gpt-5.2" },
+    ]);
+  });
+
+  it("cross-provider: same model id on different providers is NOT deduplicated", () => {
+    const map: RoleModelMap = {
+      architect: { provider: "anthropic", model: "shared-id" },
+      editor: { provider: "openai", model: "shared-id" },
+    };
+    const chain = fallbackChain("primary", map);
+    expect(chain).toHaveLength(3);
   });
 
   it("returns immutable (readonly) array", () => {
@@ -194,6 +225,23 @@ describe("roleModelMapSchema", () => {
     expect(() =>
       roleModelMapSchema.parse({ architect: "claude-opus-4-5", unknown_key: "x" })
     ).toThrow();
+  });
+
+  it("accepts a provider-qualified target", () => {
+    const result = roleModelMapSchema.parse({
+      editor: { provider: "openai", model: "gpt-5.2" },
+    });
+    expect(result).toEqual({ editor: { provider: "openai", model: "gpt-5.2" } });
+  });
+
+  it("rejects an unknown provider name", () => {
+    expect(() =>
+      roleModelMapSchema.parse({ editor: { provider: "mystery", model: "m" } }),
+    ).toThrow();
+  });
+
+  it("rejects a provider-qualified target without a model", () => {
+    expect(() => roleModelMapSchema.parse({ editor: { provider: "openai" } })).toThrow();
   });
 
   it("rejects null values", () => {

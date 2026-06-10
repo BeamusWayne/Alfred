@@ -48,6 +48,8 @@ export type Stage = (prev: unknown, item: unknown, index: number) => Promise<unk
 
 export interface Runtime {
   readonly runId: string;
+  /** The default model agent() uses when a call doesn't override it. */
+  readonly model: string;
   agent<T = unknown>(prompt: string, opts?: AgentCallOptions): Promise<AgentRun<T>>;
   parallel<T>(thunks: ReadonlyArray<() => Promise<T>>): Promise<T[]>;
   pipeline<T = unknown>(items: readonly unknown[], ...stages: readonly Stage[]): Promise<T[]>;
@@ -163,5 +165,13 @@ export function createRuntime(runId: string, opts: RuntimeOptions): Runtime {
     if (journal) journal.append({ type: "log", label: "log", data: { message } }).catch(() => undefined);
   };
 
-  return { runId, agent, parallel, pipeline, log, budgetSnapshot: () => budget.snapshot() };
+  return {
+    runId,
+    model: opts.model,
+    agent,
+    parallel,
+    pipeline,
+    log,
+    budgetSnapshot: () => budget.snapshot(),
+  };
 }

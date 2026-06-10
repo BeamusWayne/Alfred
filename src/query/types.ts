@@ -74,7 +74,16 @@ export type QueryEvent =
       readonly output: string;
       readonly isError: boolean;
     }
-  | { readonly type: "retrying"; readonly attempt: number; readonly delayMs: number; readonly reason: string }
+  | {
+      readonly type: "retrying";
+      readonly attempt: number;
+      readonly delayMs: number;
+      readonly reason: string;
+      /** Model that failed; equal to `toModel` when no fallback advance happened. */
+      readonly fromModel: string;
+      /** Model the next attempt will use — makes fallback downgrades observable. */
+      readonly toModel: string;
+    }
   | { readonly type: "error"; readonly message: string }
   | { readonly type: "done"; readonly status: TerminalStatus };
 

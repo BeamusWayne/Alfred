@@ -134,6 +134,30 @@ describe("tool dispatch on block presence", () => {
   });
 });
 
+describe("fallback observability", () => {
+  test("retrying events carry fromModel/toModel across a chain advance", async () => {
+    const { ProviderError } = await import("../src/providers/types.ts");
+    const provider = new MockProvider([
+      new ProviderError("overloaded", { retryable: true, retryAfterMs: 1 }),
+      textResponse("ok"),
+    ]);
+    const { events, state } = await collect(
+      runQuery(
+        "hi",
+        config(provider, {
+          model: "model-a",
+          roles: { editor: "model-b" },
+        }),
+      ),
+    );
+    const retry = events.find((e) => e.type === "retrying");
+    expect(retry).toMatchObject({ fromModel: "model-a", toModel: "model-b" });
+    expect(state.status).toBe("success");
+    // The retried call actually used the fallback model.
+    expect(provider.configs[1]?.model).toBe("model-b");
+  });
+});
+
 describe("empty assistant content", () => {
   test("an empty truncated turn is not appended as an assistant message", async () => {
     const empty: LLMResponse = {

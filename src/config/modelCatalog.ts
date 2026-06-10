@@ -175,6 +175,24 @@ export function defaultMaxTokens(profile: ModelProfile, streaming: boolean): num
 }
 
 /**
+ * Default verify-fix iteration budget per feature, by capability tier:
+ * frontier models usually land a feature in one or two attempts (extra
+ * attempts are wasted spend), small models need more rounds against the
+ * objective gate to converge. Used when a feature does not pin its own
+ * `iterationBudget`.
+ */
+export function tierIterationBudget(tier: ModelTier): number {
+  switch (tier) {
+    case "frontier":
+      return 2;
+    case "strong":
+      return 3;
+    case "small":
+      return 4;
+  }
+}
+
+/**
  * Default `effort` by role (only sent to models with effort support):
  * the architect thinks hardest, the editor balances cost, subagents and
  * utility calls stay cheap. Callers can override per query.
