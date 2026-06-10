@@ -26,6 +26,15 @@ export interface ToolContext {
   /** Path -> last-read snapshot, enabling read-before-write + mtime checks. */
   readonly readFileState: Map<string, { content: string; mtimeMs: number }>;
   readonly permissions: ToolPermissionContext;
+  /**
+   * Run an isolated sub-agent and return its final answer (spawn_subagent
+   * tool). Injected by the engine at depth 0 only — absent means nesting is
+   * not allowed. Usage/cost of the sub-run accrue to the parent run.
+   */
+  readonly spawnSubagent?: (
+    task: string,
+    opts: { readonly readOnly: boolean },
+  ) => Promise<{ readonly text: string; readonly turns: number; readonly status: string }>;
 }
 
 export interface Tool<In extends z.ZodTypeAny = z.ZodTypeAny, Out = unknown> {

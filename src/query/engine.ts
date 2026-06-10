@@ -46,7 +46,8 @@ import {
 import { shouldCompact, compact } from "../compact/engine.ts";
 import { editContext } from "../compact/contextEdit.ts";
 import { estimateMessages } from "../compact/tokens.ts";
-import { fallbackChain, type RoleSpec, type RoleTarget } from "../config/roles.ts";
+import { fallbackChain, resolveRole, type RoleSpec, type RoleTarget } from "../config/roles.ts";
+import { READONLY_SUBAGENT_TOOLS } from "../tools/agentTool.ts";
 import { defaultEffortForRole, modelProfile } from "../config/modelCatalog.ts";
 import { getProvider } from "../providers/index.ts";
 import { fence, type TaintSource } from "../security/taint.ts";
@@ -268,11 +269,29 @@ function toToolResultMessage(o: ToolOutcome): Message {
   return { role: "tool_result", toolUseId: o.use.id, content: o.output, isError: o.isError };
 }
 
+/** Final assistant text of a finished run (for sub-agent results). */
+function lastAssistantText(messages: readonly Message[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg !== undefined && msg.role === "assistant") {
+      return msg.content
+        .filter((b): b is Extract<typeof b, { type: "text" }> => b.type === "text")
+        .map((b) => b.text)
+        .join("");
+    }
+  }
+  return "";
+}
+
 export async function* runQuery(
   userMessage: string,
   config: QueryConfig,
 ): AsyncGenerator<QueryEvent, QueryState> {
-  const tools = (config.tools ?? getAllTools()).filter((t) => t.isEnabled());
+  const subagentDepth = config.subagentDepth ?? 0;
+  // Depth cap 1: a sub-agent never sees spawn_subagent, so it cannot recurse.
+  const tools = (config.tools ?? getAllTools()).filter(
+    (t) => t.isEnabled() && (subagentDepth === 0 || t.name !== "spawn_subagent"),
+  );
   const toolDefs = tools.map(toToolDefinition);
   const signal = config.signal ?? new AbortController().signal;
   const maxTurns = config.maxTurns ?? DEFAULT_MAX_TURNS;
@@ -295,11 +314,51 @@ export async function* runQuery(
   const summaryModel = summaryTarget.model;
   const hooks = config.hooks;
 
+  // spawn_subagent execution (depth 0 only): an isolated runQuery on the
+  // `subagent` role target whose usage/cost fold back into THIS run. Closure
+  // injection keeps the tool module free of an engine import cycle.
+  const spawnSubagent =
+    subagentDepth === 0
+      ? async (
+          task: string,
+          opts: { readonly readOnly: boolean },
+        ): Promise<{ text: string; turns: number; status: string }> => {
+          const target = resolveRole(config.roles ?? {}, "subagent", config.model);
+          const subProvider = target.provider ? getProvider(target.provider) : config.provider;
+          const subTools = opts.readOnly
+            ? tools.filter((t) => READONLY_SUBAGENT_TOOLS.has(t.name))
+            : tools.filter((t) => t.name !== "spawn_subagent");
+          const gen = runQuery(task, {
+            provider: subProvider,
+            model: target.model,
+            apiKey: target.provider ? undefined : config.apiKey,
+            baseUrl: target.provider ? undefined : config.baseUrl,
+            systemPrompt: config.systemPrompt,
+            tools: subTools,
+            permissions: config.permissions,
+            approve: config.approve,
+            maxTurns: 15,
+            signal,
+            role: "subagent",
+            roles: config.roles,
+            hooks: config.hooks,
+            subagentDepth: subagentDepth + 1,
+          });
+          let step = await gen.next();
+          while (!step.done) step = await gen.next();
+          const sub = step.value;
+          usage = addUsage(usage, sub.usage);
+          cost = cost.add(target.model, sub.usage);
+          return { text: lastAssistantText(sub.messages), turns: sub.turns, status: sub.status };
+        }
+      : undefined;
+
   const ctx: ToolContext = {
     workingDir: config.permissions.workingDir,
     signal,
     readFileState: new Map(),
     permissions: config.permissions,
+    spawnSubagent,
   };
 
   // Stage-2 memory prefetch (ADR 0001 §4): surface relevant facts before turn 1.

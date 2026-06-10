@@ -9,6 +9,7 @@ import { grepTool } from "./grep.ts";
 import { memorySearchTool, memoryUpsertTool, memoryForgetTool } from "./memoryTool.ts";
 import { webFetchTool } from "./webFetch.ts";
 import { skillTool } from "../skills/skillTool.ts";
+import { spawnSubagentTool } from "./agentTool.ts";
 
 const BUILTIN: readonly Tool[] = [
   fileReadTool,
@@ -22,6 +23,7 @@ const BUILTIN: readonly Tool[] = [
   memoryForgetTool,
   webFetchTool,
   skillTool,
+  spawnSubagentTool,
 ];
 
 export function getAllTools(): readonly Tool[] {

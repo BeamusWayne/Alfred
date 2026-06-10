@@ -40,6 +40,8 @@ export interface QueryConfig {
   readonly taskBudgetTokens?: number;
   /** Native structured-output schema (supporting models; callers keep a fallback). */
   readonly responseSchema?: Record<string, unknown>;
+  /** Sub-agent nesting depth (internal); spawn_subagent is removed at depth ≥ 1. */
+  readonly subagentDepth?: number;
   readonly maxTurns?: number;
   readonly permissions: ToolPermissionContext;
   /** Defaults to the built-in tool set. */
