@@ -1,6 +1,6 @@
 {
   "name": "alfred",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Alfred — a verifiable autonomous coding agent (CLI), built TypeScript + Bun",
   "type": "module",
   "bin": {

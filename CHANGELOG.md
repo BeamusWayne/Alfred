@@ -4,6 +4,29 @@ All notable changes to Alfred are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/) (0.x: minor = feature rounds, patch = fixes).
 
+## [0.2.1] — 2026-06-10
+
+Patch release: three bugs found by live multi-provider validation (GLM-5.1
+and Gemini 3.1 Pro both complete the end-to-end bench 2/2 dual-pass on this
+version; v0.2.0 cannot run Gemini 3.x tool loops).
+
+### Fixed
+- **Gemini 3.x thought-signature round-trip**: the API returns
+  `thoughtSignature` on functionCall parts and hard-rejects later requests
+  whose echoed history lost them. `ToolUseBlock` gains an opaque
+  `providerMeta` field; the Google provider captures the signature on parse
+  (chat + stream) and echoes it verbatim on serialise. `thought: true`
+  reasoning parts no longer leak into visible text. 2.5-family serialisation
+  is unchanged.
+- **`ALFRED_BASE_URL` scoped to the anthropic provider**: a `.env` pinning it
+  to an Anthropic-compatible endpoint (Zhipu GLM) used to poison Gemini
+  request URLs. The Google provider's scoped override is `GEMINI_BASE_URL`.
+- **Evidence-backed rubric judge**: schema mode now keeps caller-supplied
+  tools alongside `structured_output`, and the harness gives the rubric judge
+  read-only file access (glob/file_read/grep). Previously a strict judge with
+  zero evidence (successful verify output can be empty) scored objectively
+  passing implementations 0 and blocked them.
+
 ## [0.2.0] — 2026-06-10
 
 Two optimization rounds: Claude Fable 5 enablement + long-horizon reliability,
