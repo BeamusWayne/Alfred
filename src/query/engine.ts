@@ -47,6 +47,7 @@ import { shouldCompact, compact } from "../compact/engine.ts";
 import { editContext } from "../compact/contextEdit.ts";
 import { estimateMessages } from "../compact/tokens.ts";
 import { fallbackChain } from "../config/roles.ts";
+import { defaultEffortForRole, modelProfile } from "../config/modelCatalog.ts";
 import { fence, type TaintSource } from "../security/taint.ts";
 import { quarantineExtract } from "../security/quarantine.ts";
 import { runHooks } from "../hooks/engine.ts";
@@ -54,7 +55,6 @@ import type { HooksConfig } from "../hooks/types.ts";
 
 const DEFAULT_MAX_TURNS = 50;
 const DEFAULT_MAX_RETRIES = 5;
-const DEFAULT_MAX_CONTEXT_TOKENS = 200_000;
 
 /** Replaces untrusted content with a safe, schema-validated summary (dual-LLM). */
 type QuarantineFn = (text: string, source: TaintSource) => Promise<string>;
@@ -211,6 +211,11 @@ async function* chatWithRetry(
       systemPrompt: config.systemPrompt,
       maxTokens: config.maxTokens,
       temperature: config.temperature,
+      thinking: config.thinking,
+      // Effort defaults per role (architect thinks hardest, subagents stay
+      // cheap); providers drop it on models without effort support.
+      effort: config.effort ?? defaultEffortForRole(config.role),
+      taskBudgetTokens: config.taskBudgetTokens,
     };
     try {
       if (config.provider.stream) {
@@ -258,7 +263,13 @@ export async function* runQuery(
   const toolDefs = tools.map(toToolDefinition);
   const signal = config.signal ?? new AbortController().signal;
   const maxTurns = config.maxTurns ?? DEFAULT_MAX_TURNS;
-  const maxContextTokens = config.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS;
+  // Context ceiling follows the model's real window (catalog-derived), so a
+  // 1M-context model is no longer compacted at 160K and a small-window model
+  // never overflows. Callers can still pin an explicit ceiling.
+  const maxContextTokens = config.maxContextTokens ?? modelProfile(config.model).contextWindow;
+  // Summaries are mechanical work — route them to the cheapest configured
+  // role model instead of burning architect-tier tokens on them.
+  const summaryModel = config.roles?.subagent ?? config.roles?.editor ?? config.model;
   const hooks = config.hooks;
 
   const ctx: ToolContext = {
@@ -373,7 +384,7 @@ export async function* runQuery(
     if (shouldCompact(messages, { maxContextTokens, actualTokens: lastInputTokens })) {
       const compacted = await compact(messages, {
         provider: config.provider,
-        model: config.model,
+        model: summaryModel,
         maxContextTokens,
       });
       if (compacted !== messages) {
@@ -447,7 +458,7 @@ export async function* runQuery(
       }
       const compacted = await compact(messages, {
         provider: config.provider,
-        model: config.model,
+        model: summaryModel,
         maxContextTokens,
       });
       if (compacted !== messages) {

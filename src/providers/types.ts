@@ -18,8 +18,26 @@ export interface ToolUseBlock {
   readonly input: Record<string, unknown>;
 }
 
+/**
+ * A reasoning block (Anthropic adaptive/extended thinking). Carried opaquely:
+ * Alfred never interprets it, but MUST round-trip it back to the provider in
+ * multi-turn tool loops — the API rejects assistant turns whose thinking
+ * blocks were dropped. Non-Anthropic providers skip these when serialising.
+ */
+export interface ThinkingBlock {
+  readonly type: "thinking";
+  readonly thinking: string;
+  readonly signature: string;
+}
+
+/** A redacted reasoning block — fully opaque, round-tripped via `data`. */
+export interface RedactedThinkingBlock {
+  readonly type: "redacted_thinking";
+  readonly data: string;
+}
+
 /** Assistant-authored content. */
-export type ContentBlock = TextBlock | ToolUseBlock;
+export type ContentBlock = TextBlock | ToolUseBlock | ThinkingBlock | RedactedThinkingBlock;
 
 export interface UserMessage {
   readonly role: "user";
@@ -94,13 +112,29 @@ export interface ToolDefinition {
   readonly inputSchema: Record<string, unknown>;
 }
 
+/** Reasoning-depth knob (`output_config.effort`) on models that support it. */
+export type Effort = "low" | "medium" | "high" | "xhigh" | "max";
+
 export interface ProviderConfig {
   readonly model: string;
   readonly apiKey?: string;
   readonly baseUrl?: string;
   readonly systemPrompt?: string;
   readonly maxTokens?: number;
+  /** Only sent to models that accept sampling params (gated by the catalog). */
   readonly temperature?: number;
+  /**
+   * Thinking mode. Defaults to "adaptive" on models that support it; pass
+   * "none" to suppress. Ignored on models without adaptive thinking.
+   */
+  readonly thinking?: "adaptive" | "none";
+  /** Reasoning effort; only sent to models with effort support. */
+  readonly effort?: Effort;
+  /**
+   * Whole-task token budget surfaced to the model (`output_config.task_budget`,
+   * beta). Only sent on supporting models and when ≥ the API minimum (20k).
+   */
+  readonly taskBudgetTokens?: number;
 }
 
 export interface ChatOptions {

@@ -169,7 +169,7 @@ function toOpenAIMessages(
     for (const block of m.content) {
       if (block.type === "text") {
         textContent = block.text;
-      } else {
+      } else if (block.type === "tool_use") {
         toolCalls.push({
           id: block.id,
           type: "function",
@@ -179,6 +179,7 @@ function toOpenAIMessages(
           },
         });
       }
+      // thinking / redacted_thinking blocks are Anthropic-specific — skipped.
     }
 
     out.push({

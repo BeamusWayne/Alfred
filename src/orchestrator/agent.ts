@@ -16,6 +16,7 @@ import type { Provider } from "../providers/types.ts";
 import type { Tool } from "../tools/types.ts";
 import { buildTool } from "../tools/types.ts";
 import type { ToolPermissionContext } from "../permissions/types.ts";
+import type { Role } from "../config/roles.ts";
 import { allow } from "../permissions/types.ts";
 
 // ---------------------------------------------------------------------------
@@ -31,6 +32,10 @@ export interface RunAgentOptions {
   readonly permissions: ToolPermissionContext;
   readonly maxTurns?: number;
   readonly signal?: AbortSignal;
+  /** Role for effort defaults (architect=xhigh … subagent=low, ADR 0005). */
+  readonly role?: Role;
+  /** Remaining orchestration token budget, surfaced to capable models (beta). */
+  readonly taskBudgetTokens?: number;
 }
 
 export interface AgentRun<T = unknown> {
@@ -90,6 +95,8 @@ export async function runAgent<T = unknown>(
     permissions,
     maxTurns,
     signal,
+    role,
+    taskBudgetTokens,
   } = opts;
 
   // When schema mode is active we wire a capture closure into the tool.
@@ -132,6 +139,8 @@ export async function runAgent<T = unknown>(
     permissions,
     maxTurns,
     signal,
+    role,
+    taskBudgetTokens,
   });
 
   let state: QueryState;

@@ -8,7 +8,7 @@
  * no side effects and never mutate their inputs.
  */
 
-import type { Message } from "../providers/types.ts";
+import type { ContentBlock, Message } from "../providers/types.ts";
 
 /**
  * Estimate the token count for a raw string.
@@ -24,6 +24,20 @@ export function estimateTokens(text: string): number {
  * Handles the `string | readonly ContentBlock[]` union on user messages and
  * the `string` content on tool_result messages.
  */
+function estimateBlock(block: ContentBlock): number {
+  switch (block.type) {
+    case "text":
+      return estimateTokens(block.text);
+    case "tool_use":
+      // count name + serialised input
+      return estimateTokens(block.name) + estimateTokens(JSON.stringify(block.input));
+    case "thinking":
+      return estimateTokens(block.thinking);
+    case "redacted_thinking":
+      return estimateTokens(block.data);
+  }
+}
+
 export function estimateMessages(messages: readonly Message[]): number {
   let total = 0;
   for (const msg of messages) {
@@ -31,25 +45,10 @@ export function estimateMessages(messages: readonly Message[]): number {
       if (typeof msg.content === "string") {
         total += estimateTokens(msg.content);
       } else {
-        for (const block of msg.content) {
-          if (block.type === "text") {
-            total += estimateTokens(block.text);
-          } else {
-            // tool_use blocks: count name + serialised input
-            total += estimateTokens(block.name);
-            total += estimateTokens(JSON.stringify(block.input));
-          }
-        }
+        for (const block of msg.content) total += estimateBlock(block);
       }
     } else if (msg.role === "assistant") {
-      for (const block of msg.content) {
-        if (block.type === "text") {
-          total += estimateTokens(block.text);
-        } else {
-          total += estimateTokens(block.name);
-          total += estimateTokens(JSON.stringify(block.input));
-        }
-      }
+      for (const block of msg.content) total += estimateBlock(block);
     } else {
       // tool_result
       total += estimateTokens(msg.content);

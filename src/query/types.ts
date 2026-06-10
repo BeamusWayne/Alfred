@@ -1,4 +1,4 @@
-import type { Message, Provider, Usage } from "../providers/types.ts";
+import type { Effort, Message, Provider, Usage } from "../providers/types.ts";
 import type { ToolPermissionContext } from "../permissions/types.ts";
 import type { Tool } from "../tools/types.ts";
 import type { Role, RoleModelMap } from "../config/roles.ts";
@@ -32,6 +32,12 @@ export interface QueryConfig {
   readonly systemPrompt?: string;
   readonly maxTokens?: number;
   readonly temperature?: number;
+  /** "none" opts out of adaptive thinking on models that support it. */
+  readonly thinking?: "adaptive" | "none";
+  /** Reasoning effort; defaults per role on supporting models (ADR 0005). */
+  readonly effort?: Effort;
+  /** Whole-task token budget surfaced to the model (beta; supporting models only). */
+  readonly taskBudgetTokens?: number;
   readonly maxTurns?: number;
   readonly permissions: ToolPermissionContext;
   /** Defaults to the built-in tool set. */

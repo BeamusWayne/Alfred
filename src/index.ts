@@ -122,6 +122,8 @@ async function runOnce(prompt: string, opts: CliOptions): Promise<number> {
         maxTokens: cfg.maxTokens,
         maxTurns: cfg.maxTurns,
         maxContextTokens: cfg.maxContextTokens,
+        effort: cfg.effort,
+        thinking: cfg.thinking,
         roles: cfg.roles,
         hooks,
         memory,

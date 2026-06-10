@@ -10,7 +10,7 @@
  * list is returned unchanged so the outer loop is never crashed.
  */
 
-import type { Message, Provider, UserMessage } from "../providers/types.ts";
+import type { ContentBlock, Message, Provider, UserMessage } from "../providers/types.ts";
 import { estimateMessages, estimateTokens } from "./tokens.ts";
 
 /** Options for `shouldCompact`. */
@@ -108,6 +108,14 @@ Write in past tense, third-person. Output plain prose — no markdown headers. B
 const SUMMARISATION_PROMPT_PREFIX = `Summarise the following conversation excerpt from an autonomous coding session. Capture all decisions, file paths, open threads, errors, and outcomes so the conversation can be resumed without reading the original.\n\n---\n\n`;
 
 /** Serialise a slice of messages into a human-readable excerpt for the LLM. */
+function renderBlock(b: ContentBlock, withInput: boolean): string {
+  // Thinking blocks are internal reasoning — they carry no decisions the
+  // summary needs beyond what the visible text already states. Skip them.
+  if (b.type === "thinking" || b.type === "redacted_thinking") return "";
+  if (b.type === "text") return b.text;
+  return withInput ? `[tool_use: ${b.name}(${JSON.stringify(b.input)})]` : `[tool_use: ${b.name}]`;
+}
+
 function renderExcerpt(messages: readonly Message[]): string {
   const parts: string[] = [];
   for (const msg of messages) {
@@ -115,13 +123,12 @@ function renderExcerpt(messages: readonly Message[]): string {
       const text =
         typeof msg.content === "string"
           ? msg.content
-          : msg.content
-              .map((b) => (b.type === "text" ? b.text : `[tool_use: ${b.name}]`))
-              .join(" ");
+          : msg.content.map((b) => renderBlock(b, false)).filter((s) => s.length > 0).join(" ");
       parts.push(`USER: ${text}`);
     } else if (msg.role === "assistant") {
       const text = msg.content
-        .map((b) => (b.type === "text" ? b.text : `[tool_use: ${b.name}(${JSON.stringify(b.input)})]`))
+        .map((b) => renderBlock(b, true))
+        .filter((s) => s.length > 0)
         .join(" ");
       parts.push(`ASSISTANT: ${text}`);
     } else {

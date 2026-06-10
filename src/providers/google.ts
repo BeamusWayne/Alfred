@@ -174,10 +174,11 @@ function toGeminiContents(messages: readonly Message[]): readonly GeminiContentM
     for (const b of m.content) {
       if (b.type === "text") {
         if (b.text.length > 0) parts.push({ text: b.text });
-      } else {
+      } else if (b.type === "tool_use") {
         idToName.set(b.id, b.name);
         parts.push({ functionCall: { name: b.name, args: b.input } });
       }
+      // thinking / redacted_thinking blocks are Anthropic-specific — skipped.
     }
     if (parts.length === 0) parts.push({ text: "" });
     out.push({ role: "model", parts });

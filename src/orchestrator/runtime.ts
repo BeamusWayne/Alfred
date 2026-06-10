@@ -14,6 +14,7 @@ import { Budget, type BudgetLimits, type BudgetSnapshot } from "./budget.ts";
 import type { Provider } from "../providers/types.ts";
 import type { ToolPermissionContext } from "../permissions/types.ts";
 import type { Tool } from "../tools/types.ts";
+import type { Role } from "../config/roles.ts";
 
 const DEFAULT_CONCURRENCY = 4;
 
@@ -35,6 +36,8 @@ export interface AgentCallOptions {
   readonly model?: string;
   readonly maxTurns?: number;
   readonly label?: string;
+  /** Role for effort defaults (architect=xhigh … subagent=low, ADR 0005). */
+  readonly role?: Role;
   /** Per-call permission override (e.g. a worktree workingDir for best-of-N). */
   readonly permissions?: ToolPermissionContext;
   /** Resume key: if the journal already holds a result for this key, reuse it. */
@@ -100,6 +103,14 @@ export function createRuntime(runId: string, opts: RuntimeOptions): Runtime {
       throw new Error(`orchestration budget exceeded: ${JSON.stringify(budget.snapshot())}`);
     }
 
+    // Surface the REMAINING orchestration budget to the model (task_budget,
+    // beta): instead of being cut off when the harness budget runs dry, a
+    // capable model sees the countdown and wraps up gracefully.
+    const remainingTokens =
+      opts.budget?.maxTokens !== undefined
+        ? Math.max(0, opts.budget.maxTokens - budget.snapshot().tokens)
+        : undefined;
+
     await sem.acquire();
     let run: AgentRun<T>;
     try {
@@ -112,6 +123,8 @@ export function createRuntime(runId: string, opts: RuntimeOptions): Runtime {
         systemPrompt: callOpts.systemPrompt,
         maxTurns: callOpts.maxTurns,
         signal: opts.signal,
+        role: callOpts.role,
+        taskBudgetTokens: remainingTokens,
       });
     } finally {
       sem.release();

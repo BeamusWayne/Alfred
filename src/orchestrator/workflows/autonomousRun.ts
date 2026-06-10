@@ -180,6 +180,7 @@ export async function autonomousRun(opts: AutonomousRunOptions): Promise<Autonom
               await opts.runtime.agent<Plan>(planPrompt(feature, feedback), {
                 schema: planSchema,
                 model: opts.architectModel,
+                role: "architect",
                 label: `architect:${feature.id}#${attempt}`,
               })
             ).data?.steps ?? []
@@ -193,7 +194,7 @@ export async function autonomousRun(opts: AutonomousRunOptions): Promise<Autonom
             await opts.runtime.agent(
               `${implementPrompt(feature, opts.verifyCmd, fb, steps)}\n\n(Candidate ${candidate + 1} — explore a distinct approach.)`,
               {
-                ...(useSplit ? { model: opts.editorModel } : {}),
+                ...(useSplit ? { model: opts.editorModel, role: "editor" as const } : {}),
                 permissions: { mode: "bypass", allowedTools: new Set(), deniedTools: new Set(), workingDir: worktreePath },
                 label: `bestof:${feature.id}#${attempt}.${candidate}`,
               },
@@ -204,10 +205,12 @@ export async function autonomousRun(opts: AutonomousRunOptions): Promise<Autonom
         const plan = await opts.runtime.agent<Plan>(planPrompt(feature, feedback), {
           schema: planSchema,
           model: opts.architectModel,
+          role: "architect",
           label: `architect:${feature.id}#${attempt}`,
         });
         await opts.runtime.agent(implementPrompt(feature, opts.verifyCmd, feedback, plan.data?.steps ?? []), {
           model: opts.editorModel,
+          role: "editor",
           label: `editor:${feature.id}#${attempt}`,
         });
       } else {
@@ -228,6 +231,7 @@ export async function autonomousRun(opts: AutonomousRunOptions): Promise<Autonom
 
     const rubricRun = await opts.runtime.agent<Rubric>(rubricPrompt(feature, verify), {
       schema: rubricSchema,
+      role: "subagent",
       label: `rubric:${feature.id}`,
     });
     rubric = rubricRun.data;

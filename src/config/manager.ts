@@ -6,14 +6,22 @@ export const PERMISSION_MODES = ["default", "acceptEdits", "plan", "bypass"] as 
 export const PROVIDERS = ["anthropic", "openai", "google"] as const;
 export type ProviderId = (typeof PROVIDERS)[number];
 
+export const EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"] as const;
+
 export const configSchema = z.object({
   provider: z.enum(PROVIDERS).default("anthropic"),
   model: z.string().min(1),
   /** Override the provider base URL (e.g. an Anthropic-compatible GLM endpoint). */
   baseUrl: z.string().optional(),
   maxTurns: z.number().int().positive().default(50),
-  maxTokens: z.number().int().positive().default(8192),
-  maxContextTokens: z.number().int().positive().default(200_000),
+  // maxTokens/maxContextTokens: undefined = derive from the model capability
+  // catalog (src/config/modelCatalog.ts) instead of a one-size-fits-all value.
+  maxTokens: z.number().int().positive().optional(),
+  maxContextTokens: z.number().int().positive().optional(),
+  /** Reasoning effort on supporting models; undefined = per-role default. */
+  effort: z.enum(EFFORT_LEVELS).optional(),
+  /** "none" opts out of adaptive thinking on models that support it. */
+  thinking: z.enum(["adaptive", "none"]).optional(),
   permissionMode: z.enum(PERMISSION_MODES).default("default"),
   roles: roleModelMapSchema.optional(),
 });
@@ -29,6 +37,20 @@ export interface ConfigOverrides {
   readonly maxContextTokens?: number;
   readonly permissionMode?: (typeof PERMISSION_MODES)[number];
   readonly roles?: RoleModelMap;
+  readonly effort?: (typeof EFFORT_LEVELS)[number];
+  readonly thinking?: "adaptive" | "none";
+}
+
+function effortFromEnv(): (typeof EFFORT_LEVELS)[number] | undefined {
+  const e = process.env.ALFRED_EFFORT;
+  return (EFFORT_LEVELS as readonly string[]).includes(e ?? "")
+    ? (e as (typeof EFFORT_LEVELS)[number])
+    : undefined;
+}
+
+function thinkingFromEnv(): "adaptive" | "none" | undefined {
+  const t = process.env.ALFRED_THINKING;
+  return t === "adaptive" || t === "none" ? t : undefined;
 }
 
 /** Sensible default model per provider (so `ALFRED_PROVIDER=google` doesn't
@@ -65,6 +87,8 @@ export function loadConfig(overrides: ConfigOverrides = {}): AlfredConfig {
     maxTurns: overrides.maxTurns,
     maxTokens: overrides.maxTokens,
     maxContextTokens: overrides.maxContextTokens,
+    effort: overrides.effort ?? effortFromEnv(),
+    thinking: overrides.thinking ?? thinkingFromEnv(),
     permissionMode: overrides.permissionMode,
     roles: overrides.roles ?? parseRolesFromEnv(),
   });

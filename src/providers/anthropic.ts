@@ -21,11 +21,20 @@ import {
   type ToolDefinition,
   type Usage,
 } from "./types.ts";
+import { defaultMaxTokens, modelProfile } from "../config/modelCatalog.ts";
 
 const RETRYABLE_STATUS = new Set([408, 409, 429, 500, 502, 503, 504, 529]);
 
 function blockToParam(block: ContentBlock): Anthropic.ContentBlockParam {
   if (block.type === "text") return { type: "text", text: block.text };
+  // Thinking blocks round-trip verbatim: the API rejects tool-loop assistant
+  // turns whose thinking blocks were dropped.
+  if (block.type === "thinking") {
+    return { type: "thinking", thinking: block.thinking, signature: block.signature };
+  }
+  if (block.type === "redacted_thinking") {
+    return { type: "redacted_thinking", data: block.data };
+  }
   return { type: "tool_use", id: block.id, name: block.name, input: block.input };
 }
 
@@ -114,12 +123,17 @@ function fromStopReason(reason: string | null): StopReason {
   }
 }
 
-function fromContent(blocks: Anthropic.ContentBlock[]): ContentBlock[] {
+/** Exported for tests: response blocks → Alfred blocks (thinking preserved). */
+export function fromContent(blocks: Anthropic.ContentBlock[]): ContentBlock[] {
   const out: ContentBlock[] = [];
   for (const b of blocks) {
     if (b.type === "text") out.push({ type: "text", text: b.text });
     else if (b.type === "tool_use") {
       out.push({ type: "tool_use", id: b.id, name: b.name, input: b.input as Record<string, unknown> });
+    } else if (b.type === "thinking") {
+      out.push({ type: "thinking", thinking: b.thinking, signature: b.signature });
+    } else if (b.type === "redacted_thinking") {
+      out.push({ type: "redacted_thinking", data: b.data });
     }
   }
   return out;
@@ -187,6 +201,87 @@ function systemBlocks(config: ProviderConfig): Anthropic.TextBlockParam[] | unde
     : undefined;
 }
 
+/** Beta header required for `output_config.task_budget`. */
+const TASK_BUDGET_BETA = "task-budgets-2026-03-13";
+
+/** Minimum whole-task budget the API accepts. */
+const MIN_TASK_BUDGET_TOKENS = 20_000;
+
+export interface BuiltRequest {
+  readonly params: Anthropic.MessageCreateParamsNonStreaming;
+  /** anthropic-beta header values this request needs (empty for pure GA). */
+  readonly betas: readonly string[];
+}
+
+/**
+ * Build the Messages API request, applying the model's capability profile:
+ *   - `max_tokens` defaults from the catalog (and is always capped by the
+ *     model's output ceiling, so a fallback-chain model switch stays valid);
+ *   - `temperature` is dropped on models that reject sampling params;
+ *   - adaptive thinking is ON by default where supported ("none" opts out);
+ *     models without adaptive support get no `thinking` field at all;
+ *   - `effort` / `task_budget` are sent only where supported (task_budget
+ *     additionally needs its beta header, returned in `betas`).
+ *
+ * Exported for tests — this is the contract that keeps any configured model
+ * from receiving a parameter it would 400 on.
+ */
+export function buildRequest(
+  messages: readonly Message[],
+  tools: readonly ToolDefinition[],
+  config: ProviderConfig,
+  streaming: boolean,
+): BuiltRequest {
+  const profile = modelProfile(config.model);
+  const taskBudget =
+    profile.supportsTaskBudget &&
+    config.taskBudgetTokens !== undefined &&
+    config.taskBudgetTokens >= MIN_TASK_BUDGET_TOKENS
+      ? Math.floor(config.taskBudgetTokens)
+      : undefined;
+  const effort = profile.supportsEffort ? config.effort : undefined;
+  // task_budget is typed in the SDK's beta namespace but rides the same wire
+  // field; the GA cast is confined to this one spot.
+  const outputConfig =
+    effort !== undefined || taskBudget !== undefined
+      ? ({
+          ...(effort !== undefined ? { effort } : {}),
+          ...(taskBudget !== undefined
+            ? { task_budget: { type: "tokens", total: taskBudget } }
+            : {}),
+        } as Anthropic.OutputConfig)
+      : undefined;
+
+  const params: Anthropic.MessageCreateParamsNonStreaming = {
+    model: config.model,
+    max_tokens: Math.min(
+      config.maxTokens ?? defaultMaxTokens(profile, streaming),
+      profile.maxOutput,
+    ),
+    system: systemBlocks(config),
+    messages: toAnthropicMessages(messages),
+    ...(tools.length > 0 ? { tools: toAnthropicTools(tools) } : {}),
+    ...(profile.supportsTemperature && config.temperature !== undefined
+      ? { temperature: config.temperature }
+      : {}),
+    ...(profile.thinking === "adaptive" && config.thinking !== "none"
+      ? { thinking: { type: "adaptive" } }
+      : {}),
+    ...(outputConfig !== undefined ? { output_config: outputConfig } : {}),
+  };
+  return { params, betas: taskBudget !== undefined ? [TASK_BUDGET_BETA] : [] };
+}
+
+function requestOptions(
+  betas: readonly string[],
+  signal: AbortSignal | undefined,
+): { signal?: AbortSignal; headers?: Record<string, string> } {
+  return {
+    signal,
+    ...(betas.length > 0 ? { headers: { "anthropic-beta": betas.join(",") } } : {}),
+  };
+}
+
 export class AnthropicProvider implements Provider {
   readonly name = "anthropic";
 
@@ -197,18 +292,9 @@ export class AnthropicProvider implements Provider {
     options?: ChatOptions,
   ): Promise<LLMResponse> {
     const client = makeClient(config);
+    const { params, betas } = buildRequest(messages, tools, config, false);
     try {
-      const response = await client.messages.create(
-        {
-          model: config.model,
-          max_tokens: config.maxTokens ?? 8192,
-          temperature: config.temperature,
-          system: systemBlocks(config),
-          messages: toAnthropicMessages(messages),
-          tools: tools.length > 0 ? toAnthropicTools(tools) : undefined,
-        },
-        { signal: options?.signal },
-      );
+      const response = await client.messages.create(params, requestOptions(betas, options?.signal));
       return {
         content: fromContent(response.content),
         stopReason: fromStopReason(response.stop_reason),
@@ -227,18 +313,9 @@ export class AnthropicProvider implements Provider {
     options?: ChatOptions,
   ): AsyncGenerator<StreamEvent, LLMResponse> {
     const client = makeClient(config);
+    const { params, betas } = buildRequest(messages, tools, config, true);
     try {
-      const s = client.messages.stream(
-        {
-          model: config.model,
-          max_tokens: config.maxTokens ?? 8192,
-          temperature: config.temperature,
-          system: systemBlocks(config),
-          messages: toAnthropicMessages(messages),
-          tools: tools.length > 0 ? toAnthropicTools(tools) : undefined,
-        },
-        { signal: options?.signal },
-      );
+      const s = client.messages.stream(params, requestOptions(betas, options?.signal));
       for await (const event of s) {
         if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
           yield { type: "text_delta", text: event.delta.text };
