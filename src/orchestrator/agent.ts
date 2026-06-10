@@ -135,7 +135,9 @@ export async function runAgent<T = unknown>(
       },
     });
 
-    return [structuredOutputTool];
+    // Schema mode keeps any caller-supplied tools (e.g. a rubric judge gets
+    // read-only file access to gather evidence) and appends the answer tool.
+    return [...(tools ?? []), structuredOutputTool];
   })();
 
   const resolvedSystemPrompt =

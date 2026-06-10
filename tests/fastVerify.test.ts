@@ -104,3 +104,35 @@ describe("fast verify pre-gate", () => {
     expect(verifyEvents(events).map((e) => e.gate)).toEqual(["full"]);
   });
 });
+
+describe("rubric evidence access", () => {
+  test("the judge gets read-only tools alongside structured_output", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "alfred-rubric-"));
+    await Bun.write(
+      join(dir, "fl.json"),
+      JSON.stringify({
+        features: [
+          { id: "f1", title: "F1", description: "do x", status: "pending", iterationBudget: 1 },
+        ],
+      }),
+    );
+    const provider = new MockProvider([harnessScript(2)]);
+    const journal = new Journal(join(dir, "j.jsonl"));
+    const ledger = new Ledger(join(dir, "l.jsonl"), "s");
+    const runtime = createRuntime("t", { provider, model: "base", permissions: perms(dir), journal });
+    await autonomousRun({
+      runtime,
+      ledger,
+      cwd: dir,
+      featureListPath: join(dir, "fl.json"),
+      verifyCmd: "exit 0",
+    });
+    await journal.close();
+    // The rubric call is the last chat: implement (call 0), rubric (call 1+).
+    const rubricTools = provider.toolNames[provider.toolNames.length - 1] ?? [];
+    expect(rubricTools).toContain("structured_output");
+    expect(rubricTools).toContain("file_read");
+    expect(rubricTools).toContain("glob");
+    expect(rubricTools).toContain("grep");
+  });
+});

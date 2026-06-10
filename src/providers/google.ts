@@ -42,6 +42,10 @@ const RETRYABLE_STATUS = new Set([408, 409, 429, 500, 502, 503, 504]);
 interface GeminiPart {
   readonly text?: string;
   readonly functionCall?: { readonly name?: string; readonly args?: Record<string, unknown> };
+  /** Gemini 3.x: true on internal-reasoning summary parts — not visible text. */
+  readonly thought?: boolean;
+  /** Gemini 3.x: MUST be echoed back on the same part in later requests. */
+  readonly thoughtSignature?: string;
 }
 
 interface GeminiCandidate {
@@ -70,6 +74,8 @@ interface GeminiRequestPart {
   readonly text?: string;
   readonly functionCall?: { readonly name: string; readonly args: Record<string, unknown> };
   readonly functionResponse?: { readonly name: string; readonly response: Record<string, unknown> };
+  /** Echoed verbatim from the response part (Gemini 3.x hard requirement). */
+  readonly thoughtSignature?: string;
 }
 
 interface GeminiContentMsg {
@@ -177,7 +183,13 @@ function toGeminiContents(messages: readonly Message[]): readonly GeminiContentM
         if (b.text.length > 0) parts.push({ text: b.text });
       } else if (b.type === "tool_use") {
         idToName.set(b.id, b.name);
-        parts.push({ functionCall: { name: b.name, args: b.input } });
+        const sig = b.providerMeta?.thoughtSignature;
+        parts.push({
+          functionCall: { name: b.name, args: b.input },
+          // Gemini 3.x rejects history whose functionCall parts lost their
+          // thoughtSignature — echo it verbatim when we captured one.
+          ...(typeof sig === "string" ? { thoughtSignature: sig } : {}),
+        });
       }
       // thinking / redacted_thinking blocks are Anthropic-specific — skipped.
     }
@@ -219,6 +231,10 @@ function fromGeminiResponse(raw: GeminiResponse, requestedModel: string): LLMRes
   let hasToolCall = false;
   let callIdx = 0;
   for (const p of parts) {
+    if (p.thought === true) {
+      // Gemini 3.x reasoning summaries: never surface as visible text.
+      continue;
+    }
     if (typeof p.text === "string" && p.text.length > 0) {
       blocks.push({ type: "text", text: p.text });
     } else if (p.functionCall && typeof p.functionCall.name === "string") {
@@ -230,6 +246,10 @@ function fromGeminiResponse(raw: GeminiResponse, requestedModel: string): LLMRes
         id: `call_${p.functionCall.name}_${callIdx++}`,
         name: p.functionCall.name,
         input: p.functionCall.args ?? {},
+        // Gemini 3.x: the signature must ride back on this exact call.
+        ...(typeof p.thoughtSignature === "string"
+          ? { providerMeta: { thoughtSignature: p.thoughtSignature } }
+          : {}),
       });
     }
   }
@@ -431,6 +451,7 @@ export class GoogleProvider implements Provider {
       const cand = chunk.candidates?.[0];
       if (cand?.finishReason) finishReason = cand.finishReason;
       for (const p of cand?.content?.parts ?? []) {
+        if (p.thought === true) continue; // 3.x reasoning summaries: not visible text
         if (typeof p.text === "string" && p.text.length > 0) {
           text += p.text;
           yield { type: "text_delta", text: p.text };
@@ -440,6 +461,9 @@ export class GoogleProvider implements Provider {
             id: `call_${p.functionCall.name}_${callIdx++}`,
             name: p.functionCall.name,
             input: p.functionCall.args ?? {},
+            ...(typeof p.thoughtSignature === "string"
+              ? { providerMeta: { thoughtSignature: p.thoughtSignature } }
+              : {}),
           });
         }
       }

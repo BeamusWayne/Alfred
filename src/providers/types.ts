@@ -16,6 +16,13 @@ export interface ToolUseBlock {
   readonly id: string;
   readonly name: string;
   readonly input: Record<string, unknown>;
+  /**
+   * Opaque provider-specific data that must round-trip with this call when
+   * the SAME provider serialises history back (e.g. Gemini 3 requires the
+   * `thoughtSignature` returned on functionCall parts to be echoed; omitting
+   * it is a hard API error). Other providers ignore it.
+   */
+  readonly providerMeta?: Readonly<Record<string, unknown>>;
 }
 
 /**

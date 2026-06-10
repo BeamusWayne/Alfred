@@ -28,6 +28,9 @@ import {
 } from "../../harness/featureList.ts";
 import { runVerify, passed, type VerifyResult } from "../../harness/verify.ts";
 import { modelProfile, tierIterationBudget } from "../../config/modelCatalog.ts";
+import { fileReadTool } from "../../tools/fileRead.ts";
+import { globTool } from "../../tools/glob.ts";
+import { grepTool } from "../../tools/grep.ts";
 import { checkpoint, rollback, currentSha, type Checkpoint } from "../../harness/checkpoint.ts";
 import { bestOfNCode } from "./bestOfNCode.ts";
 
@@ -143,7 +146,11 @@ function rubricPrompt(feature: Feature, verify: VerifyResult | undefined): strin
     `## Verify command exit code: ${verify?.exitCode ?? "n/a"}`,
     `## Verify output (truncated)\n${out}`,
     "",
-    "Call structured_output with { verification, reasoning } where verification is",
+    "Use the read-only tools (glob, file_read, grep) to inspect the ACTUAL files",
+    "and confirm the implementation exists and matches the description — do not",
+    "judge from the verify output alone (it may be empty on success).",
+    "",
+    "Then call structured_output with { verification, reasoning } where verification is",
     "2 = fully implemented AND the verify gate passed, 1 = partial, 0 = not done.",
     "Be strict: never score 2 unless the change is real and complete.",
   ].join("\n");
@@ -272,6 +279,9 @@ export async function autonomousRun(opts: AutonomousRunOptions): Promise<Autonom
     const rubricRun = await opts.runtime.agent<Rubric>(rubricPrompt(feature, verify), {
       schema: rubricSchema,
       role: "subagent",
+      // Evidence access: the judge inspects the real files instead of scoring
+      // from a possibly-empty verify output (which biased strict models to 0).
+      tools: [fileReadTool, globTool, grepTool],
       label: `rubric:${feature.id}`,
     });
     rubric = rubricRun.data;
