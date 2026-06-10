@@ -74,6 +74,10 @@ function fromStopReason(reason: string | null): StopReason {
       return "stop_sequence";
     case "refusal":
       return "refusal";
+    case "pause_turn":
+      return "pause_turn";
+    case "model_context_window_exceeded":
+      return "model_context_window_exceeded";
     case "end_turn":
       return "end_turn";
     default:

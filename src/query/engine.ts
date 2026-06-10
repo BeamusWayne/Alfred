@@ -321,6 +321,11 @@ export async function* runQuery(
   const messages: Message[] = [{ role: "user", content: firstMessage }];
   let usage: Usage = ZERO_USAGE;
   let turns = 0;
+  // Abnormal-stop counters: bounded so a model that truncates or pauses every
+  // turn cannot loop forever; reset whenever a turn makes real progress.
+  let continuations = 0;
+  let pauseTurns = 0;
+  let windowOverflows = 0;
   // Real token count for compaction: seeded from count_tokens when the initial
   // prompt is large, then driven by each response's actual input_tokens.
   let lastInputTokens = 0;
@@ -407,17 +412,83 @@ export async function* runQuery(
     cost = cost.add(response.model, response.usage);
 
     // Text is emitted by chatWithRetry; here we record the assistant turn and
-    // dispatch any tool calls.
-    messages.push({ role: "assistant", content: response.content });
-
-    if (response.stopReason !== "tool_use") {
-      yield { type: "done", status: "success" };
-      return finish("success");
+    // dispatch any tool calls. An empty assistant turn (output cut at the
+    // window edge) is not appended — the API rejects empty assistant content.
+    if (response.content.length > 0) {
+      messages.push({ role: "assistant", content: response.content });
     }
 
     const uses: ToolUse[] = response.content
       .filter((b): b is Extract<typeof b, { type: "tool_use" }> => b.type === "tool_use")
       .map((b) => ({ id: b.id, name: b.name, input: b.input }));
+
+    // Server-side pause (`pause_turn`): re-send the transcript so the model
+    // resumes where it left off; bounded so a wedged server cannot spin us.
+    if (response.stopReason === "pause_turn") {
+      pauseTurns++;
+      if (pauseTurns > 5) {
+        yield { type: "error", message: "Model paused 5 times without completing the turn" };
+        return finish("provider_error");
+      }
+      continue;
+    }
+
+    // Input overflowed the context window: force one compaction pass and retry
+    // the turn. A second consecutive overflow means compaction cannot reclaim
+    // enough space — fail loudly instead of looping (or worse, "succeeding").
+    if (response.stopReason === "model_context_window_exceeded") {
+      windowOverflows++;
+      if (windowOverflows > 1) {
+        yield {
+          type: "error",
+          message: "Context window exceeded and compaction could not reclaim enough space",
+        };
+        return finish("provider_error");
+      }
+      const compacted = await compact(messages, {
+        provider: config.provider,
+        model: config.model,
+        maxContextTokens,
+      });
+      if (compacted !== messages) {
+        messages.length = 0;
+        messages.push(...compacted);
+        lastInputTokens = 0;
+      }
+      continue;
+    }
+
+    // Truncated mid-text with nothing to execute: ask the model to continue
+    // rather than silently returning half an answer as "success". When the
+    // truncated turn DOES carry complete tool calls, fall through and execute
+    // them — the model recovers on the next turn.
+    if (response.stopReason === "max_tokens" && uses.length === 0) {
+      continuations++;
+      if (continuations > 3) {
+        yield { type: "error", message: "Output truncated by max_tokens 4 times in a row" };
+        yield { type: "done", status: "truncated" };
+        return finish("truncated");
+      }
+      messages.push({
+        role: "user",
+        content:
+          "Your previous response was cut off by the output token limit. " +
+          "Continue exactly where you stopped — do not repeat content you already produced.",
+      });
+      continue;
+    }
+
+    // Natural end of turn: no tool calls requested (end_turn, stop_sequence,
+    // refusal, or a provider that signals tool use only via content blocks).
+    if (uses.length === 0) {
+      yield { type: "done", status: "success" };
+      return finish("success");
+    }
+
+    // A productive tool turn: clear the abnormal-stop counters.
+    continuations = 0;
+    pauseTurns = 0;
+    windowOverflows = 0;
 
     const parallel = uses.filter((u) => isParallelizable(tools, u));
     const serial = uses.filter((u) => !isParallelizable(tools, u));

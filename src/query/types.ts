@@ -14,6 +14,7 @@ export type TerminalStatus =
   | "success"
   | "max_turns"
   | "provider_error"
+  | "truncated"
   | "aborted";
 
 export interface ApprovalRequest {

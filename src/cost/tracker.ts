@@ -36,6 +36,12 @@ export interface ModelPricing {
  * spread a new table: `{ ...PRICING_TABLE, "my-model": { ... } }`.
  */
 export const PRICING_TABLE: Readonly<Record<string, ModelPricing>> = {
+  "claude-fable-5": {
+    inputPerMillion: 10.0,
+    outputPerMillion: 50.0,
+    cacheReadPerMillion: 1.0,
+    cacheWritePerMillion: 12.5,
+  },
   "claude-haiku-4-5": {
     inputPerMillion: 1.00,
     outputPerMillion: 5.00,

@@ -66,7 +66,9 @@ export function addUsage(a: Usage, b: Usage): Usage {
 
 /**
  * Why the model stopped. `tool_use` means it wants tools run and the loop
- * should continue; anything else is a natural end of turn.
+ * should continue. `max_tokens` is a truncation, `pause_turn` a resumable
+ * server-side pause, and `model_context_window_exceeded` an input overflow —
+ * none of these are a natural end of turn and the loop must handle them.
  */
 export type StopReason =
   | "end_turn"
@@ -74,6 +76,8 @@ export type StopReason =
   | "max_tokens"
   | "stop_sequence"
   | "refusal"
+  | "pause_turn"
+  | "model_context_window_exceeded"
   | "unknown";
 
 export interface LLMResponse {

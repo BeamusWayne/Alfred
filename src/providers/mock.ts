@@ -47,7 +47,10 @@ export class MockProvider implements Provider {
     _tools: readonly ToolDefinition[],
     _config: ProviderConfig,
   ): Promise<LLMResponse> {
-    this.calls.push(messages);
+    // Snapshot: the engine mutates its message array in place between turns,
+    // so storing the live reference would make every recorded call alias the
+    // final transcript instead of the messages as sent.
+    this.calls.push([...messages]);
     const callIndex = this.index;
     const script = this.scripts[Math.min(this.index, this.scripts.length - 1)];
     this.index++;
