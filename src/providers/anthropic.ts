@@ -29,8 +29,31 @@ function blockToParam(block: ContentBlock): Anthropic.ContentBlockParam {
   return { type: "tool_use", id: block.id, name: block.name, input: block.input };
 }
 
-function toAnthropicMessages(messages: readonly Message[]): Anthropic.MessageParam[] {
-  return messages.map((m): Anthropic.MessageParam => {
+/** Re-create `msg` with `cache_control` on its final content block. */
+function markLastBlock(msg: Anthropic.MessageParam): Anthropic.MessageParam {
+  const blocks: Anthropic.ContentBlockParam[] =
+    typeof msg.content === "string" ? [{ type: "text", text: msg.content }] : [...msg.content];
+  const last = blocks[blocks.length - 1];
+  // Thinking blocks cannot carry cache_control — they never appear in the
+  // user-role messages we mark, but the type guard keeps this total.
+  if (!last || last.type === "thinking" || last.type === "redacted_thinking") return msg;
+  blocks[blocks.length - 1] = { ...last, cache_control: { type: "ephemeral" } };
+  return { ...msg, content: blocks };
+}
+
+/**
+ * Exported for tests. Converts the transcript and places cache breakpoints on
+ * the last content block of the last TWO user-role messages (user turns and
+ * tool results both render as `role: "user"`). Together with the breakpoints
+ * on the system prompt and the last tool this uses the API maximum of 4.
+ *
+ * Without these, only tools+system are cached and the entire message history
+ * — the bulk of a long run's input — is re-billed at full price every turn.
+ * Two marks (not one) keep a hit reachable when a single turn appends more
+ * blocks than the cache's 20-block lookback window.
+ */
+export function toAnthropicMessages(messages: readonly Message[]): Anthropic.MessageParam[] {
+  const params = messages.map((m): Anthropic.MessageParam => {
     if (m.role === "user") {
       return {
         role: "user",
@@ -47,6 +70,12 @@ function toAnthropicMessages(messages: readonly Message[]): Anthropic.MessagePar
       ],
     };
   });
+
+  const markIdx = new Set<number>();
+  for (let i = params.length - 1; i >= 0 && markIdx.size < 2; i--) {
+    if (params[i]?.role === "user") markIdx.add(i);
+  }
+  return params.map((p, i) => (markIdx.has(i) ? markLastBlock(p) : p));
 }
 
 function toAnthropicTools(tools: readonly ToolDefinition[]): Anthropic.ToolUnion[] {
