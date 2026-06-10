@@ -97,6 +97,8 @@ function implementPrompt(
     "",
     steps.length > 0 ? `## Plan to follow\n${steps.map((s, i) => `${i + 1}. ${s}`).join("\n")}\n` : "",
     feedback ? `## Previous attempt feedback\n${feedback}\n` : "",
+    "This run is unattended: never ask questions or wait for confirmation. For any minor",
+    "decision, pick a reasonable option and continue — the verify gate is the sole arbiter.",
     `When you believe it is complete, stop. It will be checked by running: \`${verifyCmd}\``,
   ].join("\n");
 }

@@ -26,6 +26,12 @@ const CONVENTIONS = `Code conventions:
 - Do not add speculative features, abstractions for single-use code, or unrequested refactors.
 - Do not reformat or "improve" code you were not asked to touch.`;
 
+const AUTONOMY = `Autonomy:
+- For minor decisions (naming, default values, file placement, equivalent approaches), pick a \
+reasonable option, note it in one short line, and proceed — do not stop to ask.
+- Ask only when the request is genuinely ambiguous in scope, or before destructive actions.
+- When output would be cut off mid-task, finish the current edit cleanly first.`;
+
 const SAFETY = `Safety:
 - NEVER run destructive or history-rewriting commands unless explicitly asked: \
 git reset --hard, git push --force, git clean -fdx, rm -rf on broad paths.
@@ -41,6 +47,7 @@ export const BASE_SYSTEM_PROMPT = [
   VERBOSITY,
   TOOL_POLICY,
   CONVENTIONS,
+  AUTONOMY,
   SAFETY,
   REFUSAL,
 ].join("\n\n");

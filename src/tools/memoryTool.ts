@@ -52,6 +52,8 @@ export const memorySearchTool = buildTool({
   name: "memory_search",
   description:
     "Search the agent memory store with a full-text query. " +
+    "Call this BEFORE starting any multi-step task, when a file/project/tool is mentioned " +
+    "that you may have prior notes on, or when an approach fails (a past episode may explain why). " +
     "Returns matching facts (type, slug, content, timestamps). " +
     "Read-only and concurrency-safe.",
   inputSchema: searchInputSchema,
@@ -105,7 +107,9 @@ const upsertInputSchema = z.object({
 export const memoryUpsertTool = buildTool({
   name: "memory_upsert",
   description:
-    "Insert or update a memory fact. Use a stable slug as the key — " +
+    "Insert or update a memory fact. Call this whenever you learn something durable that a " +
+    "future run would need: a project convention, a non-obvious constraint, a command that " +
+    "works (or fails), a decision and its rationale. Use a stable slug as the key — " +
     "upserting the same slug overwrites the previous value (update-don't-duplicate policy). " +
     "Check for contradictions with memory_search before writing.",
   inputSchema: upsertInputSchema,
