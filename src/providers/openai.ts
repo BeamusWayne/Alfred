@@ -23,6 +23,7 @@ import {
   type Usage,
 } from "./types.ts";
 import { sseData } from "./sse.ts";
+import { defaultMaxTokens, modelProfile } from "../config/modelCatalog.ts";
 
 // ---------------------------------------------------------------------------
 // Internal OpenAI wire types (unknown at HTTP boundary, narrowed below)
@@ -114,7 +115,60 @@ interface OpenAIRequestBody {
   readonly messages: readonly OpenAIRequestMessage[];
   readonly tools?: readonly OpenAITool[];
   readonly max_tokens?: number;
+  /** Reasoning models (o-series, gpt-5) reject `max_tokens`; they take this. */
+  readonly max_completion_tokens?: number;
   readonly temperature?: number;
+  readonly reasoning_effort?: "low" | "medium" | "high";
+  readonly response_format?: {
+    readonly type: "json_schema";
+    readonly json_schema: {
+      readonly name: string;
+      readonly strict: true;
+      readonly schema: Record<string, unknown>;
+    };
+  };
+}
+
+/** Alfred effort → OpenAI `reasoning_effort` (which tops out at "high"). */
+function toReasoningEffort(effort: NonNullable<ProviderConfig["effort"]>): "low" | "medium" | "high" {
+  return effort === "xhigh" || effort === "max" ? "high" : effort;
+}
+
+/**
+ * The capability-gated shared request body (chat + stream):
+ *   - reasoning models (catalog `supportsEffort`) get `reasoning_effort` and
+ *     `max_completion_tokens`, and never `temperature`/`max_tokens` (400s);
+ *   - non-reasoning models keep the classic params;
+ *   - `responseSchema` becomes strict `response_format` where supported.
+ */
+export function requestBody(
+  messages: readonly Message[],
+  tools: readonly ToolDefinition[],
+  config: ProviderConfig,
+): OpenAIRequestBody {
+  const profile = modelProfile(config.model);
+  const reasoning = profile.supportsEffort;
+  const maxTokens = config.maxTokens ?? defaultMaxTokens(profile, true);
+  return {
+    model: config.model,
+    messages: toOpenAIMessages(messages, config.systemPrompt),
+    ...(tools.length > 0 ? { tools: toOpenAITools(tools) } : {}),
+    ...(reasoning ? { max_completion_tokens: maxTokens } : { max_tokens: maxTokens }),
+    ...(!reasoning && profile.supportsTemperature && config.temperature !== undefined
+      ? { temperature: config.temperature }
+      : {}),
+    ...(reasoning && config.effort !== undefined
+      ? { reasoning_effort: toReasoningEffort(config.effort) }
+      : {}),
+    ...(profile.supportsStructuredOutput && config.responseSchema !== undefined
+      ? {
+          response_format: {
+            type: "json_schema",
+            json_schema: { name: "response", strict: true, schema: config.responseSchema },
+          },
+        }
+      : {}),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -358,13 +412,7 @@ export class OpenAIProvider implements Provider {
       throw new ProviderError("OPENAI_API_KEY is not configured", { retryable: false });
     }
 
-    const body: OpenAIRequestBody = {
-      model: config.model,
-      messages: toOpenAIMessages(messages, config.systemPrompt),
-      ...(tools.length > 0 ? { tools: toOpenAITools(tools) } : {}),
-      ...(config.maxTokens !== undefined ? { max_tokens: config.maxTokens } : {}),
-      ...(config.temperature !== undefined ? { temperature: config.temperature } : {}),
-    };
+    const body: OpenAIRequestBody = requestBody(messages, tools, config);
 
     let response: Response;
     try {
@@ -434,11 +482,7 @@ export class OpenAIProvider implements Provider {
     }
 
     const body = {
-      model: config.model,
-      messages: toOpenAIMessages(messages, config.systemPrompt),
-      ...(tools.length > 0 ? { tools: toOpenAITools(tools) } : {}),
-      ...(config.maxTokens !== undefined ? { max_tokens: config.maxTokens } : {}),
-      ...(config.temperature !== undefined ? { temperature: config.temperature } : {}),
+      ...requestBody(messages, tools, config),
       stream: true,
       stream_options: { include_usage: true },
     };

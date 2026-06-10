@@ -9,8 +9,10 @@
  * returning a typed `AgentRun` without leaking events to the caller.
  */
 
-import type { z } from "zod";
+import { z } from "zod";
 import { runQuery } from "../query/engine.ts";
+import { modelProfile } from "../config/modelCatalog.ts";
+import { toStrictJsonSchema } from "./strictSchema.ts";
 import type { QueryState } from "../query/types.ts";
 import type { Provider } from "../providers/types.ts";
 import type { Tool } from "../tools/types.ts";
@@ -100,10 +102,23 @@ export async function runAgent<T = unknown>(
   } = opts;
 
   // When schema mode is active we wire a capture closure into the tool.
-  let captured: unknown ;
+  let captured: unknown;
+
+  // Native structured outputs: when the model enforces a JSON-schema response
+  // format AND the schema fits the strict subset (no optional properties),
+  // skip the synthetic tool entirely — the run becomes a single constrained
+  // response, parsed by the existing JSON fallback below. Schema runs are
+  // tool-less by design (the synthetic path also replaces caller tools), so
+  // the native path only applies when the caller supplied no tools.
+  const strictSchema =
+    schema && tools === undefined
+      ? toStrictJsonSchema(z.toJSONSchema(schema) as Record<string, unknown>)
+      : null;
+  const useNative = strictSchema !== null && modelProfile(model).supportsStructuredOutput;
 
   const resolvedTools: readonly Tool[] | undefined = (() => {
     if (!schema) return tools;
+    if (useNative) return [];
 
     // Build a minimal read-only tool whose `call` captures the validated input.
     const structuredOutputTool = buildTool({
@@ -124,9 +139,9 @@ export async function runAgent<T = unknown>(
   })();
 
   const resolvedSystemPrompt =
-    schema && systemPrompt
+    schema && !useNative && systemPrompt
       ? `${systemPrompt}\n\n${SCHEMA_SYSTEM_SUFFIX}`
-      : schema
+      : schema && !useNative
       ? SCHEMA_SYSTEM_SUFFIX
       : systemPrompt;
 
@@ -141,6 +156,7 @@ export async function runAgent<T = unknown>(
     signal,
     role,
     taskBudgetTokens,
+    ...(useNative && strictSchema !== null ? { responseSchema: strictSchema } : {}),
   });
 
   let state: QueryState;

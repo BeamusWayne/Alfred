@@ -33,10 +33,18 @@ export interface ModelProfile {
   readonly thinking: ThinkingSupport;
   /** False on models that 400 when `temperature` is sent (Fable 5, Opus 4.7+). */
   readonly supportsTemperature: boolean;
-  /** True when `output_config.effort` is accepted. */
+  /**
+   * True when the model has a reasoning-depth knob. Each provider translates:
+   * Anthropic `output_config.effort`, OpenAI `reasoning_effort`, Gemini
+   * `thinkingConfig.thinkingBudget`.
+   */
   readonly supportsEffort: boolean;
   /** True when `output_config.task_budget` (beta) is accepted. */
   readonly supportsTaskBudget: boolean;
+  /** True when the model enforces a native JSON-schema response format. */
+  readonly supportsStructuredOutput: boolean;
+  /** True when server-side compaction (beta compact-2026-01-12) is available. */
+  readonly supportsServerCompaction: boolean;
   readonly tier: ModelTier;
 }
 
@@ -48,6 +56,8 @@ export const DEFAULT_PROFILE: ModelProfile = {
   supportsTemperature: true,
   supportsEffort: false,
   supportsTaskBudget: false,
+  supportsStructuredOutput: false,
+  supportsServerCompaction: false,
   tier: "strong",
 };
 
@@ -58,6 +68,8 @@ const FRONTIER_ANTHROPIC = {
   supportsTemperature: false,
   supportsEffort: true,
   supportsTaskBudget: true,
+  supportsStructuredOutput: true,
+  supportsServerCompaction: true,
   tier: "frontier",
 } as const satisfies ModelProfile;
 
@@ -83,6 +95,8 @@ export const MODEL_CATALOG: Readonly<Record<string, ModelProfile>> = {
     supportsTemperature: true,
     supportsEffort: true,
     supportsTaskBudget: false,
+    supportsStructuredOutput: true,
+    supportsServerCompaction: false,
     tier: "strong",
   },
   "claude-sonnet-4-6": {
@@ -92,6 +106,8 @@ export const MODEL_CATALOG: Readonly<Record<string, ModelProfile>> = {
     supportsTemperature: true,
     supportsEffort: true,
     supportsTaskBudget: false,
+    supportsStructuredOutput: true,
+    supportsServerCompaction: true,
     tier: "strong",
   },
   "claude-sonnet-4-5": {
@@ -101,6 +117,8 @@ export const MODEL_CATALOG: Readonly<Record<string, ModelProfile>> = {
     supportsTemperature: true,
     supportsEffort: false,
     supportsTaskBudget: false,
+    supportsStructuredOutput: false,
+    supportsServerCompaction: false,
     tier: "strong",
   },
   "claude-haiku-4-5": {
@@ -110,16 +128,21 @@ export const MODEL_CATALOG: Readonly<Record<string, ModelProfile>> = {
     supportsTemperature: true,
     supportsEffort: false,
     supportsTaskBudget: false,
+    supportsStructuredOutput: true,
+    supportsServerCompaction: false,
     tier: "small",
   },
-  // Gemini: generous windows; thinking/effort are Anthropic params — never sent.
+  // Gemini: effort maps to thinkingConfig.thinkingBudget (2.5 family);
+  // structured output via responseSchema.
   "gemini-2.5-pro": {
     contextWindow: 1_000_000,
     maxOutput: 65_536,
     thinking: "none",
     supportsTemperature: true,
-    supportsEffort: false,
+    supportsEffort: true,
     supportsTaskBudget: false,
+    supportsStructuredOutput: true,
+    supportsServerCompaction: false,
     tier: "strong",
   },
   "gemini-2.5-flash": {
@@ -127,8 +150,10 @@ export const MODEL_CATALOG: Readonly<Record<string, ModelProfile>> = {
     maxOutput: 65_536,
     thinking: "none",
     supportsTemperature: true,
-    supportsEffort: false,
+    supportsEffort: true,
     supportsTaskBudget: false,
+    supportsStructuredOutput: true,
+    supportsServerCompaction: false,
     tier: "small",
   },
   "gemini-2.0-flash": {
@@ -138,10 +163,58 @@ export const MODEL_CATALOG: Readonly<Record<string, ModelProfile>> = {
     supportsTemperature: true,
     supportsEffort: false,
     supportsTaskBudget: false,
+    supportsStructuredOutput: true,
+    supportsServerCompaction: false,
     tier: "small",
   },
+  // OpenAI: effort maps to `reasoning_effort` on reasoning models;
+  // structured output via response_format json_schema.
+  "gpt-5": {
+    contextWindow: 400_000,
+    maxOutput: 128_000,
+    thinking: "none",
+    supportsTemperature: true,
+    supportsEffort: true,
+    supportsTaskBudget: false,
+    supportsStructuredOutput: true,
+    supportsServerCompaction: false,
+    tier: "frontier",
+  },
+  "gpt-4o": {
+    contextWindow: 128_000,
+    maxOutput: 16_384,
+    thinking: "none",
+    supportsTemperature: true,
+    supportsEffort: false,
+    supportsTaskBudget: false,
+    supportsStructuredOutput: true,
+    supportsServerCompaction: false,
+    tier: "strong",
+  },
+  "o3": {
+    contextWindow: 200_000,
+    maxOutput: 100_000,
+    thinking: "none",
+    supportsTemperature: false,
+    supportsEffort: true,
+    supportsTaskBudget: false,
+    supportsStructuredOutput: true,
+    supportsServerCompaction: false,
+    tier: "frontier",
+  },
+  "o4-mini": {
+    contextWindow: 200_000,
+    maxOutput: 100_000,
+    thinking: "none",
+    supportsTemperature: false,
+    supportsEffort: true,
+    supportsTaskBudget: false,
+    supportsStructuredOutput: true,
+    supportsServerCompaction: false,
+    tier: "strong",
+  },
   // Zhipu GLM via the Anthropic-compatible endpoint: must NOT receive
-  // anthropic thinking/effort params, hence thinking "none".
+  // anthropic thinking/effort/output_config params, hence all false.
   "glm-": {
     contextWindow: 128_000,
     maxOutput: 8_192,
@@ -149,6 +222,8 @@ export const MODEL_CATALOG: Readonly<Record<string, ModelProfile>> = {
     supportsTemperature: true,
     supportsEffort: false,
     supportsTaskBudget: false,
+    supportsStructuredOutput: false,
+    supportsServerCompaction: false,
     tier: "strong",
   },
 };

@@ -135,6 +135,13 @@ export interface ProviderConfig {
    * beta). Only sent on supporting models and when ≥ the API minimum (20k).
    */
   readonly taskBudgetTokens?: number;
+  /**
+   * JSON schema the response text must conform to (native structured outputs).
+   * Providers map it to their own knob (Anthropic `output_config.format`,
+   * OpenAI `response_format`, Gemini `responseSchema`) and silently ignore it
+   * on models without support — callers keep a parse-and-validate fallback.
+   */
+  readonly responseSchema?: Record<string, unknown>;
 }
 
 export interface ChatOptions {

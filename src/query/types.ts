@@ -38,6 +38,8 @@ export interface QueryConfig {
   readonly effort?: Effort;
   /** Whole-task token budget surfaced to the model (beta; supporting models only). */
   readonly taskBudgetTokens?: number;
+  /** Native structured-output schema (supporting models; callers keep a fallback). */
+  readonly responseSchema?: Record<string, unknown>;
   readonly maxTurns?: number;
   readonly permissions: ToolPermissionContext;
   /** Defaults to the built-in tool set. */

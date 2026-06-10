@@ -27,6 +27,7 @@ import {
   type Usage,
 } from "./types.ts";
 import { sseData } from "./sse.ts";
+import { modelProfile } from "../config/modelCatalog.ts";
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
 
@@ -274,6 +275,7 @@ function buildBody(
   tools: readonly ToolDefinition[],
   config: ProviderConfig,
 ): Record<string, unknown> {
+  const profile = modelProfile(config.model);
   return {
     ...(config.systemPrompt
       ? { systemInstruction: { parts: [{ text: config.systemPrompt }] } }
@@ -285,8 +287,36 @@ function buildBody(
     generationConfig: {
       ...(config.maxTokens !== undefined ? { maxOutputTokens: config.maxTokens } : {}),
       ...(config.temperature !== undefined ? { temperature: config.temperature } : {}),
+      // Effort → thinkingBudget on the 2.5 family (catalog-gated); omitted
+      // otherwise so the model keeps its dynamic default.
+      ...(profile.supportsEffort && config.effort !== undefined
+        ? { thinkingConfig: { thinkingBudget: toThinkingBudget(config.effort) } }
+        : {}),
+      // Native structured output: tools and responseSchema are mutually
+      // exclusive on Gemini, so the schema only applies to tool-less calls.
+      ...(profile.supportsStructuredOutput && config.responseSchema !== undefined && tools.length === 0
+        ? {
+            responseMimeType: "application/json",
+            responseSchema: sanitizeSchema(config.responseSchema),
+          }
+        : {}),
     },
   };
+}
+
+/** Alfred effort → Gemini 2.5 thinking budget (tokens). */
+function toThinkingBudget(effort: NonNullable<ProviderConfig["effort"]>): number {
+  switch (effort) {
+    case "low":
+      return 1_024;
+    case "medium":
+      return 8_192;
+    case "high":
+      return 24_576;
+    case "xhigh":
+    case "max":
+      return 32_768;
+  }
 }
 
 function resolveKey(config: ProviderConfig): string {

@@ -41,15 +41,18 @@ export class MockProvider implements Provider {
   readonly calls: Array<readonly Message[]> = [];
   /** Records each chat() call's config (model, effort, …), for assertions. */
   readonly configs: ProviderConfig[] = [];
+  /** Records each chat() call's tool names, for assertions. */
+  readonly toolNames: string[][] = [];
 
   constructor(private readonly scripts: readonly Script[]) {}
 
   async chat(
     messages: readonly Message[],
-    _tools: readonly ToolDefinition[],
+    tools: readonly ToolDefinition[],
     config: ProviderConfig,
   ): Promise<LLMResponse> {
     this.configs.push(config);
+    this.toolNames.push(tools.map((t) => t.name));
     // Snapshot: the engine mutates its message array in place between turns,
     // so storing the live reference would make every recorded call alias the
     // final transcript instead of the messages as sent.

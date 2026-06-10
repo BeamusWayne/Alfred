@@ -240,12 +240,17 @@ export function buildRequest(
       ? Math.floor(config.taskBudgetTokens)
       : undefined;
   const effort = profile.supportsEffort ? config.effort : undefined;
+  const format =
+    profile.supportsStructuredOutput && config.responseSchema !== undefined
+      ? ({ type: "json_schema", schema: config.responseSchema } satisfies Anthropic.JSONOutputFormat)
+      : undefined;
   // task_budget is typed in the SDK's beta namespace but rides the same wire
   // field; the GA cast is confined to this one spot.
   const outputConfig =
-    effort !== undefined || taskBudget !== undefined
+    effort !== undefined || taskBudget !== undefined || format !== undefined
       ? ({
           ...(effort !== undefined ? { effort } : {}),
+          ...(format !== undefined ? { format } : {}),
           ...(taskBudget !== undefined
             ? { task_budget: { type: "tokens", total: taskBudget } }
             : {}),

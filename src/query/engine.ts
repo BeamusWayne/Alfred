@@ -222,6 +222,7 @@ async function* chatWithRetry(
       // cheap); providers drop it on models without effort support.
       effort: config.effort ?? defaultEffortForRole(config.role),
       taskBudgetTokens: config.taskBudgetTokens,
+      responseSchema: config.responseSchema,
     };
     try {
       if (provider.stream) {
