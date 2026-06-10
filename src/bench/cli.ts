@@ -24,6 +24,7 @@ import { Journal } from "../orchestrator/journal.ts";
 import { Ledger } from "../orchestrator/ledger.ts";
 import { getProvider } from "../providers/index.ts";
 import { loadConfig } from "../config/manager.ts";
+import { loadModelOverrides } from "../config/modelOverrides.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -53,6 +54,7 @@ if (args.length === 0) {
 }
 
 const specPath = resolve(args[0] ?? "");
+loadModelOverrides(process.cwd(), (m) => process.stderr.write(`[models] ${m}\n`));
 
 // ---------------------------------------------------------------------------
 // Load and validate spec

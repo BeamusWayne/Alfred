@@ -228,16 +228,53 @@ export const MODEL_CATALOG: Readonly<Record<string, ModelProfile>> = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// User overrides (.alfred/models.json) — extend the catalog without forking
+// ---------------------------------------------------------------------------
+
+let userOverrides: Readonly<Record<string, Partial<ModelProfile>>> = {};
+
 /**
- * Resolve a model id to its capability profile via longest-prefix match.
- * Unknown ids get {@link DEFAULT_PROFILE}. Deterministic; never throws.
+ * Merge user-supplied catalog entries (keyed by model-id prefix). Partial:
+ * missing fields fall back to the built-in entry with the same key, else the
+ * conservative default. Later registrations win. Used by the
+ * `.alfred/models.json` loader; exported for programmatic embedding too.
+ */
+export function registerModelOverrides(
+  overrides: Readonly<Record<string, Partial<ModelProfile>>>,
+): void {
+  userOverrides = { ...userOverrides, ...overrides };
+}
+
+/** Reset user overrides (tests). */
+export function clearModelOverrides(): void {
+  userOverrides = {};
+}
+
+/**
+ * Resolve a model id to its capability profile via longest-prefix match over
+ * the built-in catalog and any registered user overrides (user entries win
+ * ties). Unknown ids get {@link DEFAULT_PROFILE}. Deterministic; never throws.
  */
 export function modelProfile(modelId: string): ModelProfile {
   let bestKey = "";
+  let fromUser = false;
   for (const key of Object.keys(MODEL_CATALOG)) {
-    if (modelId.startsWith(key) && key.length > bestKey.length) bestKey = key;
+    if (modelId.startsWith(key) && key.length > bestKey.length) {
+      bestKey = key;
+      fromUser = false;
+    }
   }
-  return bestKey === "" ? DEFAULT_PROFILE : (MODEL_CATALOG[bestKey] ?? DEFAULT_PROFILE);
+  for (const key of Object.keys(userOverrides)) {
+    // >= so a user entry beats the built-in entry with the same key.
+    if (modelId.startsWith(key) && key.length >= bestKey.length) {
+      bestKey = key;
+      fromUser = true;
+    }
+  }
+  if (bestKey === "") return DEFAULT_PROFILE;
+  const base = MODEL_CATALOG[bestKey] ?? DEFAULT_PROFILE;
+  return fromUser ? { ...base, ...userOverrides[bestKey] } : base;
 }
 
 /**

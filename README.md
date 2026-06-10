@@ -115,9 +115,31 @@ Pricing for `glm-4.5` / `glm-4.6` / `glm-5.1` ships in the cost table; unknown m
   memory/    USER.md · MEMORY.md · facts/<slug>.md · episodes/ · index.db
   skills/    <name>/SKILL.md          (Level-1 index auto-injected; load_skill loads bodies)
   hooks.json                          (PreToolUse/PostToolUse matchers)
+  models.json                         (model capability overrides — see below)
   workflows/<runId>/journal.jsonl     (resume/replay tape)
   workflows/<runId>/ledger.jsonl      (HMAC hash-chained Proof Receipt)
 ```
+
+### Teaching Alfred a new model — `.alfred/models.json`
+
+The capability catalog (`src/config/modelCatalog.ts`) drives context ceilings,
+`max_tokens` defaults, and which parameters each model may receive. Unknown
+models get a conservative default; to unlock a new model's real capabilities
+without forking, add a partial entry keyed by model-id prefix:
+
+```json
+{
+  "gemini-3.1-pro": {
+    "contextWindow": 1000000,
+    "maxOutput": 65536,
+    "supportsEffort": true,
+    "tier": "frontier"
+  }
+}
+```
+
+Unset fields inherit the built-in entry with the same key (if any), else the
+conservative default. Invalid files warn and are ignored.
 
 ---
 

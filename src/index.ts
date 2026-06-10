@@ -27,6 +27,7 @@ import { getAllTools } from "./tools/index.ts";
 import { buildSystemContext, buildSystemPrompt } from "./context/index.ts";
 import { loadConfig, PERMISSION_MODES, type ConfigOverrides } from "./config/manager.ts";
 import { resolveRole } from "./config/roles.ts";
+import { loadModelOverrides } from "./config/modelOverrides.ts";
 import { LocalFileProvider } from "./memory/localFile.ts";
 import { loadHooksConfig } from "./hooks/engine.ts";
 import { bootstrapExtensions } from "./extensions/bootstrap.ts";
@@ -91,6 +92,7 @@ async function runOnce(prompt: string, opts: CliOptions): Promise<number> {
   }
 
   const workingDir = process.cwd();
+  loadModelOverrides(workingDir, (m) => process.stderr.write(yellow(`[models] ${m}\n`)));
   const memoryEnabled = Boolean(process.env.ALFRED_MEMORY);
   const memoryRoot = join(workingDir, ".alfred", "memory");
   // One provider instance drives prefetch (in the engine) and extract (on end).
@@ -189,6 +191,7 @@ async function runAutonomous(opts: RunCliOptions): Promise<number> {
   }
 
   const workingDir = process.cwd();
+  loadModelOverrides(workingDir, (m) => process.stderr.write(yellow(`[models] ${m}\n`)));
   const featureListPath = opts.featureList ?? join(workingDir, "feature_list.json");
   const verifyCmd = opts.verify ?? process.env.ALFRED_VERIFY_CMD ?? "bun test";
   const fastVerifyCmd = opts.verifyFast ?? process.env.ALFRED_VERIFY_FAST_CMD;
