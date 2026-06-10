@@ -10,13 +10,12 @@ import { test, expect, describe, afterEach } from "bun:test";
 import { buildRequest, fromContent, toAnthropicMessages } from "../src/providers/anthropic.ts";
 import { runQuery } from "../src/query/engine.ts";
 import { textResponse, toolUseResponse } from "../src/providers/mock.ts";
-import {
-  ZERO_USAGE,
-  type LLMResponse,
-  type Message,
-  type Provider,
-  type ProviderConfig,
-  type ToolDefinition,
+import type {
+  LLMResponse,
+  Message,
+  Provider,
+  ProviderConfig,
+  ToolDefinition,
 } from "../src/providers/types.ts";
 import type { QueryState, QueryEvent } from "../src/query/types.ts";
 

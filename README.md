@@ -4,7 +4,7 @@
 
 Alfred is not another Claude Code clone. Its thesis: the long-running harness is *executable*, "done" is a *machine-enforced gate*, memory is *agent-curated but inspectable*, and every hands-off run leaves a *signed, replayable receipt*. Where the field is ahead on streaming/sandbox/caching parity, Alfred leans into the one thing it designs better — **enforced, auditable autonomy** — while still adopting the best ideas from across the ecosystem (`docs/improvement-proposal.md`).
 
-> Status: 739 tests passing · `tsc --noEmit` clean · zero runtime dependencies beyond `@anthropic-ai/sdk`, `commander`, `zod`.
+> Status: 773 tests passing · `tsc --noEmit` clean · zero runtime dependencies beyond `@anthropic-ai/sdk`, `commander`, `zod`.
 
 **📖 Full documentation** lives in [`docs/`](./docs/) as a VitePress site — run `bun run docs:dev` locally, or deploy to GitHub Pages via [`.github/workflows/docs.yml`](./.github/workflows/docs.yml). Jump to [Quickstart](./docs/guide/quickstart.md) · [CLI reference](./docs/cli/overview.md) · [Subsystems](./docs/subsystems/agent-loop.md) · [Architecture](./docs/architecture/overview.md).
 
@@ -26,7 +26,7 @@ ALFRED_LEDGER_SECRET=$(openssl rand -hex 32) \
 # Replay recorded trajectories as regression tests (CI gating)
 bun run src/index.ts eval ./my-cases.ts
 
-bun test tests     # 739 tests
+bun test tests     # 773 tests
 bun run typecheck # tsc --noEmit
 ```
 
@@ -55,8 +55,8 @@ Layers over a clean agent loop — each new piece is additive, not a rewrite. Th
                                   │ uses
    AGENT LOOP (src/query) ── MEMORY (src/memory) ── TOOLS · PERMISSIONS · SANDBOX · CONTEXT
    retry · fallback ·         file-first, FTS5,      fs/bash/glob/grep/web_fetch/memory/skill
-   stream · compaction ·      episodes, GC          fuzzy-edit · post-edit syntax check
-   typed status · cost                              hooks · MCP · LSP
+   stream · compaction ·      episodes, GC          spawn_subagent (depth-capped fan-out)
+   typed status · cost                              fuzzy-edit · syntax check · hooks · MCP · LSP
                       └──────── PROVIDERS (anthropic / openai / mock) ────────┘
               cross-cutting: security (taint/egress/redact/quarantine) · telemetry (OTel) · routing
 ```
@@ -92,6 +92,8 @@ Layers over a clean agent loop — each new piece is additive, not a rewrite. Th
 | `ALFRED_EGRESS_ALLOW=host1,*.host2` | `web_fetch` egress allow-list (default-deny). |
 | `ALFRED_LEDGER_SECRET` | HMAC secret for the autonomous run ledger. |
 | `ALFRED_VERIFY_CMD` | Default verify command for `alfred run` (default `bun test`). |
+| `ALFRED_VERIFY_FAST_CMD` | Optional fast pre-gate (affected tests / tsc / lint). Failures short-circuit the fix loop; only the full gate can pass a feature. |
+| `ALFRED_SERVER_COMPACT=0` | Opt out of server-side context compaction (on by default for supporting Anthropic models). |
 
 ### Using GLM, or any Anthropic-compatible endpoint
 
