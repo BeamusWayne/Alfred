@@ -174,6 +174,7 @@ interface RunCliOptions {
   readonly model?: string;
   readonly featureList?: string;
   readonly verify?: string;
+  readonly verifyFast?: string;
   readonly maxFeatures?: string;
   readonly rollbackOnBlock?: boolean;
   readonly budgetUsd?: string;
@@ -190,6 +191,7 @@ async function runAutonomous(opts: RunCliOptions): Promise<number> {
   const workingDir = process.cwd();
   const featureListPath = opts.featureList ?? join(workingDir, "feature_list.json");
   const verifyCmd = opts.verify ?? process.env.ALFRED_VERIFY_CMD ?? "bun test";
+  const fastVerifyCmd = opts.verifyFast ?? process.env.ALFRED_VERIFY_FAST_CMD;
   const runId = new Date().toISOString().replace(/[:.]/g, "-");
   const runDir = join(workingDir, ".alfred", "workflows", runId);
   const journal = new Journal(join(runDir, "journal.jsonl"));
@@ -224,6 +226,7 @@ async function runAutonomous(opts: RunCliOptions): Promise<number> {
     cwd: workingDir,
     featureListPath,
     verifyCmd,
+    fastVerifyCmd,
     maxFeatures: opts.maxFeatures ? Number(opts.maxFeatures) : undefined,
     rollbackOnBlock: Boolean(opts.rollbackOnBlock),
     architectModel,
@@ -269,6 +272,10 @@ program
   .option("-m, --model <model>", "model to use")
   .option("--feature-list <path>", "path to feature_list.json (default: ./feature_list.json)")
   .option("--verify <cmd>", "verify command (default: $ALFRED_VERIFY_CMD or 'bun test')")
+  .option(
+    "--verify-fast <cmd>",
+    "fast pre-gate (e.g. affected tests / tsc); failures short-circuit the fix loop, only --verify can pass a feature",
+  )
   .option("--max-features <n>", "stop after N features")
   .option("--rollback-on-block", "git-rollback the working tree when a feature is blocked")
   .option("--budget-usd <n>", "stop when estimated spend exceeds this USD budget")

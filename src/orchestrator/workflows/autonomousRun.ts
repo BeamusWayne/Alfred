@@ -43,7 +43,15 @@ type Plan = z.infer<typeof planSchema>;
 export type AutonomousEvent =
   | { readonly type: "feature_start"; readonly feature: Feature }
   | { readonly type: "attempt"; readonly featureId: string; readonly attempt: number }
-  | { readonly type: "verify"; readonly featureId: string; readonly attempt: number; readonly exitCode: number; readonly passed: boolean }
+  | {
+      readonly type: "verify";
+      readonly featureId: string;
+      readonly attempt: number;
+      readonly exitCode: number;
+      readonly passed: boolean;
+      /** Which gate ran: the fast pre-filter or the authoritative full gate. */
+      readonly gate: "fast" | "full";
+    }
   | { readonly type: "feature_passing"; readonly featureId: string }
   | { readonly type: "feature_blocked"; readonly featureId: string; readonly reason: string }
   | { readonly type: "run_end"; readonly passing: number; readonly blocked: number; readonly stopped: string };
@@ -54,6 +62,13 @@ export interface AutonomousRunOptions {
   readonly cwd: string;
   readonly featureListPath: string;
   readonly verifyCmd: string;
+  /**
+   * Optional fast pre-gate (e.g. the affected test file only). A fast-gate
+   * failure short-circuits straight back into the fix loop without paying for
+   * the full suite; a fast-gate pass still runs `verifyCmd` — ONLY the full
+   * gate's exit 0 can mark a feature passing.
+   */
+  readonly fastVerifyCmd?: string;
   readonly maxFeatures?: number;
   readonly maxConsecutiveBlocked?: number;
   readonly rollbackOnBlock?: boolean;
@@ -225,11 +240,29 @@ export async function autonomousRun(opts: AutonomousRunOptions): Promise<Autonom
           label: `implement:${feature.id}#${attempt}`,
         });
       }
+      // Fast pre-gate: a cheap failure signal (affected tests, lint, tsc)
+      // short-circuits back into the fix loop without paying for the full
+      // suite. It can only reject — never accept.
+      if (opts.fastVerifyCmd) {
+        const fast = await runVerify(opts.fastVerifyCmd, {
+          cwd: opts.cwd,
+          timeoutMs: opts.verifyTimeoutMs ?? DEFAULT_VERIFY_TIMEOUT_MS,
+        });
+        opts.onEvent?.({ type: "verify", featureId: feature.id, attempt, exitCode: fast.exitCode, passed: passed(fast), gate: "fast" });
+        if (!passed(fast)) {
+          verify = fast;
+          feedback =
+            `Attempt ${attempt} failed the FAST verify gate (exit ${fast.exitCode}): \`${opts.fastVerifyCmd}\`.\n` +
+            `stderr:\n${fast.stderr.slice(0, 3000)}\nstdout:\n${fast.stdout.slice(0, 1000)}`;
+          continue;
+        }
+      }
+
       verify = await runVerify(opts.verifyCmd, {
         cwd: opts.cwd,
         timeoutMs: opts.verifyTimeoutMs ?? DEFAULT_VERIFY_TIMEOUT_MS,
       });
-      opts.onEvent?.({ type: "verify", featureId: feature.id, attempt, exitCode: verify.exitCode, passed: passed(verify) });
+      opts.onEvent?.({ type: "verify", featureId: feature.id, attempt, exitCode: verify.exitCode, passed: passed(verify), gate: "full" });
       if (passed(verify)) break;
       feedback =
         `Attempt ${attempt} failed the verify gate (exit ${verify.exitCode}).\n` +
