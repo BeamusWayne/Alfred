@@ -13,10 +13,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { palette } from "../src/cli/colors.ts";
 import {
-  formatElapsed,
   renderJournalEntry,
   renderLedgerRow,
-  renderStatusLine,
   resolveWatchDir,
   splitJsonl,
   type WatchIo,
@@ -90,6 +88,35 @@ describe("renderJournalEntry", () => {
     expect(renderJournalEntry(null, plain)).toBeNull();
     expect(renderJournalEntry("nope", plain)).toBeNull();
   });
+
+  test("activity tool beats render indented; results only when they fail", () => {
+    const use = {
+      type: "activity",
+      label: "implement:f1#1",
+      data: { event: "tool_use", name: "bash", describe: "bash(bun test)" },
+      seq: 4,
+      ts: 4,
+    };
+    expect(renderJournalEntry(use, plain)).toBe("  ⚙ bash(bun test)");
+
+    const ok = {
+      type: "activity",
+      label: "implement:f1#1",
+      data: { event: "tool_result", name: "bash", isError: false },
+      seq: 5,
+      ts: 5,
+    };
+    expect(renderJournalEntry(ok, plain)).toBeNull();
+
+    const bad = {
+      type: "activity",
+      label: "implement:f1#1",
+      data: { event: "tool_result", name: "bash", isError: true },
+      seq: 6,
+      ts: 6,
+    };
+    expect(renderJournalEntry(bad, plain)).toBe("  ✗ bash failed");
+  });
 });
 
 describe("renderLedgerRow", () => {
@@ -129,45 +156,23 @@ describe("renderLedgerRow", () => {
   });
 });
 
-describe("status line", () => {
-  test("formatElapsed renders m:ss and h:mm:ss", () => {
-    expect(formatElapsed(0)).toBe("0:00");
-    expect(formatElapsed(134_000)).toBe("2:14");
-    expect(formatElapsed(3_725_000)).toBe("1:02:05");
-  });
-
-  test("renders elapsed, progress, cost and run id", () => {
-    const line = renderStatusLine(
-      {
-        runId: "2026-06-11T04-12-35-163Z",
-        resolved: 1,
-        total: 3,
-        costUsd: 0.0212,
-        elapsedMs: 134_000,
-      },
-      plain,
-    );
-    expect(line).toBe("⏱ 2:14 · features 1/3 · $0.0212 · 2026-06-11T04-12-35-163Z");
-  });
-
-  test("omits the total when no feature list is readable", () => {
-    const line = renderStatusLine(
-      { runId: "r", resolved: 2, total: null, costUsd: 0, elapsedMs: 0 },
-      plain,
-    );
-    expect(line).toBe("⏱ 0:00 · features 2 · $0.0000 · r");
-  });
-});
-
 // ---------------------------------------------------------------------------
 // watchRun — poll loop over a real temp run directory
+// (footer line rendering itself is covered in cliFooter.test.ts)
 // ---------------------------------------------------------------------------
 
+const ACTIVITY_LINE = `${JSON.stringify({
+  type: "activity",
+  label: "implement:demo-add#1",
+  data: { event: "tool_use", name: "bash", describe: "bash(bun test add.test.ts)" },
+  seq: 1,
+  ts: 900,
+})}\n`;
 const AGENT_LINE = `${JSON.stringify({
   type: "agent",
   label: "implement:demo-add#1",
   data: { status: "success", cost: { usd: 0.01422 }, turns: 4 },
-  seq: 1,
+  seq: 2,
   ts: 1_000,
 })}\n`;
 const RUBRIC_LINE = `${JSON.stringify({
@@ -202,7 +207,7 @@ function fakeIo(): FakeIo {
     lines,
     statuses,
     out: (line: string) => lines.push(line),
-    status: (line: string) => statuses.push(line),
+    status: (footer: readonly string[]) => statuses.push(footer.join(" | ")),
     clearStatus: () => undefined,
     now: () => 10_000,
     sleep: (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)),
@@ -219,7 +224,7 @@ async function tempRunDir(): Promise<string> {
 describe("watchRun", () => {
   test("replay: a finished run renders fully and exits 0", async () => {
     const runDir = await tempRunDir();
-    await writeFile(join(runDir, "journal.jsonl"), AGENT_LINE + RUBRIC_LINE);
+    await writeFile(join(runDir, "journal.jsonl"), ACTIVITY_LINE + AGENT_LINE + RUBRIC_LINE);
     await writeFile(join(runDir, "ledger.jsonl"), FEATURE_ROW + RUN_END_ROW);
     const io = fakeIo();
 
@@ -227,14 +232,16 @@ describe("watchRun", () => {
 
     expect(code).toBe(0);
     expect(io.lines).toEqual([
+      "· watching 2026-06-11T00-00-00-000Z",
+      "  ⚙ bash(bun test add.test.ts)",
       "⚙ implement:demo-add#1 ✓ · $0.0142 · 4 turns",
       "⚙ rubric:demo-add ✓ · $0.0070 · 5 turns",
       "✓ demo-add passing · verify exit 0 · rubric 2",
       "run end: 1 passing · 0 blocked · all_resolved",
     ]);
-    // Aggregates reach the status line: 2 agent costs summed, 1 feature resolved.
+    // Aggregates reach the footer: 2 agent costs summed, 1 feature resolved.
     const last = io.statuses.at(-1);
-    expect(last).toContain("features 1");
+    expect(last).toContain("1 features");
     expect(last).toContain("$0.0212");
   });
 
@@ -258,7 +265,7 @@ describe("watchRun", () => {
     const code = await watchRun(runDir, io, { palette: plain, pollMs: 1, featureListPath });
 
     expect(code).toBe(0);
-    expect(io.statuses.at(-1)).toContain("features 1/3");
+    expect(io.statuses.at(-1)).toContain("1/3 features");
   });
 
   test("follow: picks up rows appended after start and exits on run_end", async () => {
@@ -275,6 +282,7 @@ describe("watchRun", () => {
     const code = await running;
     expect(code).toBe(0);
     expect(io.lines).toEqual([
+      "· watching 2026-06-11T00-00-00-000Z",
       "⚙ implement:demo-add#1 ✓ · $0.0142 · 4 turns",
       "⚙ rubric:demo-add ✓ · $0.0070 · 5 turns",
       "✓ demo-add passing · verify exit 0 · rubric 2",
@@ -310,5 +318,15 @@ describe("watchRun", () => {
     expect(code).toBe(1);
     expect(io.lines.length).toBe(1);
     expect(io.lines[0]).toContain("No run found");
+  });
+
+  test("the very first event line names the run being watched", async () => {
+    const runDir = await tempRunDir();
+    await writeFile(join(runDir, "journal.jsonl"), "");
+    await writeFile(join(runDir, "ledger.jsonl"), RUN_END_ROW);
+    const io = fakeIo();
+
+    await watchRun(runDir, io, { palette: plain, pollMs: 1 });
+    expect(io.lines[0]).toBe("· watching 2026-06-11T00-00-00-000Z");
   });
 });

@@ -31,9 +31,10 @@
 import { join, relative, resolve } from "node:path";
 import { Command } from "commander";
 import { resolveApprover } from "./cli/approve.ts";
-import { palette } from "./cli/colors.ts";
+import { colorEnabled, palette } from "./cli/colors.ts";
 import { COMPLETION_SHELLS, type CompletionShell, completionScript } from "./cli/completion.ts";
 import { runDemo } from "./cli/demo.ts";
+import { renderFooterLines, StickyFooter } from "./cli/footer.ts";
 import { runInit } from "./cli/init.ts";
 import { formatLedgerTable } from "./cli/ledgerShow.ts";
 import { renderAutonomousEvent } from "./cli/renderRun.ts";
@@ -57,6 +58,7 @@ import { loadModelOverrides } from "./config/modelOverrides.ts";
 import { resolveRole } from "./config/roles.ts";
 import { formatReport, runEvalSuite } from "./eval/runner.ts";
 import type { EvalCase } from "./eval/types.ts";
+import { loadFeatureList } from "./harness/featureList.ts";
 import { Journal } from "./orchestrator/journal.ts";
 import { Ledger } from "./orchestrator/ledger.ts";
 import {
@@ -155,6 +157,23 @@ async function runAutonomous(opts: RunCliOptions): Promise<number> {
   }
   const verifyCmd = opts.verify ?? process.env.ALFRED_VERIFY_CMD ?? "bun test";
   const fastVerifyCmd = opts.verifyFast ?? process.env.ALFRED_VERIFY_FAST_CMD;
+
+  // Live panel state (footer + activity beats; line stream stays scrollable).
+  let total: number | null = null;
+  try {
+    total = (await loadFeatureList(featureListPath)).features.length;
+  } catch {
+    total = null; // unreadable list — autonomousRun will surface the real error
+  }
+  let resolved = 0;
+  let current: string | undefined;
+  const startedMs = Date.now();
+  // Tool beats are a live-viewing affordance: TTY only. Off-TTY (CI logs)
+  // keeps the one-line-per-harness-event contract; `alfred watch` still
+  // shows beats anywhere, because asking for them is its whole job.
+  const liveBeats = colorEnabled(process.stderr) && !opts.json;
+  const footer = new StickyFooter(process.stderr, liveBeats, c.dim);
+
   const runId = new Date().toISOString().replace(/[:.]/g, "-");
   const runDir = join(workingDir, ".alfred", "workflows", runId);
   const journal = new Journal(join(runDir, "journal.jsonl"));
@@ -169,6 +188,15 @@ async function runAutonomous(opts: RunCliOptions): Promise<number> {
   const controller = new AbortController();
   process.on("SIGINT", () => controller.abort());
 
+  const footerLines = () =>
+    renderFooterLines({
+      resolved,
+      total,
+      costUsd: runtime.budgetSnapshot().usd,
+      elapsedMs: Date.now() - startedMs,
+      current,
+    });
+
   const runtime = createRuntime(runId, {
     provider: await resolveProvider(cfg.provider),
     model: cfg.model,
@@ -178,7 +206,22 @@ async function runAutonomous(opts: RunCliOptions): Promise<number> {
     journal,
     budget: opts.budgetUsd ? { maxUsd: Number(opts.budgetUsd) } : undefined,
     signal: controller.signal,
-    onLog: (m) => process.stderr.write(dim(`  ${m}\n`)),
+    onLog: (m) => {
+      if (opts.json) {
+        process.stderr.write(dim(`  ${m}\n`));
+        return;
+      }
+      footer.print([c.dim(`  ${m}`)], footerLines());
+    },
+    onActivity: (a) => {
+      if (!liveBeats) return;
+      if (a.event === "tool_use" && a.describe !== undefined) {
+        current = `${a.label} · ${a.describe}`;
+        footer.print([c.dim(`  ⚙ ${a.describe}`)], footerLines());
+      } else if (a.event === "tool_result" && a.isError === true) {
+        footer.print([c.red(`  ✗ ${a.name} failed`)], footerLines());
+      }
+    },
   });
 
   process.stderr.write(
@@ -208,11 +251,16 @@ async function runAutonomous(opts: RunCliOptions): Promise<number> {
         process.stdout.write(`${JSON.stringify(ev)}\n`);
         return;
       }
+      if (ev.type === "feature_passing" || ev.type === "feature_blocked") {
+        resolved += 1;
+        current = undefined;
+      }
       const line = renderAutonomousEvent(ev, c);
-      if (line !== null) process.stderr.write(`${line}\n`);
+      if (line !== null) footer.print([line], footerLines());
     },
   });
 
+  footer.clear();
   await journal.close();
   process.stderr.write(
     dim(

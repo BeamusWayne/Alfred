@@ -11,12 +11,29 @@ import type { ZodTypeAny } from "zod";
 import type { Role } from "../config/roles.ts";
 import type { ToolPermissionContext } from "../permissions/types.ts";
 import type { Provider } from "../providers/types.ts";
+import type { QueryEvent } from "../query/types.ts";
 import type { Tool } from "../tools/types.ts";
 import { type AgentRun, runAgent } from "./agent.ts";
 import { Budget, type BudgetLimits, type BudgetSnapshot } from "./budget.ts";
 import type { Journal } from "./journal.ts";
 
 const DEFAULT_CONCURRENCY = 4;
+
+/**
+ * A tool-level progress beat from a running agent — the data behind live
+ * panels (`alfred watch`, the `alfred run` footer). Deliberately tiny:
+ * the human label of the call, never tool input or output payloads (those
+ * stay in the engine transcript; the journal's agent row has the result).
+ */
+export interface AgentActivity {
+  readonly label: string;
+  readonly event: "tool_use" | "tool_result";
+  readonly name: string;
+  /** Human call label (`bash(bun test)`) — present on tool_use. */
+  readonly describe?: string;
+  /** Present on tool_result. */
+  readonly isError?: boolean;
+}
 
 export interface RuntimeOptions {
   readonly provider: Provider;
@@ -27,6 +44,8 @@ export interface RuntimeOptions {
   readonly concurrency?: number;
   readonly signal?: AbortSignal;
   readonly onLog?: (message: string) => void;
+  /** Live tool-level progress from every agent() call (see AgentActivity). */
+  readonly onActivity?: (activity: AgentActivity) => void;
 }
 
 export interface AgentCallOptions {
@@ -113,6 +132,24 @@ export function createRuntime(runId: string, opts: RuntimeOptions): Runtime {
         ? Math.max(0, opts.budget.maxTokens - budget.snapshot().tokens)
         : undefined;
 
+    // Live activity tap: surface tool beats to the caller and journal them
+    // as they happen, so a panel attached mid-run sees motion, not silence.
+    // Writes are fire-and-forget (same contract as log()): a progress write
+    // must never crash or slow the run. Only label/name/describe persist —
+    // never tool input or output payloads.
+    const label = callOpts.label ?? "agent";
+    const onEvent = (ev: QueryEvent): void => {
+      if (ev.type !== "tool_use" && ev.type !== "tool_result") return;
+      const activity: AgentActivity =
+        ev.type === "tool_use"
+          ? { label, event: "tool_use", name: ev.name, describe: ev.describe }
+          : { label, event: "tool_result", name: ev.name, isError: ev.isError };
+      opts.onActivity?.(activity);
+      if (journal) {
+        journal.append({ type: "activity", label, data: { ...activity } }).catch(() => undefined);
+      }
+    };
+
     await sem.acquire();
     let run: AgentRun<T>;
     try {
@@ -127,6 +164,7 @@ export function createRuntime(runId: string, opts: RuntimeOptions): Runtime {
         signal: opts.signal,
         role: callOpts.role,
         taskBudgetTokens: remainingTokens,
+        onEvent,
       });
     } finally {
       sem.release();

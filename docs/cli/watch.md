@@ -13,20 +13,31 @@ alfred watch <path/to/ledger.jsonl>
 
 ## What it shows
 
-One line per recorded event, as it lands:
+One line per recorded event, as it lands — including live tool beats while
+an agent works (journal `activity` rows, written in real time):
 
 ```
-⚙ implement:demo-add#1 ✓ · $0.0028 · 4 turns      ← journal: agent finished
-⚙ rubric:demo-add ✓ · $0.0011 · 3 turns
-✓ demo-add passing · verify exit 0 · rubric 2      ← ledger: feature receipt
-run end: 1 passing · 0 blocked · all_resolved      ← ledger: run end
+· watching 2026-06-11T07-24-58-080Z
+  ⚙ read(add.test.ts)                          ← live tool beats
+  ⚙ write(add.ts)
+  ⚙ bash(bun test add.test.ts)
+⚙ implement:demo-add#1 ✓ · $0.0028 · 4 turns   ← journal: agent finished
+  ⚙ glob(add.ts)
+  ⚙ structured_output
+⚙ rubric:demo-add ✓ · $0.0012 · 3 turns
+✓ demo-add passing · verify exit 0 · rubric 2   ← ledger: feature receipt
+run end: 1 passing · 0 blocked · all_resolved   ← ledger: run end
 ```
 
-plus a sticky status line, redrawn in place on stderr (TTY only):
+plus a sticky footer block, redrawn in place on stderr (TTY only):
 
 ```
-⏱ 2:14 · features 1/3 · $0.0212 · 2026-06-11T06-20-10-756Z
+▮▮▮▯▯▯▯▯▯▯ 1/3 features · ⏱ 2:14 · $0.0212
+▸ implement:auth#2 · bash(bun test)
 ```
+
+`alfred run` itself wears the same face: the run terminal shows the beats
+and the footer live, no second terminal required.
 
 Event lines go to stdout, the status line to stderr — so
 `alfred watch | tee progress.log` captures clean lines. Off-TTY (or with

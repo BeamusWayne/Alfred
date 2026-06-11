@@ -16,7 +16,7 @@ import type { ToolPermissionContext } from "../permissions/types.ts";
 import { allow } from "../permissions/types.ts";
 import type { Provider } from "../providers/types.ts";
 import { runQuery } from "../query/engine.ts";
-import type { QueryState } from "../query/types.ts";
+import type { QueryEvent, QueryState } from "../query/types.ts";
 import type { Tool } from "../tools/types.ts";
 import { buildTool } from "../tools/types.ts";
 import { toStrictJsonSchema } from "./strictSchema.ts";
@@ -38,6 +38,12 @@ export interface RunAgentOptions {
   readonly role?: Role;
   /** Remaining orchestration token budget, surfaced to capable models (beta). */
   readonly taskBudgetTokens?: number;
+  /**
+   * Live engine-event tap (tool calls, results, retries, …) — the run still
+   * resolves to a single `AgentRun`; this only lets callers observe progress
+   * while it happens (e.g. the runtime's activity feed for `alfred watch`).
+   */
+  readonly onEvent?: (ev: QueryEvent) => void;
 }
 
 export interface AgentRun<T = unknown> {
@@ -172,7 +178,9 @@ export async function runAgent<T = unknown>(
       state = step.value;
       break;
     }
-    // Events are intentionally discarded; callers use `AgentRun` instead.
+    // The run's result is `AgentRun`; events are surfaced live when a caller
+    // wants progress (activity feeds), otherwise dropped.
+    opts.onEvent?.(step.value);
   }
 
   const text = extractLastAssistantText(state);

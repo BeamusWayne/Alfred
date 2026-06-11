@@ -16,7 +16,8 @@
 import { readdir, stat } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { loadFeatureList } from "../harness/featureList.ts";
-import { colorEnabled, type Palette } from "./colors.ts";
+import { colorEnabled, type Palette, palette } from "./colors.ts";
+import { renderFooterLines, StickyFooter } from "./footer.ts";
 
 // ---------------------------------------------------------------------------
 // Incremental JSONL parsing (byte-level, so multi-byte UTF-8 survives chunking)
@@ -64,13 +65,25 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
 }
 
-/** Render a journal entry (`agent` and `log` types; anything else is null). */
+/** Render a journal entry (`agent`, `activity`, `log`; anything else is null). */
 export function renderJournalEntry(value: unknown, c: Palette): string | null {
   if (!isRecord(value)) return null;
   const data = isRecord(value["data"]) ? value["data"] : undefined;
   if (value["type"] === "log") {
     const message = typeof data?.["message"] === "string" ? data["message"] : "";
     return c.dim(`· ${message}`);
+  }
+  if (value["type"] === "activity") {
+    // Live tool beats: a line per call; results stay silent unless they fail
+    // (the next beat or the agent row already implies success).
+    if (data?.["event"] === "tool_use" && typeof data["describe"] === "string") {
+      return c.dim(`  ⚙ ${data["describe"]}`);
+    }
+    if (data?.["event"] === "tool_result" && data["isError"] === true) {
+      const name = typeof data["name"] === "string" ? data["name"] : "tool";
+      return c.red(`  ✗ ${name} failed`);
+    }
+    return null;
   }
   if (value["type"] !== "agent" || typeof value["label"] !== "string" || data === undefined) {
     return null;
@@ -105,49 +118,15 @@ export function renderLedgerRow(value: unknown, c: Palette): string | null {
 }
 
 // ---------------------------------------------------------------------------
-// Status line
-// ---------------------------------------------------------------------------
-
-export interface WatchStatus {
-  readonly runId: string;
-  /** Features resolved so far (ledger `feature` rows seen). */
-  readonly resolved: number;
-  /** Total features, when a readable feature list provides one. */
-  readonly total: number | null;
-  readonly costUsd: number;
-  readonly elapsedMs: number;
-}
-
-/** `0:00`, `2:14`, `1:02:05` — hours only when nonzero. */
-export function formatElapsed(ms: number): string {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = String(totalSeconds % 60).padStart(2, "0");
-  if (hours > 0) return `${hours}:${String(minutes).padStart(2, "0")}:${seconds}`;
-  return `${minutes}:${seconds}`;
-}
-
-/** One sticky line: elapsed · feature progress · spend · run id. */
-export function renderStatusLine(status: WatchStatus, c: Palette): string {
-  const features =
-    status.total === null ? `${status.resolved}` : `${status.resolved}/${status.total}`;
-  return c.dim(
-    `⏱ ${formatElapsed(status.elapsedMs)} · features ${features} · ` +
-      `$${status.costUsd.toFixed(4)} · ${status.runId}`,
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Poll loop
 // ---------------------------------------------------------------------------
 
 export interface WatchIo {
   /** Print one event line (stdout). */
   readonly out: (line: string) => void;
-  /** Redraw the sticky status line (stderr; no-op when not a TTY). */
-  readonly status: (line: string) => void;
-  /** Erase the sticky status line, if visible. */
+  /** Redraw the sticky footer block (stderr; no-op when not a TTY). */
+  readonly status: (lines: readonly string[]) => void;
+  /** Erase the sticky footer, if visible. */
   readonly clearStatus: () => void;
   readonly now: () => number;
   readonly sleep: (ms: number) => Promise<void>;
@@ -197,6 +176,17 @@ function entryTs(value: unknown): number | null {
   return isRecord(value) && typeof value["ts"] === "number" ? value["ts"] : null;
 }
 
+/** `label · describe` for a tool_use activity entry; undefined otherwise. */
+function activityCurrent(value: unknown): string | undefined {
+  if (!isRecord(value) || value["type"] !== "activity" || !isRecord(value["data"])) {
+    return undefined;
+  }
+  const data = value["data"];
+  if (data["event"] !== "tool_use" || typeof data["describe"] !== "string") return undefined;
+  const label = typeof value["label"] === "string" ? value["label"] : "agent";
+  return `${label} · ${data["describe"]}`;
+}
+
 function agentCostUsd(value: unknown): number {
   if (!isRecord(value) || value["type"] !== "agent" || !isRecord(value["data"])) return 0;
   const cost = value["data"]["cost"];
@@ -227,6 +217,7 @@ export async function watchRun(runDir: string, io: WatchIo, opts: WatchOptions):
   const ledgerPath = join(runDir, "ledger.jsonl");
   const runId = basename(runDir);
   const startedAt = io.now();
+  io.out(c.dim(`· watching ${runId}`));
 
   let journalTail = FRESH_TAIL;
   let ledgerTail = FRESH_TAIL;
@@ -235,6 +226,7 @@ export async function watchRun(runDir: string, io: WatchIo, opts: WatchOptions):
   let ended = false;
   let firstTs: number | null = null;
   let lastTs: number | null = null;
+  let current: string | undefined;
 
   const track = (value: unknown): void => {
     const ts = entryTs(value);
@@ -252,6 +244,10 @@ export async function watchRun(runDir: string, io: WatchIo, opts: WatchOptions):
     for (const value of journal.values) {
       track(value);
       costUsd += agentCostUsd(value);
+      const beat = activityCurrent(value);
+      if (beat !== undefined) current = beat;
+      // An agent row closes its activity stream — nothing is in flight.
+      if (isRecord(value) && value["type"] === "agent") current = undefined;
       const line = renderJournalEntry(value, c);
       if (line !== null) io.out(line);
     }
@@ -268,7 +264,7 @@ export async function watchRun(runDir: string, io: WatchIo, opts: WatchOptions):
         ? lastTs - firstTs
         : io.now() - (firstTs ?? startedAt);
     const total = await featureTotal(opts.featureListPath);
-    io.status(renderStatusLine({ runId, resolved, total, costUsd, elapsedMs }, c));
+    io.status(renderFooterLines({ resolved, total, costUsd, elapsedMs, current }));
 
     if (ended) {
       io.clearStatus();
@@ -311,25 +307,20 @@ export async function resolveWatchDir(cwd: string, arg?: string): Promise<string
   return null;
 }
 
-/** Event lines to stdout; sticky status line on stderr when it is a TTY. */
+/** Event lines to stdout; sticky footer block on stderr when it is a TTY. */
 export function standardWatchIo(): WatchIo {
-  let statusVisible = false;
-  const erase = (): void => {
-    if (!statusVisible) return;
-    process.stderr.write("\r\x1b[2K");
-    statusVisible = false;
-  };
+  const footer = new StickyFooter(
+    process.stderr,
+    colorEnabled(process.stderr),
+    palette(process.stderr).dim,
+  );
   return {
     out: (line) => {
-      erase();
+      footer.clear();
       process.stdout.write(`${line}\n`);
     },
-    status: (line) => {
-      if (!colorEnabled(process.stderr)) return;
-      process.stderr.write(`\r\x1b[2K${line}`);
-      statusVisible = true;
-    },
-    clearStatus: erase,
+    status: (lines) => footer.print([], lines),
+    clearStatus: () => footer.clear(),
     now: () => Date.now(),
     sleep: (ms) => new Promise((done) => setTimeout(done, ms)),
   };
