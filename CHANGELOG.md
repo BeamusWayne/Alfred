@@ -4,6 +4,35 @@ All notable changes to Alfred are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/) (0.x: minor = feature rounds, patch = fixes).
 
+## [0.4.0] — 2026-06-11
+
+The live-panel round: the dead air during a run is gone.
+
+### Added
+- **Real-time tool beats** — the runtime journals tool-level `activity`
+  rows the moment each call starts (label/name/describe only; never tool
+  input or output payloads). `alfred run` and `alfred watch` render them
+  live (`  ⚙ read(add.test.ts)`), so a two-minute agent step shows its work
+  instead of silence. Resume (`findByKey`) is blind to these rows, and
+  replaying a finished run shows the same beats — including the rubric's
+  `structured_output` beat landing and the run ending right there.
+- **Sticky footer** on `alfred run` and `alfred watch` (TTY): progress bar ·
+  n/m features · elapsed · spend, plus the current action — redrawn in place
+  beneath a normally-scrolling event stream. Cursor-up repaint, no alternate
+  screen: scrollback survives, and there are still zero new dependencies.
+- `runAgent` gained an `onEvent` tap — live engine events for callers that
+  want progress; the run still resolves to a single `AgentRun`.
+
+### Changed
+- Off-TTY `alfred run` keeps the one-line-per-harness-event contract (CI
+  logs stay quiet); `alfred watch` shows beats everywhere — asking for them
+  is its job.
+
+### Internal
+- Docs homepage StatusStrip is now measured at build time (version and
+  runtime deps from package.json, test count from actually running the
+  suite) instead of hand-maintained. 867 tests (+14).
+
 ## [0.3.1] — 2026-06-11
 
 ### Fixed
