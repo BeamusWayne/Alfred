@@ -1,0 +1,10 @@
+{
+  "features": [
+    {
+      "id": "demo-add",
+      "title": "Implement add()",
+      "description": "Create add.ts exporting add(a: number, b: number): number that returns the sum, so add.test.ts passes.",
+      "status": "pending"
+    }
+  ]
+}

@@ -4,6 +4,33 @@ All notable changes to Alfred are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/) (0.x: minor = feature rounds, patch = fixes).
 
+## [0.2.2] — 2026-06-11
+
+First npm release, published as
+[`alfred-agent`](https://www.npmjs.com/package/alfred-agent) (the bare name
+`alfred` is squatted on npm). Install with `bun install -g alfred-agent` or
+run one-shot via `bunx alfred-agent` — the command is still `alfred`.
+Requires Bun ≥ 1.3: the source uses Bun APIs directly and ships as
+TypeScript; there is no Node build.
+
+### Added
+- **Zero-key offline demo** (`bun run demo`, `bun run demo:verify`): a
+  scripted mock model (`ALFRED_MOCK_SCRIPTS`) drives the real harness
+  end-to-end — engine, tools, verify gate and signed run ledger all execute
+  for real, with no API calls. `examples/demo/` ships RED (failing test);
+  the run implements the feature, the gate captures exit 0, and the ledger
+  verifies.
+- **`alfred ledger verify` subcommand**: verifies a run ledger's hash chain
+  and head anchor (newest run by default, or an explicit path). See
+  `docs/cli/ledger.md`.
+- npm package metadata: `files` whitelist (the tarball ships `src/`, the
+  changelog, and `feature_list.example.json` only), `repository` /
+  `homepage` / `bugs` / `keywords` / `author`, and a `prepublishOnly` gate
+  (typecheck + full test suite).
+- Docs site favicon (A-monogram with the verify-gate crossbar) and Open
+  Graph / Twitter social card; README and repo metadata now point at the
+  live docs site.
+
 ## [0.2.1] — 2026-06-10
 
 Patch release: three bugs found by live multi-provider validation (GLM-5.1

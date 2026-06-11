@@ -1,11 +1,16 @@
 {
-  "name": "alfred",
-  "version": "0.2.1",
-  "description": "Alfred — a verifiable autonomous coding agent (CLI), built TypeScript + Bun",
+  "name": "alfred-agent",
+  "version": "0.2.2",
+  "description": "Alfred — a verifiable autonomous coding agent (CLI). Machine-enforced done-gates, agent-curated inspectable memory, signed replayable run ledgers. TypeScript on Bun.",
   "type": "module",
   "bin": {
     "alfred": "src/index.ts"
   },
+  "files": [
+    "src",
+    "CHANGELOG.md",
+    "feature_list.example.json"
+  ],
   "scripts": {
     "dev": "bun run src/index.ts",
     "alfred": "bun run src/index.ts",
@@ -14,9 +19,12 @@
     "lint": "biome lint src tests",
     "format": "biome format --write src tests",
     "check": "biome check src tests",
+    "demo": "cd examples/demo && ./reset.sh >/dev/null && ALFRED_MOCK_SCRIPTS=./scripts.ts bun ../../src/index.ts run --verify 'bun test add.test.ts' --max-features 1",
+    "demo:verify": "cd examples/demo && bun ../../src/index.ts ledger verify",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
-    "docs:preview": "vitepress preview docs"
+    "docs:preview": "vitepress preview docs",
+    "prepublishOnly": "bun run typecheck && bun test tests"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",
@@ -32,5 +40,26 @@
   "engines": {
     "bun": ">=1.3.0"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BeamusWayne/Alfred.git"
+  },
+  "homepage": "https://beamuswayne.github.io/Alfred/",
+  "bugs": {
+    "url": "https://github.com/BeamusWayne/Alfred/issues"
+  },
+  "author": "Beamus Wayne (https://beamuswayne.github.io)",
+  "keywords": [
+    "ai",
+    "agent",
+    "coding-agent",
+    "cli",
+    "autonomous-agent",
+    "claude",
+    "anthropic",
+    "bun",
+    "verifiable",
+    "ledger"
+  ],
   "license": "MIT"
 }

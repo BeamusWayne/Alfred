@@ -1,0 +1,4 @@
+# Produced by each demo run — `./reset.sh` returns the demo to its RED state.
+add.ts
+.alfred/
+feature_list.json

@@ -4,9 +4,11 @@
 
 Alfred is not another Claude Code clone. Its thesis: the long-running harness is *executable*, "done" is a *machine-enforced gate*, memory is *agent-curated but inspectable*, and every hands-off run leaves a *signed, replayable receipt*. Where the field is ahead on streaming/sandbox/caching parity, Alfred leans into the one thing it designs better — **enforced, auditable autonomy** — while still adopting the best ideas from across the ecosystem (`docs/improvement-proposal.md`).
 
-> Status: 787 tests passing · `tsc --noEmit` clean · zero runtime dependencies beyond `@anthropic-ai/sdk`, `commander`, `zod`.
+> Status: 797 tests passing · `tsc --noEmit` clean · zero runtime dependencies beyond `@anthropic-ai/sdk`, `commander`, `zod`.
 
 **📖 Full documentation: [beamuswayne.github.io/Alfred](https://beamuswayne.github.io/Alfred/)** — built from [`docs/`](./docs/) with VitePress (`bun run docs:dev` to preview locally, deployed by [`.github/workflows/docs.yml`](./.github/workflows/docs.yml)). Jump to [Quickstart](https://beamuswayne.github.io/Alfred/guide/quickstart) · [CLI reference](https://beamuswayne.github.io/Alfred/cli/overview) · [Subsystems](https://beamuswayne.github.io/Alfred/subsystems/agent-loop) · [Architecture](https://beamuswayne.github.io/Alfred/architecture/overview).
+
+**📦 Install:** `bun install -g alfred-agent` ([npm](https://www.npmjs.com/package/alfred-agent); the command is `alfred`) — or `bunx alfred-agent` one-shot. Bun ≥ 1.3 required; this is a Bun CLI, not a Node one. Clone the repo for the docs, tests, bench, and the demo below.
 
 ---
 
@@ -14,6 +16,11 @@ Alfred is not another Claude Code clone. Its thesis: the long-running harness is
 
 ```bash
 bun install
+
+# Zero-key offline demo: a scripted model drives the REAL harness end-to-end —
+# engine, tools, verify gate and signed ledger all run for real (no API calls)
+bun run demo          # implement → verify gate exit 0 → rubric 2/2 → signed ledger
+bun run demo:verify   # ✓ ledger intact — then flip one byte and watch it fail
 
 # One-shot agent run (text → stdout, traces → stderr)
 export ANTHROPIC_API_KEY=sk-ant-...
@@ -26,7 +33,7 @@ ALFRED_LEDGER_SECRET=$(openssl rand -hex 32) \
 # Replay recorded trajectories as regression tests (CI gating)
 bun run src/index.ts eval ./my-cases.ts
 
-bun test tests     # 773 tests
+bun test tests     # 797 tests
 bun run typecheck # tsc --noEmit
 ```
 
@@ -39,6 +46,7 @@ bun run typecheck # tsc --noEmit
 | `alfred [prompt]` | One-shot agent run. `-p` print mode; `--model`, `--permission-mode`, `--max-turns`, `--yes`. |
 | `alfred run` | The **autonomous harness as a workflow**: a `feature_list.json` state machine → verify-fix loop → rubric gate → signed run ledger. Flags: `--feature-list`, `--verify`, `--max-features`, `--rollback-on-block`, `--budget-usd`. |
 | `alfred eval <file>` | Replay recorded `MockProvider` trajectories through the real engine and assert tool-sequence / status / text regressions. Exits non-zero on failure. |
+| `alfred ledger verify [path]` | Recompute a run ledger's HMAC hash chain + signed head anchor (defaults to the latest run). Exit 1 on any tamper — flip one byte and it fails. |
 
 ---
 

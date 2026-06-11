@@ -2,9 +2,10 @@
 /**
  * Alfred CLI entry point.
  *
- *   alfred [prompt]      one-shot agent run (-p print mode)
- *   alfred run           autonomous harness: drive feature_list.json to green
- *   alfred eval <file>   replay recorded trajectories, assert no regressions
+ *   alfred [prompt]        one-shot agent run (-p print mode)
+ *   alfred run             autonomous harness: drive feature_list.json to green
+ *   alfred eval <file>     replay recorded trajectories, assert no regressions
+ *   alfred ledger verify   recompute a run ledger's hash chain; exit 1 on tamper
  *
  * Text goes to stdout; tool/retry/status traces go to stderr, so
  * `alfred -p "…" | cat` captures a clean answer.
@@ -15,28 +16,37 @@
  * ADR 0003), ALFRED_OTEL_FILE=<path> (OTel spans, ADR 0004), ALFRED_BASE_URL
  * (Anthropic-compatible endpoint, e.g. GLM), ALFRED_MODEL_{ARCHITECT,EDITOR,
  * SUBAGENT} (role routing, ADR 0005), ALFRED_LEDGER_SECRET (sign the run
- * ledger). Hooks load from .alfred/hooks.json; skills from .alfred/skills/;
- * MCP/LSP servers from .alfred/{mcp,lsp}.json.
+ * ledger), ALFRED_MOCK_SCRIPTS=<path> (scripted offline provider — keyless
+ * demos and deterministic smoke runs; engine/tools/gates stay real). Hooks
+ * load from .alfred/hooks.json; skills from .alfred/skills/; MCP/LSP servers
+ * from .alfred/{mcp,lsp}.json.
  */
-import { Command } from "commander";
 import { join, resolve } from "node:path";
-import { runQuery } from "./query/engine.ts";
-import type { QueryEvent } from "./query/types.ts";
-import { getProvider } from "./providers/index.ts";
-import { getAllTools } from "./tools/index.ts";
-import { buildSystemContext, buildSystemPrompt } from "./context/index.ts";
-import { loadConfig, PERMISSION_MODES, type ConfigOverrides } from "./config/manager.ts";
-import { resolveRole } from "./config/roles.ts";
+import { Command } from "commander";
+import { type ConfigOverrides, loadConfig, PERMISSION_MODES } from "./config/manager.ts";
 import { loadModelOverrides } from "./config/modelOverrides.ts";
-import { LocalFileProvider } from "./memory/localFile.ts";
-import { loadHooksConfig } from "./hooks/engine.ts";
+import { resolveRole } from "./config/roles.ts";
+import { buildSystemContext, buildSystemPrompt } from "./context/index.ts";
+import { formatReport, runEvalSuite } from "./eval/runner.ts";
+import type { EvalCase } from "./eval/types.ts";
 import { bootstrapExtensions } from "./extensions/bootstrap.ts";
-import { createRuntime } from "./orchestrator/runtime.ts";
+import { loadHooksConfig } from "./hooks/engine.ts";
+import { LocalFileProvider } from "./memory/localFile.ts";
 import { Journal } from "./orchestrator/journal.ts";
 import { Ledger } from "./orchestrator/ledger.ts";
-import { autonomousRun, type AutonomousEvent } from "./orchestrator/workflows/autonomousRun.ts";
-import { runEvalSuite, formatReport } from "./eval/runner.ts";
-import type { EvalCase } from "./eval/types.ts";
+import {
+  DEFAULT_LEDGER_SECRET,
+  findLatestLedger,
+  formatVerifyOutcome,
+} from "./orchestrator/ledgerLocate.ts";
+import { createRuntime } from "./orchestrator/runtime.ts";
+import { type AutonomousEvent, autonomousRun } from "./orchestrator/workflows/autonomousRun.ts";
+import { getProvider } from "./providers/index.ts";
+import { MockProvider, type Script } from "./providers/mock.ts";
+import type { Provider } from "./providers/types.ts";
+import { runQuery } from "./query/engine.ts";
+import type { QueryEvent } from "./query/types.ts";
+import { getAllTools } from "./tools/index.ts";
 import { VERSION } from "./version.ts";
 
 const dim = (s: string) => (process.stderr.isTTY ? `\x1b[2m${s}\x1b[0m` : s);
@@ -76,6 +86,37 @@ interface CliOptions {
   readonly print?: boolean;
 }
 
+/**
+ * Resolve the LLM provider, honouring ALFRED_MOCK_SCRIPTS: a path to a module
+ * default-exporting MockProvider `Script[]`. The engine, tools, permissions,
+ * verify gate and ledger all run for real — only the model is scripted. This
+ * powers keyless offline demos and deterministic CI smoke runs (the same
+ * record/replay mechanism as `alfred eval`).
+ */
+async function resolveProvider(providerName: Parameters<typeof getProvider>[0]): Promise<Provider> {
+  const scriptsPath = process.env.ALFRED_MOCK_SCRIPTS;
+  if (!scriptsPath) return getProvider(providerName);
+  const mod: { default?: readonly Script[]; scripts?: readonly Script[] } = await import(
+    resolve(process.cwd(), scriptsPath)
+  );
+  const scripts = mod.default ?? mod.scripts;
+  if (!Array.isArray(scripts) || scripts.length === 0) {
+    process.stderr.write(
+      red(
+        `ALFRED_MOCK_SCRIPTS must point at a module default-exporting a non-empty Script[]: ${scriptsPath}\n`,
+      ),
+    );
+    process.exit(1);
+  }
+  process.stderr.write(yellow(`[mock] scripted provider — ${scriptsPath} (no API calls)\n`));
+  return new MockProvider(scripts);
+}
+
+/** True when the scripted offline provider is active (no API key needed). */
+function mockActive(): boolean {
+  return Boolean(process.env.ALFRED_MOCK_SCRIPTS);
+}
+
 async function runOnce(prompt: string, opts: CliOptions): Promise<number> {
   const overrides: ConfigOverrides = {
     model: opts.model,
@@ -84,10 +125,12 @@ async function runOnce(prompt: string, opts: CliOptions): Promise<number> {
   };
   const cfg = loadConfig(overrides);
 
-  if (cfg.provider === "anthropic" && !process.env.ANTHROPIC_API_KEY) {
-    process.stderr.write(red("No ANTHROPIC_API_KEY set — export it before running a real query.\n"));
+  if (!mockActive() && cfg.provider === "anthropic" && !process.env.ANTHROPIC_API_KEY) {
+    process.stderr.write(
+      red("No ANTHROPIC_API_KEY set — export it before running a real query.\n"),
+    );
   }
-  if (cfg.provider === "openai" && !process.env.OPENAI_API_KEY) {
+  if (!mockActive() && cfg.provider === "openai" && !process.env.OPENAI_API_KEY) {
     process.stderr.write(red("No OPENAI_API_KEY set — export it before running a real query.\n"));
   }
 
@@ -117,7 +160,7 @@ async function runOnce(prompt: string, opts: CliOptions): Promise<number> {
   try {
     const state = await drain(
       runQuery(prompt, {
-        provider: getProvider(cfg.provider),
+        provider: await resolveProvider(cfg.provider),
         model: cfg.model,
         baseUrl: cfg.baseUrl,
         systemPrompt,
@@ -186,7 +229,7 @@ interface RunCliOptions {
 /** `alfred run` — the autonomous harness as a workflow (ADR 0001 §5.3 / §7.7). */
 async function runAutonomous(opts: RunCliOptions): Promise<number> {
   const cfg = loadConfig({ model: opts.model });
-  if (cfg.provider === "anthropic" && !process.env.ANTHROPIC_API_KEY) {
+  if (!mockActive() && cfg.provider === "anthropic" && !process.env.ANTHROPIC_API_KEY) {
     process.stderr.write(red("No ANTHROPIC_API_KEY set — export it before an autonomous run.\n"));
   }
 
@@ -198,7 +241,7 @@ async function runAutonomous(opts: RunCliOptions): Promise<number> {
   const runId = new Date().toISOString().replace(/[:.]/g, "-");
   const runDir = join(workingDir, ".alfred", "workflows", runId);
   const journal = new Journal(join(runDir, "journal.jsonl"));
-  const ledgerSecret = process.env.ALFRED_LEDGER_SECRET ?? "alfred-dev-insecure-secret-change-me";
+  const ledgerSecret = process.env.ALFRED_LEDGER_SECRET ?? DEFAULT_LEDGER_SECRET;
   const ledger = new Ledger(join(runDir, "ledger.jsonl"), ledgerSecret);
 
   // Architect/editor split (ADR 0005): resolve per-role models from config.
@@ -210,7 +253,7 @@ async function runAutonomous(opts: RunCliOptions): Promise<number> {
   process.on("SIGINT", () => controller.abort());
 
   const runtime = createRuntime(runId, {
-    provider: getProvider(cfg.provider),
+    provider: await resolveProvider(cfg.provider),
     model: cfg.model,
     // Autonomous mode runs headless: bypass prompts, but the kill-list and
     // path jail still apply (ADR 0003). Override with care.
@@ -221,7 +264,9 @@ async function runAutonomous(opts: RunCliOptions): Promise<number> {
     onLog: (m) => process.stderr.write(dim(`  ${m}\n`)),
   });
 
-  process.stderr.write(dim(`[run ${runId}] feature_list=${featureListPath} verify="${verifyCmd}"\n`));
+  process.stderr.write(
+    dim(`[run ${runId}] feature_list=${featureListPath} verify="${verifyCmd}"\n`),
+  );
 
   const result = await autonomousRun({
     runtime,
@@ -282,7 +327,10 @@ program
   .option("--max-features <n>", "stop after N features")
   .option("--rollback-on-block", "git-rollback the working tree when a feature is blocked")
   .option("--budget-usd <n>", "stop when estimated spend exceeds this USD budget")
-  .option("--best-of-n <n>", "run N worktree-isolated implement candidates per attempt, keep the first that passes")
+  .option(
+    "--best-of-n <n>",
+    "run N worktree-isolated implement candidates per attempt, keep the first that passes",
+  )
   .action(async (opts: RunCliOptions) => {
     const code = await runAutonomous(opts);
     process.exit(code);
@@ -290,7 +338,9 @@ program
 
 program
   .command("eval <file>")
-  .description("replay recorded trajectories (a module exporting EvalCase[]) and assert no regressions")
+  .description(
+    "replay recorded trajectories (a module exporting EvalCase[]) and assert no regressions",
+  )
   .action(async (file: string) => {
     const mod: { default?: readonly EvalCase[]; cases?: readonly EvalCase[] } = await import(
       resolve(process.cwd(), file)
@@ -299,6 +349,34 @@ program
     const report = await runEvalSuite(cases);
     process.stdout.write(formatReport(report) + "\n");
     process.exit(report.failed > 0 ? 1 : 0);
+  });
+
+const ledgerCommand = program
+  .command("ledger")
+  .description("inspect and verify signed run ledgers (Proof Receipts)");
+
+ledgerCommand
+  .command("verify")
+  .argument("[path]", "path to a ledger.jsonl (default: the latest run under .alfred/workflows)")
+  .description("recompute the HMAC hash chain + signed head anchor; exit 1 on any tamper")
+  .action(async (path?: string) => {
+    const target = path ?? (await findLatestLedger(process.cwd()));
+    if (target === null) {
+      process.stderr.write(
+        red("No run ledger found under .alfred/workflows — start one with `alfred run`.\n"),
+      );
+      process.exit(1);
+    }
+    if (!(await Bun.file(target).exists())) {
+      process.stderr.write(red(`No ledger at ${target}\n`));
+      process.exit(1);
+    }
+    const secret = process.env.ALFRED_LEDGER_SECRET ?? DEFAULT_LEDGER_SECRET;
+    const ledger = new Ledger(target, secret);
+    const rows = (await ledger.readAll()).length;
+    const outcome = await ledger.verify();
+    process.stdout.write(formatVerifyOutcome(target, rows, outcome) + "\n");
+    process.exit(outcome.ok ? 0 : 1);
   });
 
 await program.parseAsync(process.argv);

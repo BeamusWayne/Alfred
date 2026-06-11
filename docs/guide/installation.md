@@ -23,10 +23,28 @@ If you prefer OpenAI or a compatible gateway (e.g. Zhipu GLM), see [Provider con
 
 ---
 
-## Clone and install
+## Install from npm
+
+Alfred is published as [`alfred-agent`](https://www.npmjs.com/package/alfred-agent) (the bare name `alfred` is taken on npm); the installed command is still `alfred`:
 
 ```bash
-git clone <your-alfred-repo-url>
+bun install -g alfred-agent   # puts `alfred` on your PATH
+# or run one-shot without installing:
+bunx alfred-agent -p "explain what this repo does"
+```
+
+::: warning Bun only
+The package ships TypeScript that uses Bun APIs directly — install and run it with Bun, not `npm`/`npx`/Node.
+:::
+
+---
+
+## Clone and install (for development)
+
+The npm package ships the runtime only. Clone the repo for the docs, tests, bench, and the zero-key demo:
+
+```bash
+git clone https://github.com/BeamusWayne/Alfred.git
 cd Alfred
 bun install
 ```
