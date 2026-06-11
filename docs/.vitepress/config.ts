@@ -9,6 +9,27 @@ export default defineConfig({
   base: "/Alfred/",
   lang: "en-US",
   cleanUrls: true,
+  // Head hrefs are NOT base-prefixed by VitePress — keep "/Alfred/" explicit,
+  // and og:image must be an absolute URL for scrapers.
+  head: [
+    ["link", { rel: "icon", type: "image/svg+xml", href: "/Alfred/favicon.svg" }],
+    ["link", { rel: "icon", type: "image/png", sizes: "32x32", href: "/Alfred/favicon-32.png" }],
+    ["link", { rel: "apple-touch-icon", sizes: "180x180", href: "/Alfred/apple-touch-icon.png" }],
+    ["meta", { name: "theme-color", content: "#16161a" }],
+    ["meta", { property: "og:type", content: "website" }],
+    ["meta", { property: "og:url", content: "https://beamuswayne.github.io/Alfred/" }],
+    ["meta", { property: "og:title", content: "Alfred — a verifiable autonomous coding agent" }],
+    [
+      "meta",
+      {
+        property: "og:description",
+        content:
+          "“Done” is a machine-enforced verify gate, memory is agent-curated but inspectable, and every hands-off run leaves a signed, replayable ledger. TypeScript on Bun.",
+      },
+    ],
+    ["meta", { property: "og:image", content: "https://beamuswayne.github.io/Alfred/og.png" }],
+    ["meta", { name: "twitter:card", content: "summary_large_image" }],
+  ],
   // 28 pages were authored in parallel and cross-link heavily; don't fail the
   // build on a stray link. Tighten to an allowlist once links are audited.
   ignoreDeadLinks: true,
