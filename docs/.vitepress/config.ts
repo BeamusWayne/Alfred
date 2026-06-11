@@ -56,6 +56,7 @@ export default defineConfig({
         items: [
           { text: "alfred (one-shot)", link: "/cli/overview" },
           { text: "alfred run", link: "/cli/run" },
+          { text: "alfred watch", link: "/cli/watch" },
           { text: "alfred eval", link: "/cli/eval" },
           { text: "alfred ledger", link: "/cli/ledger" },
         ],

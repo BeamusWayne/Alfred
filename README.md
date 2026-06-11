@@ -8,7 +8,7 @@
 
 Alfred is not another Claude Code clone. Its thesis: the long-running harness is *executable*, "done" is a *machine-enforced gate*, memory is *agent-curated but inspectable*, and every hands-off run leaves a *signed, replayable receipt*. Where the field is ahead on streaming/sandbox/caching parity, Alfred leans into the one thing it designs better — **enforced, auditable autonomy** — while still adopting the best ideas from across the ecosystem (`docs/improvement-proposal.md`).
 
-> Status: 797 tests passing · `tsc --noEmit` clean · zero runtime dependencies beyond `@anthropic-ai/sdk`, `commander`, `zod`.
+> Status: 853 tests passing · `tsc --noEmit` clean · zero runtime dependencies beyond `@anthropic-ai/sdk`, `commander`, `zod`.
 
 **📖 Full documentation: [beamuswayne.github.io/Alfred](https://beamuswayne.github.io/Alfred/)** — built from [`docs/`](./docs/) with VitePress (`bun run docs:dev` to preview locally, deployed by [`.github/workflows/docs.yml`](./.github/workflows/docs.yml)). Jump to [Quickstart](https://beamuswayne.github.io/Alfred/guide/quickstart) · [CLI reference](https://beamuswayne.github.io/Alfred/cli/overview) · [Subsystems](https://beamuswayne.github.io/Alfred/subsystems/agent-loop) · [Architecture](https://beamuswayne.github.io/Alfred/architecture/overview).
 

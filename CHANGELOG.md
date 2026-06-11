@@ -37,6 +37,13 @@ it legible, and make its receipts usable.
 - **Human-readable `alfred run` progress** by default (one line per harness
   event, `terraform apply` style); `--json` keeps the raw event stream on
   stdout for machines.
+- **`alfred watch [path]`** — a read-only live panel over a run's on-disk
+  record: tail-follows `journal.jsonl` + `ledger.jsonl`, one line per
+  agent/feature event, sticky status line (elapsed · features · spend).
+  Attach from a second terminal — even before the run's first write — or
+  replay a finished run; exits 0 once `run_end` lands. The panel renders the
+  same files the ledger signs: watching is reading the receipt as it is
+  written.
 - `echo "question" | alfred -p` — print mode reads the prompt from stdin.
 - `NO_COLOR` honoured across every surface.
 
@@ -50,10 +57,29 @@ it legible, and make its receipts usable.
   `docs/demo.tape` now binds `alfred` to the checked-out source so a regen
   always records the current code.
 
+### Fixed
+- **Schema runs end when the verdict lands** (`ToolResult.endsRun`): the
+  synthetic `structured_output` tool now declares the run complete — the
+  engine records the full tool batch (the transcript stays provider-valid),
+  then ends with success instead of letting the model wander to `max_turns`.
+  Caught live by `alfred watch` on its first dogfood: a glm-4.7 rubric judge
+  burned 50 turns ($0.0537, 30x the implement cost) after its verdict was
+  already captured — now 3 turns ($0.0011). Invalid payloads still bounce
+  back for a retry (the schema gate precedes the tool call).
+- **Receipts keep their `gitSha`**: the redactor treats any 40+ hex chars as
+  key material, so feature rows' checkpoint pointer was stored as
+  `[REDACTED:hex-blob]` — a signed receipt that cannot point at its
+  checkpoint. `gitSha` is now exempt when (and only when) the value is
+  shaped exactly like a commit hash (40/64 lowercase hex); anything else
+  under that key, and hex blobs under every other key, are scrubbed as
+  before.
+- **glm-4.7 priced**: model ids missing from the pricing table fell back to
+  Sonnet-tier defaults — GLM runs recorded ~5x their real cost.
+
 ### Internal
 - CLI plumbing extracted to `src/cli/` (session, colors, approve, status,
-  renderRun, repl, demo, init, why, ledgerShow, completion); the engine
-  gained `initialMessages`. 826 tests (+29).
+  renderRun, repl, demo, init, why, ledgerShow, completion, watch); the
+  engine gained `initialMessages` and `ToolResult.endsRun`. 853 tests (+56).
 
 ## [0.2.2] — 2026-06-11
 
