@@ -8,6 +8,8 @@ first broken row — one command to answer *"is this receipt genuine?"*
 ```bash
 alfred ledger verify          # verify the latest run under .alfred/workflows
 alfred ledger verify <path>   # verify a specific ledger.jsonl
+alfred ledger show            # render the rows as a table, then verify
+alfred ledger show --md       # Markdown table — paste into a PR description
 ```
 
 ## What is checked
@@ -27,7 +29,8 @@ verification never requires the secrets that appeared in tool output.
 | Code | Meaning |
 |------|---------|
 | 0 | Chain + head anchor verified |
-| 1 | Tamper detected, or no ledger found |
+| 1 | No ledger found / bad invocation |
+| 2 | **Tamper detected** (`verify` and `show`) |
 
 ## Example session
 

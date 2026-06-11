@@ -9,21 +9,21 @@
  * Uses the global `fetch` (Bun runtime) — no `openai` npm package required.
  */
 
+import { defaultMaxTokens, modelProfile } from "../config/modelCatalog.ts";
+import { sseData } from "./sse.ts";
 import {
-  ProviderError,
   type ChatOptions,
   type ContentBlock,
   type LLMResponse,
   type Message,
   type Provider,
   type ProviderConfig,
+  ProviderError,
   type StopReason,
   type StreamEvent,
   type ToolDefinition,
   type Usage,
 } from "./types.ts";
-import { sseData } from "./sse.ts";
-import { defaultMaxTokens, modelProfile } from "../config/modelCatalog.ts";
 
 // ---------------------------------------------------------------------------
 // Internal OpenAI wire types (unknown at HTTP boundary, narrowed below)

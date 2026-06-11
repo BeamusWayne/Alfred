@@ -5,8 +5,8 @@
  * dedup, primary-first, with/without role), and schema validation.
  */
 import { describe, expect, it } from "bun:test";
-import { fallbackChain, resolveRole, roleModelMapSchema } from "../src/config/roles.ts";
 import type { Role, RoleModelMap } from "../src/config/roles.ts";
+import { fallbackChain, resolveRole, roleModelMapSchema } from "../src/config/roles.ts";
 
 // ---------------------------------------------------------------------------
 // resolveRole

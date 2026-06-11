@@ -1,7 +1,7 @@
 /**
  * Tests for the post-edit syntax check helper (ADR 0002 step 2).
  */
-import { test, expect, describe } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { checkSyntax, isCheckable, LOADER_MAP } from "../src/tools/lib/syntaxCheck.ts";
 
 // ---------------------------------------------------------------------------

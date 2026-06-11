@@ -20,14 +20,14 @@
  *  3. Signed ledger — every outcome is HMAC hash-chained (tampering is detectable).
  */
 
-import { cp, rm, readdir } from "node:fs/promises";
-import { join, basename } from "node:path";
-import { runVerify, passed, type VerifyResult } from "../harness/verify.ts";
-import { loadFeatureList, counts } from "../harness/featureList.ts";
-import { autonomousRun } from "../orchestrator/workflows/autonomousRun.ts";
-import type { Runtime } from "../orchestrator/runtime.ts";
-import type { Ledger } from "../orchestrator/ledger.ts";
+import { cp, readdir, rm } from "node:fs/promises";
+import { basename, join } from "node:path";
+import { counts, loadFeatureList } from "../harness/featureList.ts";
+import { passed, runVerify, type VerifyResult } from "../harness/verify.ts";
 import type { Journal } from "../orchestrator/journal.ts";
+import type { Ledger } from "../orchestrator/ledger.ts";
+import type { Runtime } from "../orchestrator/runtime.ts";
+import { autonomousRun } from "../orchestrator/workflows/autonomousRun.ts";
 
 /**
  * Mandatory verify timeout for the bench. Generous enough for a real held-out
@@ -208,8 +208,8 @@ export function benchPassed(result: BenchResult): boolean {
   return result.features > 0 && result.dualPassConfirmed === result.features && result.ledgerOk;
 }
 
+export type { Feature } from "../harness/featureList.ts";
 // ---------------------------------------------------------------------------
 // Re-exports
 // ---------------------------------------------------------------------------
 export type { VerifyResult } from "../harness/verify.ts";
-export type { Feature } from "../harness/featureList.ts";

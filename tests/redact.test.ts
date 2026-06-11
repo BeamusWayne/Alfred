@@ -5,7 +5,7 @@
  * external APIs, so a missed pattern is a real leak. All fixtures below are
  * synthetic, shaped like real credentials but never actual secrets.
  */
-import { describe, test, expect } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { redact } from "../src/security/redact.ts";
 
 describe("redact — provider key shapes", () => {

@@ -3,9 +3,9 @@
  * All offline via an injected fetcher — no real network.
  */
 import { describe, expect, test } from "bun:test";
-import { GoogleProvider, type Fetcher } from "../src/providers/google.ts";
+import { type Fetcher, GoogleProvider } from "../src/providers/google.ts";
+import type { Message, ProviderConfig, ToolDefinition } from "../src/providers/types.ts";
 import { ProviderError } from "../src/providers/types.ts";
-import type { Message, ToolDefinition, ProviderConfig } from "../src/providers/types.ts";
 
 function makeFetcher(
   status: number,

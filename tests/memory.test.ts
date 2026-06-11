@@ -5,12 +5,12 @@
  * writes to the repo or a real .alfred/ directory. Providers are closed and
  * temp dirs removed in afterEach.
  */
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { rm, mkdir, writeFile } from "node:fs/promises";
-import { LocalFileProvider } from "../src/memory/localFile.ts";
 import { EpisodeStore } from "../src/memory/episodes.ts";
+import { LocalFileProvider } from "../src/memory/localFile.ts";
 import type { Fact } from "../src/memory/types.ts";
 
 // ---------------------------------------------------------------------------

@@ -7,10 +7,10 @@
  *
  * ADR 0001 §7.6 (3-level skills = procedural memory, progressive disclosure).
  */
-import { describe, test, expect, afterEach } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { rm, mkdir, writeFile } from "node:fs/promises";
 import { discoverSkills, loadSkill, renderSkillIndex } from "../src/skills/loader.ts";
 import { makeSkillTool } from "../src/skills/skillTool.ts";
 import type { SkillMeta } from "../src/skills/types.ts";

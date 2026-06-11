@@ -15,15 +15,15 @@
  * from `./protocol.ts`. It is NOT exercised by unit tests.
  */
 
-import { encodeMessage, createFrameParser } from "./protocol.ts";
-import type { Diagnostic, Location, Position, LspTransport } from "./protocol.ts";
+import type { Diagnostic, Location, LspTransport, Position } from "./protocol.ts";
+import { createFrameParser, encodeMessage } from "./protocol.ts";
 
 // ---------------------------------------------------------------------------
 // Re-export protocol types so callers import from one place
 // ---------------------------------------------------------------------------
 
-export type { Diagnostic, Hover, Location, Position, LspTransport } from "./protocol.ts";
-export { encodeMessage, createFrameParser } from "./protocol.ts";
+export type { Diagnostic, Hover, Location, LspTransport, Position } from "./protocol.ts";
+export { createFrameParser, encodeMessage } from "./protocol.ts";
 
 // ---------------------------------------------------------------------------
 // Internal helpers

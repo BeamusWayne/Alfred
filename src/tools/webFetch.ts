@@ -11,12 +11,12 @@
  *      propagating into context or telemetry.
  */
 import { z } from "zod";
-import { buildTool } from "./types.ts";
-import type { ToolResult } from "./types.ts";
-import { checkEgress, DEFAULT_EGRESS_POLICY } from "../security/egress.ts";
-import type { EgressPolicy } from "../security/egress.ts";
-import { redact } from "../security/redact.ts";
 import { ask, deny } from "../permissions/types.ts";
+import type { EgressPolicy } from "../security/egress.ts";
+import { checkEgress, DEFAULT_EGRESS_POLICY } from "../security/egress.ts";
+import { redact } from "../security/redact.ts";
+import type { ToolResult } from "./types.ts";
+import { buildTool } from "./types.ts";
 
 // ---------------------------------------------------------------------------
 // Re-export EgressPolicy so callers can type-annotate without a separate

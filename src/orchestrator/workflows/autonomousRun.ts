@@ -10,28 +10,29 @@
  *   BOTH verify exit == 0 AND rubric == 2 → append a signed, hash-chained
  *   ledger row (mirrored as an OTel span) + an episode record. Boxes are code.
  */
-import { z } from "zod";
+
 import { join } from "node:path";
-import type { Runtime } from "../runtime.ts";
-import type { Ledger } from "../ledger.ts";
-import { EpisodeStore } from "../../memory/episodes.ts";
-import { tracerFromEnv, GEN_AI_OPERATION_NAME } from "../../telemetry/otel.ts";
+import { z } from "zod";
+import { modelProfile, tierIterationBudget } from "../../config/modelCatalog.ts";
+import { type Checkpoint, checkpoint, currentSha, rollback } from "../../harness/checkpoint.ts";
 import {
-  loadFeatureList,
-  saveFeatureList,
-  pickNext,
-  markInProgress,
-  markPassing,
-  markBlocked,
   counts,
   type Feature,
+  loadFeatureList,
+  markBlocked,
+  markInProgress,
+  markPassing,
+  pickNext,
+  saveFeatureList,
 } from "../../harness/featureList.ts";
-import { runVerify, passed, type VerifyResult } from "../../harness/verify.ts";
-import { modelProfile, tierIterationBudget } from "../../config/modelCatalog.ts";
+import { passed, runVerify, type VerifyResult } from "../../harness/verify.ts";
+import { EpisodeStore } from "../../memory/episodes.ts";
+import { GEN_AI_OPERATION_NAME, tracerFromEnv } from "../../telemetry/otel.ts";
 import { fileReadTool } from "../../tools/fileRead.ts";
 import { globTool } from "../../tools/glob.ts";
 import { grepTool } from "../../tools/grep.ts";
-import { checkpoint, rollback, currentSha, type Checkpoint } from "../../harness/checkpoint.ts";
+import type { Ledger } from "../ledger.ts";
+import type { Runtime } from "../runtime.ts";
 import { bestOfNCode } from "./bestOfNCode.ts";
 
 export const rubricSchema = z.object({

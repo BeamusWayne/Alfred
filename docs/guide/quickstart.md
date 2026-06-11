@@ -6,9 +6,17 @@ Three first runs, end-to-end, with expected output shapes. Each builds on the pr
 
 ## Run 0 — Try it offline, no API key {#offline-demo}
 
-A scripted model (`ALFRED_MOCK_SCRIPTS`) drives the **real** harness end to
-end — engine, `file_write` tool, permission stack, `bun test` verify gate,
-rubric gate, signed ledger. Zero API calls:
+No clone needed — the proof ships in the npm package as a self-contained
+sandbox run (RED gate → implement → signed ledger → one-byte tamper drill):
+
+```bash
+bunx alfred-agent demo
+```
+
+From a checkout, the repo flavour of the same loop: a scripted model
+(`ALFRED_MOCK_SCRIPTS`) drives the **real** harness end to end — engine,
+`file_write` tool, permission stack, `bun test` verify gate, rubric gate,
+signed ledger. Zero API calls:
 
 ```bash
 git clone https://github.com/BeamusWayne/Alfred && cd Alfred && bun install

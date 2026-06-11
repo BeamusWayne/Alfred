@@ -1,6 +1,6 @@
 /** Zod-validated configuration with env + override layering. */
 import { z } from "zod";
-import { roleModelMapSchema, type RoleModelMap, type RoleSpec } from "./roles.ts";
+import { type RoleModelMap, type RoleSpec, roleModelMapSchema } from "./roles.ts";
 
 export const PERMISSION_MODES = ["default", "acceptEdits", "plan", "bypass"] as const;
 export const PROVIDERS = ["anthropic", "openai", "google"] as const;

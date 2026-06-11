@@ -16,7 +16,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
-import { registerModelOverrides, type ModelProfile } from "./modelCatalog.ts";
+import { type ModelProfile, registerModelOverrides } from "./modelCatalog.ts";
 
 const partialProfileSchema = z
   .object({

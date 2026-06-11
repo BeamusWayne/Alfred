@@ -4,9 +4,9 @@
  * ripgrep path can be added later behind the same interface.
  */
 import { z } from "zod";
-import { buildTool } from "./types.ts";
-import type { ToolResult } from "./types.ts";
 import { resolveInside } from "./lib/paths.ts";
+import type { ToolResult } from "./types.ts";
+import { buildTool } from "./types.ts";
 
 const inputSchema = z.object({
   pattern: z.string().describe("Regular expression to search for"),

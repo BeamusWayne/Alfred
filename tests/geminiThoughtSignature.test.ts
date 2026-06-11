@@ -5,7 +5,7 @@
  * gemini-3.1-pro-preview). Contract: capture on parse, echo verbatim on
  * serialise, and never surface `thought: true` reasoning parts as text.
  */
-import { describe, test, expect } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { GoogleProvider } from "../src/providers/google.ts";
 import type { Message } from "../src/providers/types.ts";
 

@@ -13,7 +13,9 @@
  */
 
 import { seatbeltProfile } from "./seatbelt.ts";
+
 export type { SandboxPolicy } from "./seatbelt.ts";
+
 import type { SandboxPolicy } from "./seatbelt.ts";
 
 /** Result of wrapping a command with the sandbox. */

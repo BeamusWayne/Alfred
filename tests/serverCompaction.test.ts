@@ -6,9 +6,8 @@
  * engine's LOCAL context editing/compaction stands down (the two must not
  * both rewrite history). Non-supporting models are untouched.
  */
-import { test, expect, describe, afterEach } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import { buildRequest, fromContent, toAnthropicMessages } from "../src/providers/anthropic.ts";
-import { runQuery } from "../src/query/engine.ts";
 import { textResponse, toolUseResponse } from "../src/providers/mock.ts";
 import type {
   LLMResponse,
@@ -17,7 +16,8 @@ import type {
   ProviderConfig,
   ToolDefinition,
 } from "../src/providers/types.ts";
-import type { QueryState, QueryEvent } from "../src/query/types.ts";
+import { runQuery } from "../src/query/engine.ts";
+import type { QueryEvent, QueryState } from "../src/query/types.ts";
 
 const MSGS: readonly Message[] = [{ role: "user", content: "hi" }];
 

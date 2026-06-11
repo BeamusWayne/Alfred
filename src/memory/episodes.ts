@@ -8,11 +8,10 @@
  * IDs are ISO-timestamp + 6-char random hex to guarantee uniqueness even for
  * sub-millisecond writes (e.g. tests). Queries return newest-first.
  */
-import { readdir, unlink } from "node:fs/promises";
+import { mkdir, readdir, unlink } from "node:fs/promises";
 import { join } from "node:path";
-import { mkdir } from "node:fs/promises";
-import type { Episode } from "./types.ts";
 import { z } from "zod";
+import type { Episode } from "./types.ts";
 
 // ---------------------------------------------------------------------------
 // Schema (validate on read so corrupt files are skipped gracefully)

@@ -10,16 +10,16 @@
  */
 
 import { z } from "zod";
-import { runQuery } from "../query/engine.ts";
 import { modelProfile } from "../config/modelCatalog.ts";
-import { toStrictJsonSchema } from "./strictSchema.ts";
-import type { QueryState } from "../query/types.ts";
+import type { Role } from "../config/roles.ts";
+import type { ToolPermissionContext } from "../permissions/types.ts";
+import { allow } from "../permissions/types.ts";
 import type { Provider } from "../providers/types.ts";
+import { runQuery } from "../query/engine.ts";
+import type { QueryState } from "../query/types.ts";
 import type { Tool } from "../tools/types.ts";
 import { buildTool } from "../tools/types.ts";
-import type { ToolPermissionContext } from "../permissions/types.ts";
-import type { Role } from "../config/roles.ts";
-import { allow } from "../permissions/types.ts";
+import { toStrictJsonSchema } from "./strictSchema.ts";
 
 // ---------------------------------------------------------------------------
 // Public types

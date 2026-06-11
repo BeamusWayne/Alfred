@@ -14,10 +14,10 @@
  */
 
 import { z } from "zod";
-import { buildTool } from "../types.ts";
-import type { Tool, ToolResult } from "../types.ts";
 import { allow } from "../../permissions/types.ts";
 import { resolveInside } from "../lib/paths.ts";
+import type { Tool, ToolResult } from "../types.ts";
+import { buildTool } from "../types.ts";
 import type { LspClient } from "./client.ts";
 import type { Location } from "./protocol.ts";
 

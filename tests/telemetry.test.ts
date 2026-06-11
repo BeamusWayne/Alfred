@@ -10,21 +10,21 @@
  *   - tracerFromEnv() returns NoopExporter when ALFRED_OTEL_FILE is unset.
  */
 
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { rmSync, existsSync } from "node:fs";
 import {
-  Tracer,
   FileExporter,
-  NoopExporter,
-  tracerFromEnv,
   GEN_AI_OPERATION_NAME,
   GEN_AI_REQUEST_MODEL,
+  GEN_AI_TOOL_NAME,
   GEN_AI_USAGE_INPUT_TOKENS,
   GEN_AI_USAGE_OUTPUT_TOKENS,
-  GEN_AI_TOOL_NAME,
+  NoopExporter,
   type Span,
+  Tracer,
+  tracerFromEnv,
 } from "../src/telemetry/otel.ts";
 
 // ---------------------------------------------------------------------------

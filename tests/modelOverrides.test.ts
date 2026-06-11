@@ -4,8 +4,8 @@
  * (new prefixes); user entries win ties; invalid files warn and change
  * nothing.
  */
-import { test, expect, describe, afterEach } from "bun:test";
-import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { afterEach, describe, expect, test } from "bun:test";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {

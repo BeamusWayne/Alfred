@@ -15,9 +15,9 @@
  */
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
+import { resolveInside } from "../tools/lib/paths.ts";
 import type { Skill, SkillMeta } from "./types.ts";
 import { SkillFrontmatterSchema } from "./types.ts";
-import { resolveInside } from "../tools/lib/paths.ts";
 
 // ---------------------------------------------------------------------------
 // Internal helpers

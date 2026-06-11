@@ -6,7 +6,7 @@
  * invalid model name (400) — must be non-retryable so the loop fails fast
  * instead of replaying the identical request through the backoff budget.
  */
-import { describe, test, expect } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import Anthropic from "@anthropic-ai/sdk";
 import { toProviderError } from "../src/providers/anthropic.ts";
 import { ProviderError } from "../src/providers/types.ts";

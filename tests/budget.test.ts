@@ -2,7 +2,7 @@
  * Tests for src/orchestrator/budget.ts — ADR 0001 §5 (token budget).
  */
 
-import { describe, test, expect } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { Budget } from "../src/orchestrator/budget.ts";
 import type { Usage } from "../src/providers/types.ts";
 

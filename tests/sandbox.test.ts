@@ -10,10 +10,10 @@
  *   - `defaultPolicy`  — includes workingDir and /tmp, network denied
  */
 
-import { describe, test, expect } from "bun:test";
-import { seatbeltProfile } from "../src/sandbox/seatbelt.ts";
-import { sandboxAvailable, wrapCommand, defaultPolicy } from "../src/sandbox/index.ts";
+import { describe, expect, test } from "bun:test";
 import type { SandboxPolicy } from "../src/sandbox/index.ts";
+import { defaultPolicy, sandboxAvailable, wrapCommand } from "../src/sandbox/index.ts";
+import { seatbeltProfile } from "../src/sandbox/seatbelt.ts";
 
 // ---------------------------------------------------------------------------
 // seatbeltProfile

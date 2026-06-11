@@ -4,6 +4,57 @@ All notable changes to Alfred are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/) (0.x: minor = feature rounds, patch = fixes).
 
+## [0.3.0] — 2026-06-11
+
+The CLI UX round: the front door, the run-time face, and the post-run audit.
+The product is still the unattended run — these surfaces get you into it, keep
+it legible, and make its receipts usable.
+
+### Added
+- **Thin REPL** — bare `alfred` on a TTY opens an interactive session:
+  multi-turn (engine-native via `QueryConfig.initialMessages`), interactive
+  tool approval, `/status` `/clear` `/cost` `/help`, session cost on exit.
+  A porch, not a TUI — by design.
+- **Interactive tool approval** — the permission stack's `ask` now really
+  asks on a TTY (`[y/N/a]`, with per-tool "always" for the session). `--yes`
+  stays the headless bypass. Previously the CLI had no approver, so `ask`
+  always denied.
+- **`alfred demo`** — the zero-key offline proof, now built into the npm
+  package: scaffolds a RED sandbox, shows the gate fail, lets the scripted
+  model drive the REAL harness to green, verifies the signed ledger, then
+  flips one byte in a copy and shows the tamper caught. `bunx alfred-agent
+  demo` works with no clone and no key.
+- **`alfred why [runId]`** — explain a run from its own receipts (ledger +
+  journal): which features blocked, verify exit codes, rubric verdicts and
+  reasoning, with paths to the evidence. `--json` for machines.
+- **`alfred ledger show [path] [--md]`** — render a receipt as a table;
+  `--md` is paste-ready for PR descriptions.
+- **`alfred init`** — scaffold `feature_list.json` (+ a `.gitignore` entry)
+  with the exact next commands.
+- **`alfred status`** (also what bare `alfred` prints off-TTY) — provider/key,
+  feature_list counts, last run, and contextual next steps.
+- **`alfred completion bash|zsh`**.
+- **Human-readable `alfred run` progress** by default (one line per harness
+  event, `terraform apply` style); `--json` keeps the raw event stream on
+  stdout for machines.
+- `echo "question" | alfred -p` — print mode reads the prompt from stdin.
+- `NO_COLOR` honoured across every surface.
+
+### Changed
+- A missing API key now fails at the front door with the exact `export` line
+  and the keyless alternative (`alfred demo`) instead of warning and then
+  dying inside the SDK.
+- **Exit-code contract**: 0 success · 1 failure / not found · **2 tampered**
+  (`ledger verify` and `ledger show`). Tamper previously exited 1.
+- The README demo GIF is re-recorded with the human run renderer, and
+  `docs/demo.tape` now binds `alfred` to the checked-out source so a regen
+  always records the current code.
+
+### Internal
+- CLI plumbing extracted to `src/cli/` (session, colors, approve, status,
+  renderRun, repl, demo, init, why, ledgerShow, completion); the engine
+  gained `initialMessages`. 826 tests (+29).
+
 ## [0.2.2] — 2026-06-11
 
 First npm release, published as

@@ -5,8 +5,8 @@
  * temp directory. The temp directory is cleaned up after each test group.
  */
 
-import { describe, test, expect, beforeAll, afterAll } from "bun:test";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadHooksConfig, runHooks } from "../src/hooks/engine.ts";

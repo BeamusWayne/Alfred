@@ -4,9 +4,9 @@
  * All tests inject a fake fetcher — no real network traffic.
  */
 import { describe, expect, test } from "bun:test";
-import { OpenAIProvider, type Fetcher } from "../src/providers/openai.ts";
+import { type Fetcher, OpenAIProvider } from "../src/providers/openai.ts";
+import type { Message, ProviderConfig, ToolDefinition } from "../src/providers/types.ts";
 import { ProviderError } from "../src/providers/types.ts";
-import type { Message, ToolDefinition, ProviderConfig } from "../src/providers/types.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers

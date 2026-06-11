@@ -9,15 +9,16 @@
  *   - post-edit syntax check: reject an edit whose result would not parse
  *     (ADR 0002), so syntactically broken code is never written to disk.
  */
-import { z } from "zod";
+
 import { stat } from "node:fs/promises";
-import { buildTool } from "./types.ts";
-import type { ToolResult } from "./types.ts";
+import { z } from "zod";
 import type { PermissionResult, ToolPermissionContext } from "../permissions/types.ts";
 import { allow, ask, deny } from "../permissions/types.ts";
 import { isInside, resolveInside } from "./lib/paths.ts";
 import { locate } from "./lib/seekSequence.ts";
 import { checkSyntax } from "./lib/syntaxCheck.ts";
+import type { ToolResult } from "./types.ts";
+import { buildTool } from "./types.ts";
 
 const inputSchema = z.object({
   path: z.string().describe("File to edit (absolute or relative to workspace root)"),

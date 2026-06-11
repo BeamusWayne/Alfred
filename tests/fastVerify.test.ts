@@ -2,19 +2,19 @@
  * Fast verify pre-gate (--verify-fast): a cheap failure signal short-circuits
  * the fix loop; ONLY the full gate's exit 0 can mark a feature passing.
  */
-import { test, expect, describe } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  autonomousRun,
-  type AutonomousEvent,
-} from "../src/orchestrator/workflows/autonomousRun.ts";
-import { createRuntime } from "../src/orchestrator/runtime.ts";
 import { Journal } from "../src/orchestrator/journal.ts";
 import { Ledger } from "../src/orchestrator/ledger.ts";
-import { MockProvider, textResponse, toolUseResponse, type Script } from "../src/providers/mock.ts";
+import { createRuntime } from "../src/orchestrator/runtime.ts";
+import {
+  type AutonomousEvent,
+  autonomousRun,
+} from "../src/orchestrator/workflows/autonomousRun.ts";
 import type { ToolPermissionContext } from "../src/permissions/types.ts";
+import { MockProvider, type Script, textResponse, toolUseResponse } from "../src/providers/mock.ts";
 
 function perms(dir: string): ToolPermissionContext {
   return { mode: "bypass", allowedTools: new Set(), deniedTools: new Set(), workingDir: dir };

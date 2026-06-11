@@ -5,13 +5,13 @@
  * sub-directory and removes it on completion.
  */
 
-import { test, expect, describe, beforeAll, afterAll } from "bun:test";
-import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
-import { join } from "node:path";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { buildRepoMap } from "../src/context/repomap.ts";
-import { extractSymbols, langFor } from "../src/context/lib/symbols.ts";
+import { join } from "node:path";
 import { pageRank } from "../src/context/lib/pagerank.ts";
+import { extractSymbols, langFor } from "../src/context/lib/symbols.ts";
+import { buildRepoMap } from "../src/context/repomap.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers

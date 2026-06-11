@@ -15,8 +15,8 @@
 
 import type {
   JsonRpcId,
-  JsonRpcRequest,
   JsonRpcNotification,
+  JsonRpcRequest,
   JsonRpcResponse,
   McpContentItem,
   McpTool,

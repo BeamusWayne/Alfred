@@ -1,4 +1,4 @@
-import { test, expect, describe } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { evaluatePermission } from "../src/permissions/evaluate.ts";
 import {
   allow,

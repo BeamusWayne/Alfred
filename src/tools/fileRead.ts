@@ -5,11 +5,12 @@
  * §7.2): you cannot edit a file you never read, and a concurrent external
  * change is detected instead of silently clobbered.
  */
-import { z } from "zod";
+
 import { stat } from "node:fs/promises";
-import { buildTool } from "./types.ts";
-import type { ToolResult } from "./types.ts";
+import { z } from "zod";
 import { resolveInside } from "./lib/paths.ts";
+import type { ToolResult } from "./types.ts";
+import { buildTool } from "./types.ts";
 
 const inputSchema = z.object({
   path: z.string().describe("File path (absolute, or relative to the workspace root)"),

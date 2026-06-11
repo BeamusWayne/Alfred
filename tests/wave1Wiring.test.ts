@@ -4,20 +4,20 @@
  * output (ADR 0003), and the architect/editor split + episode records +
  * ledger-as-span in the harness (ADR 0005 / §4 / 0004).
  */
-import { describe, test, expect, afterEach } from "bun:test";
-import { z } from "zod";
+import { afterEach, describe, expect, test } from "bun:test";
+import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { mkdtemp, rm, readdir } from "node:fs/promises";
-import { runQuery } from "../src/query/engine.ts";
-import { MockProvider, textResponse, toolUseResponse, type Script } from "../src/providers/mock.ts";
-import { buildTool } from "../src/tools/types.ts";
-import { allow } from "../src/permissions/types.ts";
-import { Ledger } from "../src/orchestrator/ledger.ts";
+import { z } from "zod";
+import type { Fact, MemoryProvider } from "../src/memory/types.ts";
 import { Journal } from "../src/orchestrator/journal.ts";
+import { Ledger } from "../src/orchestrator/ledger.ts";
 import { createRuntime } from "../src/orchestrator/runtime.ts";
 import { autonomousRun } from "../src/orchestrator/workflows/autonomousRun.ts";
-import type { MemoryProvider, Fact } from "../src/memory/types.ts";
+import { allow } from "../src/permissions/types.ts";
+import { MockProvider, type Script, textResponse, toolUseResponse } from "../src/providers/mock.ts";
+import { runQuery } from "../src/query/engine.ts";
+import { buildTool } from "../src/tools/types.ts";
 
 const tmps: string[] = [];
 afterEach(async () => {

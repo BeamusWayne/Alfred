@@ -5,10 +5,10 @@
  * script and asserts observable properties: terminal status, tool call
  * sequence, text output, and count ceilings.
  */
-import { describe, test, expect } from "bun:test";
-import { textResponse, toolUseResponse } from "../src/providers/mock.ts";
-import { runEvalCase, runEvalSuite, formatReport } from "../src/eval/runner.ts";
+import { describe, expect, test } from "bun:test";
+import { formatReport, runEvalCase, runEvalSuite } from "../src/eval/runner.ts";
 import type { EvalCase } from "../src/eval/types.ts";
+import { textResponse, toolUseResponse } from "../src/providers/mock.ts";
 
 // ---------------------------------------------------------------------------
 // Shared eval cases

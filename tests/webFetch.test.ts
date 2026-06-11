@@ -3,10 +3,10 @@
  *
  * All tests use an injected fake `fetcher` — no real network calls are made.
  */
-import { describe, test, expect } from "bun:test";
-import { policyFromEnv, fetchWithPolicy, webFetchTool } from "../src/tools/webFetch.ts";
-import type { Fetcher } from "../src/tools/webFetch.ts";
+import { describe, expect, test } from "bun:test";
 import { DEFAULT_EGRESS_POLICY } from "../src/security/egress.ts";
+import type { Fetcher } from "../src/tools/webFetch.ts";
+import { fetchWithPolicy, policyFromEnv, webFetchTool } from "../src/tools/webFetch.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers

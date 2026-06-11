@@ -1,8 +1,8 @@
-import { test, expect, describe, afterEach } from "bun:test";
-import { mkdtemp, mkdir, writeFile, symlink, rm, realpath } from "node:fs/promises";
+import { afterEach, describe, expect, test } from "bun:test";
+import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { resolveInside, isInside, PathEscapeError } from "../src/tools/lib/paths.ts";
+import { isInside, PathEscapeError, resolveInside } from "../src/tools/lib/paths.ts";
 
 describe("resolveInside", () => {
   const root = "/work/project";

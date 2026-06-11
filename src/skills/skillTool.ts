@@ -11,12 +11,13 @@
  *
  * ADR 0001 §7.6 (3-level skills = procedural memory, progressive disclosure).
  */
-import { z } from "zod";
+
 import { join } from "node:path";
-import { buildTool } from "../tools/types.ts";
+import { z } from "zod";
 import { allow } from "../permissions/types.ts";
-import { loadSkill } from "./loader.ts";
 import type { Tool } from "../tools/types.ts";
+import { buildTool } from "../tools/types.ts";
+import { loadSkill } from "./loader.ts";
 
 // ---------------------------------------------------------------------------
 // Input schema

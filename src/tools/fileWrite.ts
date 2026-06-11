@@ -3,13 +3,14 @@
  * `default` mode and auto-allows under `acceptEdits` (the tool owns that
  * semantic; the evaluator stays generic). Path-jailed to the workspace.
  */
-import { z } from "zod";
+
 import { stat } from "node:fs/promises";
-import { buildTool } from "./types.ts";
-import type { ToolResult } from "./types.ts";
+import { z } from "zod";
 import type { PermissionResult, ToolPermissionContext } from "../permissions/types.ts";
 import { allow, ask, deny } from "../permissions/types.ts";
 import { isInside, resolveInside } from "./lib/paths.ts";
+import type { ToolResult } from "./types.ts";
+import { buildTool } from "./types.ts";
 
 const inputSchema = z.object({
   path: z.string().describe("File path to write (absolute or relative to workspace root)"),

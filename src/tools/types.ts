@@ -9,9 +9,9 @@
  * NOT concurrency-safe and NOT auto-allowed unless it says so.
  */
 import type { z } from "zod";
-import type { ContentBlock } from "../providers/types.ts";
 import type { PermissionResult, ToolPermissionContext } from "../permissions/types.ts";
 import { allow } from "../permissions/types.ts";
+import type { ContentBlock } from "../providers/types.ts";
 
 export interface ToolResult<T = unknown> {
   readonly content: T;

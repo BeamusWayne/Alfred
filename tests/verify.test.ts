@@ -1,9 +1,9 @@
 /**
  * Tests for the objective verify gate — ADR 0001 §7.7 (objective verify gate)
  */
-import { describe, test, expect } from "bun:test";
-import { runVerify, passed } from "../src/harness/verify.ts";
+import { describe, expect, test } from "bun:test";
 import * as os from "node:os";
+import { passed, runVerify } from "../src/harness/verify.ts";
 
 const cwd = os.tmpdir();
 

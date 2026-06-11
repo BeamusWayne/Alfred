@@ -11,12 +11,12 @@
  *  - canonical serialisation is key-order independent
  */
 
-import { describe, test, expect, afterEach } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
+import { mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { rm, mkdir } from "node:fs/promises";
-import { Ledger } from "../src/orchestrator/ledger.ts";
 import type { LedgerEntry } from "../src/orchestrator/ledger.ts";
+import { Ledger } from "../src/orchestrator/ledger.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers

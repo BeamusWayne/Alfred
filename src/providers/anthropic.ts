@@ -8,20 +8,20 @@
  *     loop's backoff layer can do its job.
  */
 import Anthropic from "@anthropic-ai/sdk";
+import { defaultMaxTokens, modelProfile } from "../config/modelCatalog.ts";
 import {
-  ProviderError,
   type ChatOptions,
   type ContentBlock,
   type LLMResponse,
   type Message,
   type Provider,
   type ProviderConfig,
+  ProviderError,
   type StopReason,
   type StreamEvent,
   type ToolDefinition,
   type Usage,
 } from "./types.ts";
-import { defaultMaxTokens, modelProfile } from "../config/modelCatalog.ts";
 
 const RETRYABLE_STATUS = new Set([408, 409, 429, 500, 502, 503, 504, 529]);
 

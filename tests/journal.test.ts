@@ -6,10 +6,10 @@
  * defensive behaviour, and concurrent-append safety.
  */
 
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { mkdir, rm, writeFile } from "node:fs/promises";
 import { Journal } from "../src/orchestrator/journal.ts";
 
 // ---------------------------------------------------------------------------

@@ -6,11 +6,11 @@
  * on cleanup — the real project repo is never touched.
  */
 
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { mkdtemp, rm, writeFile, readFile } from "node:fs/promises";
-import { isGitRepo, currentSha, checkpoint, rollback } from "../src/harness/checkpoint.ts";
+import { checkpoint, currentSha, isGitRepo, rollback } from "../src/harness/checkpoint.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -16,9 +16,10 @@
  * scans every fact for expired TTL or a scope path that no longer exists, then
  * moves those facts to archive/ (ADR 0001 §4).
  */
+
+import { Database } from "bun:sqlite";
 import { mkdir, readdir, unlink } from "node:fs/promises";
 import { join } from "node:path";
-import { Database } from "bun:sqlite";
 import type { Fact, FactFrontmatter, MemoryBlock, MemoryProvider } from "./types.ts";
 import { FactFrontmatterSchema } from "./types.ts";
 

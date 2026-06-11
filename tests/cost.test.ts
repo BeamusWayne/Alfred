@@ -11,8 +11,8 @@
  *   - CostTracker.withPricing() allows custom pricing tables.
  */
 
-import { describe, test, expect } from "bun:test";
-import { CostTracker, PRICING_TABLE, type ModelPricing } from "../src/cost/tracker.ts";
+import { describe, expect, test } from "bun:test";
+import { CostTracker, type ModelPricing, PRICING_TABLE } from "../src/cost/tracker.ts";
 import type { Usage } from "../src/providers/types.ts";
 
 // ---------------------------------------------------------------------------

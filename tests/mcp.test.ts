@@ -8,7 +8,7 @@
  * exercises the client's correlation + parsing logic in isolation.
  */
 
-import { describe, test, expect } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { McpClient } from "../src/mcp/client.ts";
 import { mcpToolToAlfredTool } from "../src/mcp/toolAdapter.ts";
 import type { McpTransport } from "../src/mcp/types.ts";

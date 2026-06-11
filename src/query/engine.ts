@@ -16,19 +16,43 @@
  *   - fences untrusted tool output and can route it through a dual-LLM
  *     quarantine (ADR 0003); emits OTel GenAI spans + a running cost (ADR 0004).
  */
+
+import { z } from "zod";
+import { editContext } from "../compact/contextEdit.ts";
+import { compact, shouldCompact } from "../compact/engine.ts";
+import { estimateMessages } from "../compact/tokens.ts";
+import { defaultEffortForRole, modelProfile } from "../config/modelCatalog.ts";
+import { fallbackChain, type RoleSpec, type RoleTarget, resolveRole } from "../config/roles.ts";
+import { CostTracker } from "../cost/tracker.ts";
+import { runHooks } from "../hooks/engine.ts";
+import type { HooksConfig } from "../hooks/types.ts";
+import { evaluatePermission } from "../permissions/evaluate.ts";
+import { getProvider } from "../providers/index.ts";
 import {
   addUsage,
-  ProviderError,
-  ZERO_USAGE,
   type LLMResponse,
   type Message,
+  ProviderError,
   type ToolDefinition,
   type Usage,
+  ZERO_USAGE,
 } from "../providers/types.ts";
-import { z } from "zod";
-import { getAllTools, findTool } from "../tools/index.ts";
+import { quarantineExtract } from "../security/quarantine.ts";
+import { fence, type TaintSource } from "../security/taint.ts";
+import {
+  GEN_AI_OPERATION_NAME,
+  GEN_AI_REQUEST_MODEL,
+  GEN_AI_SYSTEM,
+  GEN_AI_TOOL_NAME,
+  GEN_AI_USAGE_INPUT_TOKENS,
+  GEN_AI_USAGE_OUTPUT_TOKENS,
+  type SpanHandle,
+  type Tracer,
+  tracerFromEnv,
+} from "../telemetry/otel.ts";
+import { READONLY_SUBAGENT_TOOLS } from "../tools/agentTool.ts";
+import { findTool, getAllTools } from "../tools/index.ts";
 import type { Tool, ToolContext } from "../tools/types.ts";
-import { evaluatePermission } from "../permissions/evaluate.ts";
 import { computeDelay, isRetryable, retryAfterMs, sleep } from "./retry.ts";
 import type {
   ApprovalRequest,
@@ -37,29 +61,6 @@ import type {
   QueryState,
   TerminalStatus,
 } from "./types.ts";
-import { CostTracker } from "../cost/tracker.ts";
-import {
-  tracerFromEnv,
-  GEN_AI_OPERATION_NAME,
-  GEN_AI_SYSTEM,
-  GEN_AI_REQUEST_MODEL,
-  GEN_AI_USAGE_INPUT_TOKENS,
-  GEN_AI_USAGE_OUTPUT_TOKENS,
-  GEN_AI_TOOL_NAME,
-  type Tracer,
-  type SpanHandle,
-} from "../telemetry/otel.ts";
-import { shouldCompact, compact } from "../compact/engine.ts";
-import { editContext } from "../compact/contextEdit.ts";
-import { estimateMessages } from "../compact/tokens.ts";
-import { fallbackChain, resolveRole, type RoleSpec, type RoleTarget } from "../config/roles.ts";
-import { READONLY_SUBAGENT_TOOLS } from "../tools/agentTool.ts";
-import { defaultEffortForRole, modelProfile } from "../config/modelCatalog.ts";
-import { getProvider } from "../providers/index.ts";
-import { fence, type TaintSource } from "../security/taint.ts";
-import { quarantineExtract } from "../security/quarantine.ts";
-import { runHooks } from "../hooks/engine.ts";
-import type { HooksConfig } from "../hooks/types.ts";
 
 const DEFAULT_MAX_TURNS = 50;
 const DEFAULT_MAX_RETRIES = 5;
@@ -447,7 +448,10 @@ export async function* runQuery(
   });
   let cost = new CostTracker();
 
-  const messages: Message[] = [{ role: "user", content: firstMessage }];
+  const messages: Message[] = [
+    ...(config.initialMessages ?? []),
+    { role: "user", content: firstMessage },
+  ];
   let usage: Usage = ZERO_USAGE;
   let turns = 0;
   // Abnormal-stop counters: bounded so a model that truncates or pauses every

@@ -9,12 +9,12 @@
  * primitive end-to-end with a real Runtime.
  */
 
-import { describe, test, expect } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { z } from "zod";
-import { MockProvider, toolUseResponse, textResponse } from "../src/providers/mock.ts";
-import { createRuntime } from "../src/orchestrator/runtime.ts";
 import type { AgentRun } from "../src/orchestrator/agent.ts";
+import { createRuntime } from "../src/orchestrator/runtime.ts";
 import { bestOfN } from "../src/orchestrator/workflows/bestOfN.ts";
+import { MockProvider, textResponse, toolUseResponse } from "../src/providers/mock.ts";
 
 // ---------------------------------------------------------------------------
 // Shared schema + types

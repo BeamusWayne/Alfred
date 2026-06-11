@@ -4,7 +4,7 @@
  * parameter it would 400 on, and capable models get their long-task features
  * (adaptive thinking, effort, task_budget) without per-call site plumbing.
  */
-import { describe, test, expect } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { buildRequest, fromContent, toAnthropicMessages } from "../src/providers/anthropic.ts";
 import type { Message, ProviderConfig } from "../src/providers/types.ts";
 

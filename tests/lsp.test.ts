@@ -16,14 +16,14 @@
  *   - lsp_definition tool returns compact formatted output
  */
 
-import { describe, test, expect } from "bun:test";
-import { mkdtemp, writeFile, rm, realpath } from "node:fs/promises";
+import { describe, expect, test } from "bun:test";
+import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { LspClient } from "../src/tools/lsp/client.ts";
-import { makeLspTools } from "../src/tools/lsp/tools.ts";
-import { encodeMessage, createFrameParser } from "../src/tools/lsp/protocol.ts";
 import type { LspTransport } from "../src/tools/lsp/protocol.ts";
+import { createFrameParser, encodeMessage } from "../src/tools/lsp/protocol.ts";
+import { makeLspTools } from "../src/tools/lsp/tools.ts";
 
 // ---------------------------------------------------------------------------
 // In-memory fake transport

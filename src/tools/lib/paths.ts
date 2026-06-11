@@ -12,8 +12,9 @@
  *      follow symlinks, so without this a `link -> /etc` inside the root would
  *      let `link/passwd` escape.
  */
-import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
+
 import { realpathSync } from "node:fs";
+import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 
 export class PathEscapeError extends Error {
   constructor(

@@ -15,11 +15,11 @@
 import { z } from "zod";
 import { McpClient, stdioTransport as mcpStdioTransport } from "../mcp/client.ts";
 import { mcpToolToAlfredTool } from "../mcp/toolAdapter.ts";
+import type { McpTransport } from "../mcp/types.ts";
+import type { LspTransport } from "../tools/lsp/client.ts";
 import { LspClient, stdioTransport as lspStdioTransport } from "../tools/lsp/client.ts";
 import { makeLspTools } from "../tools/lsp/tools.ts";
 import type { Tool } from "../tools/types.ts";
-import type { McpTransport } from "../mcp/types.ts";
-import type { LspTransport } from "../tools/lsp/client.ts";
 
 /**
  * Default per-server connect/request timeout. Generous enough for a cold

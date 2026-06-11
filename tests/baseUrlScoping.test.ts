@@ -3,7 +3,7 @@
  * "Anthropic-compatible endpoint", e.g. Zhipu GLM). A real-world .env that
  * pins it for GLM must never poison Gemini/OpenAI request URLs.
  */
-import { test, expect, describe, afterEach } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import { loadConfig } from "../src/config/manager.ts";
 import { GoogleProvider } from "../src/providers/google.ts";
 import type { Message } from "../src/providers/types.ts";

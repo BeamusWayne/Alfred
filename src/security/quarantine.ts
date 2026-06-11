@@ -13,10 +13,10 @@
 
 import type { z } from "zod";
 import { runAgent } from "../orchestrator/agent.ts";
-import { fence } from "./taint.ts";
-import type { TaintSource } from "./taint.ts";
-import type { Provider } from "../providers/types.ts";
 import type { ToolPermissionContext } from "../permissions/types.ts";
+import type { Provider } from "../providers/types.ts";
+import type { TaintSource } from "./taint.ts";
+import { fence } from "./taint.ts";
 
 // ---------------------------------------------------------------------------
 // Public types

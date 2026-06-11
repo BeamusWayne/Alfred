@@ -3,16 +3,16 @@
  * invariant (tests present only at check time, never during the model's turns)
  * and the dual FAIL→PASS pass-condition with a signed ledger. No real model.
  */
-import { describe, test, expect, afterEach } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
+import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { mkdtemp, mkdir, rm, readdir, writeFile } from "node:fs/promises";
-import { runHeldOut, alfredBench, benchPassed, type BenchSpec } from "../src/bench/alfredBench.ts";
-import { autonomousRun } from "../src/orchestrator/workflows/autonomousRun.ts";
-import { MockProvider, textResponse, toolUseResponse, type Script } from "../src/providers/mock.ts";
-import { createRuntime } from "../src/orchestrator/runtime.ts";
+import { alfredBench, type BenchSpec, benchPassed, runHeldOut } from "../src/bench/alfredBench.ts";
 import { Journal } from "../src/orchestrator/journal.ts";
 import { Ledger } from "../src/orchestrator/ledger.ts";
+import { createRuntime } from "../src/orchestrator/runtime.ts";
+import { autonomousRun } from "../src/orchestrator/workflows/autonomousRun.ts";
+import { MockProvider, type Script, textResponse, toolUseResponse } from "../src/providers/mock.ts";
 
 const tmps: string[] = [];
 afterEach(async () => {

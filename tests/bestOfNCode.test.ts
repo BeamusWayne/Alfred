@@ -6,11 +6,11 @@
  * afterwards — the real project repo is never touched.
  */
 
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { mkdtemp, rm, writeFile, symlink } from "node:fs/promises";
-import { bestOfNCode, applyWinner } from "../src/orchestrator/workflows/bestOfNCode.ts";
+import { applyWinner, bestOfNCode } from "../src/orchestrator/workflows/bestOfNCode.ts";
 
 // ---------------------------------------------------------------------------
 // Git spawn helper (mirrors checkpoint.test.ts)

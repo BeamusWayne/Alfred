@@ -18,11 +18,11 @@
  * always left with a clean worktree list regardless of errors.
  */
 
+import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { mkdtemp } from "node:fs/promises";
-import { runVerify, passed } from "../../harness/verify.ts";
-import { resolveInside, PathEscapeError } from "../../tools/lib/paths.ts";
+import { passed, runVerify } from "../../harness/verify.ts";
+import { PathEscapeError, resolveInside } from "../../tools/lib/paths.ts";
 
 /**
  * Copy one worktree file into `cwd`, refusing to read through a symlink that

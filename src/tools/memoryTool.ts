@@ -9,14 +9,15 @@
  * The provider is rooted at `${ctx.workingDir}/.alfred/memory` so every
  * workspace gets its own isolated memory store.
  */
-import { z } from "zod";
+
 import { join } from "node:path";
-import { buildTool } from "./types.ts";
-import type { ToolResult } from "./types.ts";
+import { z } from "zod";
 import { LocalFileProvider } from "../memory/localFile.ts";
-import { FactTypeSchema } from "../memory/types.ts";
 import type { Fact } from "../memory/types.ts";
+import { FactTypeSchema } from "../memory/types.ts";
 import { allow } from "../permissions/types.ts";
+import type { ToolResult } from "./types.ts";
+import { buildTool } from "./types.ts";
 
 // ---------------------------------------------------------------------------
 // Shared provider factory (one instance per working dir per process)

@@ -13,21 +13,21 @@
  * assistant turn's `tool_use` blocks.
  */
 
+import { modelProfile } from "../config/modelCatalog.ts";
+import { sseData } from "./sse.ts";
 import {
-  ProviderError,
   type ChatOptions,
   type ContentBlock,
   type LLMResponse,
   type Message,
   type Provider,
   type ProviderConfig,
+  ProviderError,
   type StopReason,
   type StreamEvent,
   type ToolDefinition,
   type Usage,
 } from "./types.ts";
-import { sseData } from "./sse.ts";
-import { modelProfile } from "../config/modelCatalog.ts";
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
 

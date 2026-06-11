@@ -11,16 +11,16 @@
  *   - bootstrapExtensions: empty working dir → {tools:[], close} + close resolves
  */
 
-import { describe, test, expect } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
-import * as path from "node:path";
 import * as os from "node:os";
+import * as path from "node:path";
 
 import {
-  loadMcpConfig,
-  loadLspConfig,
-  buildMcpTools,
   bootstrapExtensions,
+  buildMcpTools,
+  loadLspConfig,
+  loadMcpConfig,
 } from "../src/extensions/bootstrap.ts";
 import { McpClient } from "../src/mcp/client.ts";
 import type { McpTransport } from "../src/mcp/types.ts";

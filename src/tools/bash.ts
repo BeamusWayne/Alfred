@@ -10,13 +10,14 @@
  * NOTE: string matching is UX, not a security boundary. The real boundary is
  * the OS sandbox; until it is enabled, bash asks by default.
  */
-import { z } from "zod";
+
 import { execFile } from "node:child_process";
-import { buildTool } from "./types.ts";
-import type { ToolResult } from "./types.ts";
+import { z } from "zod";
 import { ask, deny } from "../permissions/types.ts";
+import { defaultPolicy, wrapCommand } from "../sandbox/index.ts";
 import { resolveInside } from "./lib/paths.ts";
-import { wrapCommand, defaultPolicy } from "../sandbox/index.ts";
+import type { ToolResult } from "./types.ts";
+import { buildTool } from "./types.ts";
 
 const inputSchema = z.object({
   command: z.string().describe("Shell command to execute"),

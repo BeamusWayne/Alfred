@@ -14,8 +14,8 @@
 
 import { readdir } from "node:fs/promises";
 import { join, relative } from "node:path";
+import { type Edge, pageRank } from "./lib/pagerank.ts";
 import { extractSymbols, langFor, type SymbolMap } from "./lib/symbols.ts";
-import { pageRank, type Edge } from "./lib/pagerank.ts";
 
 // ---------------------------------------------------------------------------
 // Types

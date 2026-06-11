@@ -9,14 +9,14 @@
  *   - sub-run usage folds into the parent run's usage;
  *   - the sub-run rides the `subagent` role (cheap model + low effort).
  */
-import { test, expect, describe, beforeEach, afterEach } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { MockProvider, textResponse, toolUseResponse } from "../src/providers/mock.ts";
+import { type LLMResponse, type Provider, ZERO_USAGE } from "../src/providers/types.ts";
 import { runQuery } from "../src/query/engine.ts";
 import type { QueryConfig, QueryEvent, QueryState } from "../src/query/types.ts";
-import { MockProvider, textResponse, toolUseResponse } from "../src/providers/mock.ts";
-import { ZERO_USAGE, type LLMResponse, type Provider } from "../src/providers/types.ts";
 
 let dir: string;
 beforeEach(async () => {

@@ -1,6 +1,6 @@
-import { test, expect, describe } from "bun:test";
-import { isRetryable, computeDelay, retryAfterMs } from "../src/query/retry.ts";
+import { describe, expect, test } from "bun:test";
 import { ProviderError } from "../src/providers/types.ts";
+import { computeDelay, isRetryable, retryAfterMs } from "../src/query/retry.ts";
 
 describe("retry helpers", () => {
   test("isRetryable only for retryable ProviderError", () => {

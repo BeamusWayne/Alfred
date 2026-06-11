@@ -5,8 +5,8 @@
  *  - findLatestLedger: missing root → null; picks the newest run dir;
  *    skips run dirs without a ledger.jsonl
  *  - formatVerifyOutcome: intact vs tamper rendering
- *  - CLI: exits 0 on an intact ledger, 1 after a single-byte tamper,
- *    1 with guidance when no ledger exists
+ *  - CLI: exits 0 on an intact ledger, 2 after a single-byte tamper
+ *    (the documented tamper exit code), 1 with guidance when no ledger exists
  */
 
 import { afterEach, describe, expect, test } from "bun:test";
@@ -139,13 +139,13 @@ describe("alfred ledger verify (CLI)", () => {
     expect(r.stdout).toContain("✓ ledger intact — 2 rows");
   });
 
-  test("exits 1 and reports tamper after a single-byte edit", async () => {
+  test("exits 2 and reports tamper after a single-byte edit", async () => {
     const cwd = await makeTempDir();
     const path = await makeRun(cwd, "2026-06-11T09-00-00-000Z");
     const text = await Bun.file(path).text();
     await Bun.write(path, text.replace('"passing"', '"PASSING"'));
     const r = await runCli(cwd, ["ledger", "verify"], { ALFRED_LEDGER_SECRET: SECRET });
-    expect(r.code).toBe(1);
+    expect(r.code).toBe(2);
     expect(r.stdout).toContain("✗ TAMPER DETECTED at row 0");
   });
 

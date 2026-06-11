@@ -7,10 +7,10 @@
  * return ONLY a validated structured object.
  */
 
-import { describe, test, expect } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { z } from "zod";
-import { quarantineExtract } from "../src/security/quarantine.ts";
 import { MockProvider, textResponse, toolUseResponse } from "../src/providers/mock.ts";
+import { quarantineExtract } from "../src/security/quarantine.ts";
 
 // ---------------------------------------------------------------------------
 // Shared fixtures

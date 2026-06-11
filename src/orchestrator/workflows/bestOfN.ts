@@ -17,8 +17,8 @@
  */
 
 import type { z } from "zod";
-import type { Runtime } from "../runtime.ts";
 import type { AgentRun } from "../agent.ts";
+import type { Runtime } from "../runtime.ts";
 
 // ---------------------------------------------------------------------------
 // Public types

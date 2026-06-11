@@ -6,23 +6,22 @@
  * Covers: pickNext (deps + priority + skips non-pending), immutable transitions,
  * allResolved / counts, load/save round-trip, invalid JSON rejection.
  */
-import { describe, test, expect, afterEach } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
+import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { rm } from "node:fs/promises";
-
+import type { Feature, FeatureList, FeatureStatus } from "../src/harness/featureList.ts";
 import {
-  pickNext,
-  setStatus,
-  markInProgress,
-  markPassing,
-  markBlocked,
   allResolved,
   counts,
   loadFeatureList,
+  markBlocked,
+  markInProgress,
+  markPassing,
+  pickNext,
   saveFeatureList,
+  setStatus,
 } from "../src/harness/featureList.ts";
-import type { Feature, FeatureList, FeatureStatus } from "../src/harness/featureList.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers

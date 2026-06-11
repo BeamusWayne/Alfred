@@ -1,9 +1,9 @@
-import type { Effort, Message, Provider, Usage } from "../providers/types.ts";
-import type { ToolPermissionContext } from "../permissions/types.ts";
-import type { Tool } from "../tools/types.ts";
 import type { Role, RoleModelMap } from "../config/roles.ts";
 import type { HooksConfig } from "../hooks/types.ts";
 import type { MemoryProvider } from "../memory/types.ts";
+import type { ToolPermissionContext } from "../permissions/types.ts";
+import type { Effort, Message, Provider, Usage } from "../providers/types.ts";
+import type { Tool } from "../tools/types.ts";
 
 /**
  * How the loop ended — typed so a caller (REPL, headless runner, harness) can
@@ -55,6 +55,11 @@ export interface QueryConfig {
   readonly hooks?: HooksConfig;
   /** When present, the engine prefetches relevant facts before turn 1 (ADR 0001 §4). */
   readonly memory?: MemoryProvider;
+  /**
+   * Prior conversation to continue from (REPL multi-turn). The new user
+   * message is appended after these; the engine never mutates the array.
+   */
+  readonly initialMessages?: readonly Message[];
 }
 
 export type QueryEvent =

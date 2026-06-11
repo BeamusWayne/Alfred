@@ -5,12 +5,12 @@
  * prompt-cache friendly (ADR 0001 §4 / §7.4; ADR 0002 repo map; §7.6 skills).
  */
 import { join } from "node:path";
-import { BASE_SYSTEM_PROMPT } from "./systemPrompt.ts";
-import { getGitContext, formatGit, type GitContext } from "./git.ts";
-import { discoverProjectDocs, type ProjectDoc } from "./projectDocs.ts";
-import { buildRepoMap, type RepomapOptions } from "./repomap.ts";
 import { LocalFileProvider } from "../memory/localFile.ts";
 import { discoverSkills, renderSkillIndex } from "../skills/loader.ts";
+import { formatGit, type GitContext, getGitContext } from "./git.ts";
+import { discoverProjectDocs, type ProjectDoc } from "./projectDocs.ts";
+import { buildRepoMap, type RepomapOptions } from "./repomap.ts";
+import { BASE_SYSTEM_PROMPT } from "./systemPrompt.ts";
 
 export interface SystemContext {
   readonly workingDir: string;
@@ -130,6 +130,6 @@ export function buildSystemPrompt(ctx: SystemContext): string {
   return parts.join("\n\n");
 }
 
-export { buildSystemContext as default };
 export type { GitContext } from "./git.ts";
 export type { ProjectDoc } from "./projectDocs.ts";
+export { buildSystemContext as default };

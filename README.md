@@ -19,6 +19,9 @@ Alfred is not another Claude Code clone. Its thesis: the long-running harness is
 ## Quickstart
 
 ```bash
+# No clone, no key — the same offline proof ships in the npm package:
+bunx alfred-agent demo
+
 bun install
 
 # Zero-key offline demo: a scripted model drives the REAL harness end-to-end —
@@ -47,10 +50,19 @@ bun run typecheck # tsc --noEmit
 
 | Command | What it does |
 |---|---|
-| `alfred [prompt]` | One-shot agent run. `-p` print mode; `--model`, `--permission-mode`, `--max-turns`, `--yes`. |
-| `alfred run` | The **autonomous harness as a workflow**: a `feature_list.json` state machine → verify-fix loop → rubric gate → signed run ledger. Flags: `--feature-list`, `--verify`, `--max-features`, `--rollback-on-block`, `--budget-usd`. |
+| `alfred` | Bare: a thin REPL on a TTY (multi-turn, interactive `[y/N/a]` tool approval); the status screen everywhere else. |
+| `alfred [prompt]` | One-shot agent run. `-p` print mode (reads stdin when piped); `--model`, `--permission-mode`, `--max-turns`, `--yes`. |
+| `alfred run` | The **autonomous harness as a workflow**: a `feature_list.json` state machine → verify-fix loop → rubric gate → signed run ledger. Human progress by default, `--json` for the raw event stream. Flags: `--feature-list`, `--verify`, `--max-features`, `--rollback-on-block`, `--budget-usd`. |
+| `alfred demo` | **30-second offline proof** in a temp sandbox: RED gate → scripted model drives the real harness → signed ledger → one-byte tamper drill. No API key. |
+| `alfred init` | Scaffold `feature_list.json` (+ `.gitignore` entry) for `alfred run`. |
+| `alfred why [runId]` | Explain a run from its receipts: blocked features, verify exits, rubric reasoning (`--json`). |
 | `alfred eval <file>` | Replay recorded `MockProvider` trajectories through the real engine and assert tool-sequence / status / text regressions. Exits non-zero on failure. |
-| `alfred ledger verify [path]` | Recompute a run ledger's HMAC hash chain + signed head anchor (defaults to the latest run). Exit 1 on any tamper — flip one byte and it fails. |
+| `alfred ledger verify [path]` | Recompute a run ledger's HMAC hash chain + signed head anchor (defaults to the latest run). **Exit 2 on any tamper** — flip one byte and it fails. |
+| `alfred ledger show [--md]` | Render the receipt as a table; `--md` is paste-ready for a PR description. |
+| `alfred status` | Provider/key · feature_list · last run · next steps, at a glance. |
+| `alfred completion <shell>` | bash/zsh completion script. |
+
+Exit codes, everywhere: **0** success · **1** failure / not found · **2** ledger tampered.
 
 ---
 

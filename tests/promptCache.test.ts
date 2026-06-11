@@ -6,7 +6,7 @@
  * other blocks are untouched. With the system + last-tool marks this stays
  * within the API's 4-breakpoint maximum.
  */
-import { describe, test, expect } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { toAnthropicMessages } from "../src/providers/anthropic.ts";
 import type { Message } from "../src/providers/types.ts";
 

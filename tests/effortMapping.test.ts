@@ -3,11 +3,11 @@
  * Contract: the catalog decides; each provider translates to its own knob and
  * never sends a parameter the model would reject.
  */
-import { describe, test, expect } from "bun:test";
-import { requestBody } from "../src/providers/openai.ts";
-import { GoogleProvider } from "../src/providers/google.ts";
-import { buildRequest } from "../src/providers/anthropic.ts";
+import { describe, expect, test } from "bun:test";
 import { toStrictJsonSchema } from "../src/orchestrator/strictSchema.ts";
+import { buildRequest } from "../src/providers/anthropic.ts";
+import { GoogleProvider } from "../src/providers/google.ts";
+import { requestBody } from "../src/providers/openai.ts";
 import type { Message } from "../src/providers/types.ts";
 
 const MSGS: readonly Message[] = [{ role: "user", content: "hi" }];

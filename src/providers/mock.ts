@@ -4,7 +4,6 @@
  * retry), or a function of the current messages. The last script repeats.
  */
 import {
-  ZERO_USAGE,
   type ContentBlock,
   type LLMResponse,
   type Message,
@@ -12,6 +11,7 @@ import {
   type ProviderConfig,
   type StopReason,
   type ToolDefinition,
+  ZERO_USAGE,
 } from "./types.ts";
 
 export type Script =

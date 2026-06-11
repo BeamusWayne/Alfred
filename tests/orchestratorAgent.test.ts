@@ -8,11 +8,11 @@
  *  3. no-schema path — plain text response, data is null
  */
 
-import { describe, test, expect } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { z } from "zod";
 import { runAgent } from "../src/orchestrator/agent.ts";
-import { MockProvider, textResponse, toolUseResponse } from "../src/providers/mock.ts";
 import type { ToolPermissionContext } from "../src/permissions/types.ts";
+import { MockProvider, textResponse, toolUseResponse } from "../src/providers/mock.ts";
 
 // ---------------------------------------------------------------------------
 // Shared fixtures

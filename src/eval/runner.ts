@@ -8,8 +8,9 @@
  * Only the provider is mocked; the full engine + permission + tool stack
  * executes as in production, ensuring regressions are caught before shipping.
  */
-import { runQuery } from "../query/engine.ts";
+
 import { MockProvider } from "../providers/mock.ts";
+import { runQuery } from "../query/engine.ts";
 import type { QueryEvent, QueryState } from "../query/types.ts";
 import type { EvalCase, EvalReport, EvalResult } from "./types.ts";
 

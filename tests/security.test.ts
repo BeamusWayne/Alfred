@@ -2,10 +2,10 @@
  * Tests for the ADR 0003 security modules: taint fence, egress policy, and
  * secret redaction.
  */
-import { describe, test, expect } from "bun:test";
-import { fence, isTainted } from "../src/security/taint.ts";
+import { describe, expect, test } from "bun:test";
 import { checkEgress, DEFAULT_EGRESS_POLICY, type EgressPolicy } from "../src/security/egress.ts";
 import { redact } from "../src/security/redact.ts";
+import { fence, isTainted } from "../src/security/taint.ts";
 
 // ---------------------------------------------------------------------------
 // taint.ts

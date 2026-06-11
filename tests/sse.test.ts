@@ -1,4 +1,4 @@
-import { describe, test, expect } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { sseData } from "../src/providers/sse.ts";
 
 function streamOf(chunks: readonly string[]): ReadableStream<Uint8Array> {

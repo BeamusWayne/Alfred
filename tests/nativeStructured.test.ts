@@ -4,11 +4,11 @@
  * structured_output tool and constrain the response directly. Models without
  * support (and strict-unsafe schemas) keep the synthetic-tool path.
  */
-import { describe, test, expect } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { z } from "zod";
 import { runAgent } from "../src/orchestrator/agent.ts";
-import { MockProvider, textResponse, toolUseResponse } from "../src/providers/mock.ts";
 import type { ToolPermissionContext } from "../src/permissions/types.ts";
+import { MockProvider, textResponse, toolUseResponse } from "../src/providers/mock.ts";
 
 const PERMS: ToolPermissionContext = {
   mode: "bypass",

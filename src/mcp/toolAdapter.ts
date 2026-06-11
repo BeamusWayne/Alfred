@@ -14,11 +14,11 @@
  */
 
 import { z } from "zod";
-import { buildTool } from "../tools/types.ts";
-import type { Tool, ToolResult } from "../tools/types.ts";
 import { ask } from "../permissions/types.ts";
-import type { McpTool } from "./types.ts";
+import type { Tool, ToolResult } from "../tools/types.ts";
+import { buildTool } from "../tools/types.ts";
 import type { McpClient } from "./client.ts";
+import type { McpTool } from "./types.ts";
 
 /** Permissive input schema accepted by all adapted MCP tools. */
 const mcpInputSchema = z.record(z.string(), z.unknown());

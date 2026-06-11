@@ -1,11 +1,11 @@
-import { test, expect, describe, beforeEach, afterEach } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { MockProvider, textResponse, toolUseResponse } from "../src/providers/mock.ts";
+import { type Provider, ProviderError } from "../src/providers/types.ts";
 import { runQuery } from "../src/query/engine.ts";
 import type { QueryConfig, QueryEvent, QueryState } from "../src/query/types.ts";
-import { MockProvider, textResponse, toolUseResponse } from "../src/providers/mock.ts";
-import { ProviderError, type Provider } from "../src/providers/types.ts";
 
 let dir: string;
 beforeEach(async () => {
