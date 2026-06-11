@@ -4,7 +4,10 @@ All notable changes to Alfred are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/) (0.x: minor = feature rounds, patch = fixes).
 
-## [Unreleased]
+## [0.5.0] — 2026-06-11
+
+Onboarding round: `bun install -g alfred-agent` → `alfred init` → `alfred run`
+is now the whole setup, credentials included.
 
 ### Added
 - **`alfred init` provider setup** — on a TTY, init now also asks for the
