@@ -56,6 +56,7 @@ bun run typecheck # tsc --noEmit
 | `alfred demo` | **30-second offline proof** in a temp sandbox: RED gate → scripted model drives the real harness → signed ledger → one-byte tamper drill. No API key. |
 | `alfred init` | Scaffold `feature_list.json` (+ `.gitignore` entry) for `alfred run`. |
 | `alfred why [runId]` | Explain a run from its receipts: blocked features, verify exits, rubric reasoning (`--json`). |
+| `alfred watch [path]` | Follow a run's journal + ledger as a **read-only live panel** — attach from another terminal, or replay a finished run. Sticky status line: elapsed · features · spend. |
 | `alfred eval <file>` | Replay recorded `MockProvider` trajectories through the real engine and assert tool-sequence / status / text regressions. Exits non-zero on failure. |
 | `alfred ledger verify [path]` | Recompute a run ledger's HMAC hash chain + signed head anchor (defaults to the latest run). **Exit 2 on any tamper** — flip one byte and it fails. |
 | `alfred ledger show [--md]` | Render the receipt as a table; `--md` is paste-ready for a PR description. |

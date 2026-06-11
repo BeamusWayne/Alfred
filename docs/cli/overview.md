@@ -14,7 +14,8 @@ Bare `alfred` (no prompt) opens a **thin REPL** on a TTY — multi-turn, with
 interactive `[y/N/a]` tool approval and `/status` `/cost` `/clear` `/help` —
 and prints the **status screen** (provider/key, feature_list, last run, next
 steps) everywhere else. `alfred status`, `alfred demo`, `alfred init`,
-`alfred why` and `alfred completion <shell>` round out the 0.3.0 surface; the
+`alfred why`, `alfred watch` and `alfred completion <shell>` round out the
+0.3.0 surface; the
 [README command table](https://github.com/BeamusWayne/Alfred#commands) has the
 one-line summary of each.
 

@@ -8,6 +8,7 @@
  *   alfred demo            offline proof in a sandbox — no API key needed
  *   alfred init            scaffold feature_list.json for `alfred run`
  *   alfred why [runId]     explain a run from its receipts (what blocked, and why)
+ *   alfred watch [path]    follow a run's journal + ledger live (replays finished runs)
  *   alfred eval <file>     replay recorded trajectories, assert no regressions
  *   alfred status          provider · feature_list · last run, at a glance
  *   alfred ledger …        verify (exit 2 on tamper) / show (--md for PR paste)
@@ -48,6 +49,7 @@ import {
   resolveProvider,
 } from "./cli/session.ts";
 import { gatherStatus, renderStatus } from "./cli/status.ts";
+import { resolveWatchDir, standardWatchIo, watchRun } from "./cli/watch.ts";
 import { gatherWhy, renderWhy } from "./cli/why.ts";
 import { type ConfigOverrides, loadConfig, PERMISSION_MODES } from "./config/manager.ts";
 import { loadModelOverrides } from "./config/modelOverrides.ts";
@@ -399,6 +401,31 @@ program
       process.stdout.write(`${renderWhy(data, palette(process.stdout))}\n`);
     }
     process.exit(0);
+  });
+
+program
+  .command("watch")
+  .argument("[path]", "run directory or ledger.jsonl (default: the latest run)")
+  .description("follow a run's journal + ledger as a read-only live panel (replays finished runs)")
+  .action(async (path?: string) => {
+    const runDir = await resolveWatchDir(process.cwd(), path);
+    if (runDir === null) {
+      process.stderr.write(
+        red("No run found under .alfred/workflows — start one with `alfred run`.\n"),
+      );
+      process.exit(1);
+    }
+    const io = standardWatchIo();
+    process.on("SIGINT", () => {
+      io.clearStatus();
+      process.stderr.write("\n");
+      process.exit(130);
+    });
+    const code = await watchRun(runDir, io, {
+      palette: palette(process.stdout),
+      featureListPath: resolve(process.cwd(), "feature_list.json"),
+    });
+    process.exit(code);
   });
 
 program
