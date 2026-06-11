@@ -12,7 +12,9 @@ import { describe, expect, test } from "bun:test";
 import { z } from "zod";
 import { runAgent } from "../src/orchestrator/agent.ts";
 import type { ToolPermissionContext } from "../src/permissions/types.ts";
+import { allow } from "../src/permissions/types.ts";
 import { MockProvider, textResponse, toolUseResponse } from "../src/providers/mock.ts";
+import { buildTool } from "../src/tools/types.ts";
 
 // ---------------------------------------------------------------------------
 // Shared fixtures
@@ -48,11 +50,11 @@ describe("runAgent — schema path (tool call)", () => {
   test("data matches the object passed to structured_output", async () => {
     const payload = { answer: "42", confidence: 0.99 };
 
-    // Turn 1: model calls structured_output.
-    // Turn 2: after tool result, engine sees end_turn → done.
+    // Turn 1: model calls structured_output — the run ends right there
+    // (endsRun); the second scripted response stays unconsumed.
     const provider = new MockProvider([
       toolUseResponse("structured_output", payload),
-      textResponse("done"),
+      textResponse("UNREACHED"),
     ]);
 
     const run = await runAgent<z.infer<typeof answerSchema>>("What is the answer?", {
@@ -81,15 +83,31 @@ describe("runAgent — schema path (tool call)", () => {
 
   test("turns is incremented for each model round-trip", async () => {
     const payload = { answer: "x", confidence: 0.1 };
+    // An evidence tool keeps the run going for one round-trip before the
+    // verdict; the structured_output call then ends the run (endsRun).
+    const evidence = buildTool({
+      name: "evidence",
+      description: "Gather evidence.",
+      inputSchema: z.object({}),
+      isReadOnly: () => true,
+      isConcurrencySafe: () => true,
+      checkPermissions: async () => allow(),
+      describeCall: () => "evidence",
+      call: async () => ({ content: "exhibit A" }),
+    });
     const provider = new MockProvider([
+      toolUseResponse("evidence", {}),
       toolUseResponse("structured_output", payload),
-      textResponse("done"),
     ]);
 
-    const run = await runAgent("prompt", makeOpts(provider, { schema: answerSchema }));
+    const run = await runAgent("prompt", {
+      ...makeOpts(provider, { schema: answerSchema }),
+      tools: [evidence],
+    });
 
-    // Two provider calls: one for the tool_use, one after the tool result.
-    expect(run.turns).toBeGreaterThanOrEqual(2);
+    // Two provider calls: the evidence round-trip, then the verdict.
+    expect(run.turns).toBe(2);
+    expect(run.status).toBe("success");
   });
 });
 

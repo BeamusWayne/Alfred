@@ -131,7 +131,10 @@ export async function runAgent<T = unknown>(
       describeCall: () => STRUCTURED_OUTPUT_TOOL_NAME,
       call: async (input) => {
         captured = input;
-        return { content: "recorded" };
+        // The validated answer IS the run's product — end the run here
+        // instead of letting the model wander to max_turns (a live glm-4.7
+        // rubric judge once burned 50 turns after this very capture).
+        return { content: "recorded", endsRun: true };
       },
     });
 

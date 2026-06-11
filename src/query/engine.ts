@@ -106,6 +106,8 @@ interface ToolOutcome {
   readonly use: ToolUse;
   readonly output: string;
   readonly isError: boolean;
+  /** The tool declared the run complete (ToolResult.endsRun, error-free). */
+  readonly endsRun?: boolean;
 }
 
 async function executeTool(
@@ -203,7 +205,12 @@ async function executeTool(
         { cwd: ctx.workingDir },
       ).catch(() => undefined);
     }
-    return { use, output, isError: result.isError ?? false };
+    return {
+      use,
+      output,
+      isError: result.isError ?? false,
+      endsRun: result.endsRun === true && result.isError !== true,
+    };
   } catch (err) {
     span.setStatus("error").end();
     return {
@@ -635,6 +642,7 @@ export async function* runQuery(
 
     const parallel = uses.filter((u) => isParallelizable(tools, u));
     const serial = uses.filter((u) => !isParallelizable(tools, u));
+    let toolEndedRun = false;
 
     for (const use of parallel) {
       yield {
@@ -659,6 +667,7 @@ export async function* runQuery(
         isError: outcome.isError,
       };
       messages.push(toToolResultMessage(outcome));
+      if (outcome.endsRun === true) toolEndedRun = true;
     }
 
     for (const use of serial) {
@@ -687,6 +696,15 @@ export async function* runQuery(
         isError: outcome.isError,
       };
       messages.push(toToolResultMessage(outcome));
+      if (outcome.endsRun === true) toolEndedRun = true;
+    }
+
+    // A tool declared the run complete (ToolResult.endsRun): every tool_use
+    // above already has its tool_result recorded, so end with success instead
+    // of asking the model for another turn it does not need.
+    if (toolEndedRun) {
+      yield { type: "done", status: "success" };
+      return finish("success");
     }
   }
 

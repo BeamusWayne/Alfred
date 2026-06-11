@@ -18,6 +18,15 @@ export interface ToolResult<T = unknown> {
   readonly isError?: boolean;
   /** Marks content derived from untrusted sources (web/MCP) — ADR 0003. */
   readonly untrusted?: boolean;
+  /**
+   * Declares the run complete: after the current tool batch is recorded the
+   * engine ends with status "success" instead of asking the model for another
+   * turn. For tools whose successful call IS the run's final product (e.g.
+   * the synthetic `structured_output` tool — a glm-4.7 rubric judge once
+   * wandered 50 turns after its verdict was captured). Ignored on `isError`.
+   * Set only by trusted tool implementations; model input cannot inject it.
+   */
+  readonly endsRun?: boolean;
 }
 
 export interface ToolContext {
