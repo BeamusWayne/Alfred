@@ -4,6 +4,18 @@ All notable changes to Alfred are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/) (0.x: minor = feature rounds, patch = fixes).
 
+## [Unreleased]
+
+### Fixed
+- **Ctrl-C is now truthful.** An operator interrupt used to leave the
+  harness grinding: dead-signal retry attempts (1 turn, $0 each), an
+  aborted rubric, the feature signed as `blocked · verify exit 1`, and a
+  `run_end` claiming `all_resolved` — a fabricated receipt for a run a
+  human stopped (observed live, run `2026-06-11T09-03`). The run now stops
+  at the next checkpoint: the in-flight feature reverts to `pending`
+  (rerunnable), no feature row is signed, no full-suite verify is paid for,
+  and `run_end` records `stopped: "aborted"`.
+
 ## [0.6.0] — 2026-06-11
 
 First-touch UX round, driven by a live user session.

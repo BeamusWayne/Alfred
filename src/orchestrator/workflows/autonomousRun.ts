@@ -24,6 +24,7 @@ import {
   markPassing,
   pickNext,
   saveFeatureList,
+  setStatus,
 } from "../../harness/featureList.ts";
 import { passed, runVerify, type VerifyResult } from "../../harness/verify.ts";
 import { EpisodeStore } from "../../memory/episodes.ts";
@@ -94,6 +95,14 @@ export interface AutonomousRunOptions {
    * forever. Defaults to {@link DEFAULT_VERIFY_TIMEOUT_MS}.
    */
   readonly verifyTimeoutMs?: number;
+  /**
+   * Operator interrupt (Ctrl-C). When it fires, the run STOPS truthfully:
+   * the in-flight feature reverts to pending (an interrupt is not a feature
+   * failure), no feature receipt row is signed, and run_end records
+   * stopped="aborted". Without this, dead-signal attempts grind on and
+   * fabricate a blocked receipt (observed live).
+   */
+  readonly signal?: AbortSignal;
   readonly onEvent?: (ev: AutonomousEvent) => void;
 }
 
@@ -103,7 +112,7 @@ export const DEFAULT_VERIFY_TIMEOUT_MS = 120_000;
 export interface AutonomousRunResult {
   readonly passing: number;
   readonly blocked: number;
-  readonly stopped: "all_resolved" | "max_features" | "too_many_blocked" | "error";
+  readonly stopped: "all_resolved" | "max_features" | "too_many_blocked" | "error" | "aborted";
   readonly ledgerOk: boolean;
 }
 
@@ -177,7 +186,13 @@ export async function autonomousRun(opts: AutonomousRunOptions): Promise<Autonom
   let processed = 0;
   let stopped: AutonomousRunResult["stopped"] = "all_resolved";
 
+  const interrupted = () => opts.signal?.aborted === true;
+
   for (;;) {
+    if (interrupted()) {
+      stopped = "aborted";
+      break;
+    }
     const feature = pickNext(list);
     if (feature === null) {
       stopped = "all_resolved";
@@ -206,6 +221,7 @@ export async function autonomousRun(opts: AutonomousRunOptions): Promise<Autonom
     let aborted: string | null = null;
     try {
       for (let attempt = 1; attempt <= iterationBudget; attempt++) {
+        if (interrupted()) break;
         opts.onEvent?.({ type: "attempt", featureId: feature.id, attempt });
         if (opts.bestOfN && opts.bestOfN > 1) {
           const fb = feedback;
@@ -263,6 +279,9 @@ export async function autonomousRun(opts: AutonomousRunOptions): Promise<Autonom
             label: `implement:${feature.id}#${attempt}`,
           });
         }
+        // An interrupt mid-implement must not pay for a (full-suite) verify.
+        if (interrupted()) break;
+
         // Fast pre-gate: a cheap failure signal (affected tests, lint, tsc)
         // short-circuits back into the fix loop without paying for the full
         // suite. It can only reject — never accept.
@@ -306,15 +325,17 @@ export async function autonomousRun(opts: AutonomousRunOptions): Promise<Autonom
           `stderr:\n${verify.stderr.slice(0, 3000)}\nstdout:\n${verify.stdout.slice(0, 1000)}`;
       }
 
-      const rubricRun = await opts.runtime.agent<Rubric>(rubricPrompt(feature, verify), {
-        schema: rubricSchema,
-        role: "subagent",
-        // Evidence access: the judge inspects the real files instead of scoring
-        // from a possibly-empty verify output (which biased strict models to 0).
-        tools: [fileReadTool, globTool, grepTool],
-        label: `rubric:${feature.id}`,
-      });
-      rubric = rubricRun.data;
+      if (!interrupted()) {
+        const rubricRun = await opts.runtime.agent<Rubric>(rubricPrompt(feature, verify), {
+          schema: rubricSchema,
+          role: "subagent",
+          // Evidence access: the judge inspects the real files instead of scoring
+          // from a possibly-empty verify output (which biased strict models to 0).
+          tools: [fileReadTool, globTool, grepTool],
+          label: `rubric:${feature.id}`,
+        });
+        rubric = rubricRun.data;
+      }
     } catch (err) {
       // A throw mid-feature (budget exhausted, provider/abort error) must not
       // crash the whole run with an unhandled rejection and leave the feature
@@ -323,6 +344,17 @@ export async function autonomousRun(opts: AutonomousRunOptions): Promise<Autonom
       // terminal run_end receipt is still written.
       aborted = err instanceof Error ? err.message : String(err);
     }
+
+    // Operator interrupt: not a feature failure. Revert to pending (the
+    // feature is rerunnable), sign NO feature row, and stop — run_end below
+    // records stopped="aborted". This is the truthful-receipt path for ^C.
+    if (interrupted()) {
+      list = setStatus(list, feature.id, "pending");
+      await saveFeatureList(opts.featureListPath, list);
+      stopped = "aborted";
+      break;
+    }
+
     const verifyOk = verify !== undefined && passed(verify);
     const rubricOk = rubric?.verification === 2;
     const featurePassed = aborted === null && verifyOk && rubricOk;

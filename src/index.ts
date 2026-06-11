@@ -252,6 +252,7 @@ async function runAutonomous(opts: RunCliOptions): Promise<number> {
     featureListPath,
     verifyCmd,
     fastVerifyCmd,
+    signal: controller.signal,
     maxFeatures: opts.maxFeatures ? Number(opts.maxFeatures) : undefined,
     rollbackOnBlock: Boolean(opts.rollbackOnBlock),
     architectModel,
