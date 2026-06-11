@@ -27,12 +27,14 @@ const DEFAULT_CONCURRENCY = 4;
  */
 export interface AgentActivity {
   readonly label: string;
-  readonly event: "tool_use" | "tool_result";
+  readonly event: "tool_use" | "tool_result" | "turn";
   readonly name: string;
   /** Human call label (`bash(bun test)`) — present on tool_use. */
   readonly describe?: string;
   /** Present on tool_result. */
   readonly isError?: boolean;
+  /** Running spend of the in-flight agent — present on turn. */
+  readonly costUsd?: number;
 }
 
 export interface RuntimeOptions {
@@ -74,6 +76,8 @@ export interface Runtime {
   pipeline<T = unknown>(items: readonly unknown[], ...stages: readonly Stage[]): Promise<T[]>;
   log(message: string): void;
   budgetSnapshot(): BudgetSnapshot;
+  /** Settled budget spend PLUS the latest per-turn tally of in-flight agents. */
+  liveCostUsd(): number;
 }
 
 interface Semaphore {
@@ -110,6 +114,11 @@ export function createRuntime(runId: string, opts: RuntimeOptions): Runtime {
   const sem = createSemaphore(opts.concurrency ?? DEFAULT_CONCURRENCY);
   const { journal } = opts;
   let budget = new Budget(opts.budget);
+  // Latest per-turn spend of each in-flight agent call, keyed by a unique
+  // call id (labels can repeat across attempts). Cleared when the call's
+  // cost settles into the budget, so liveCostUsd never double-counts.
+  const inflightUsd = new Map<number, number>();
+  let nextCallId = 0;
 
   const agent = async <T = unknown>(
     prompt: string,
@@ -138,12 +147,19 @@ export function createRuntime(runId: string, opts: RuntimeOptions): Runtime {
     // must never crash or slow the run. Only label/name/describe persist —
     // never tool input or output payloads.
     const label = callOpts.label ?? "agent";
+    const callId = nextCallId++;
     const onEvent = (ev: QueryEvent): void => {
-      if (ev.type !== "tool_use" && ev.type !== "tool_result") return;
-      const activity: AgentActivity =
-        ev.type === "tool_use"
-          ? { label, event: "tool_use", name: ev.name, describe: ev.describe }
-          : { label, event: "tool_result", name: ev.name, isError: ev.isError };
+      let activity: AgentActivity;
+      if (ev.type === "tool_use") {
+        activity = { label, event: "tool_use", name: ev.name, describe: ev.describe };
+      } else if (ev.type === "tool_result") {
+        activity = { label, event: "tool_result", name: ev.name, isError: ev.isError };
+      } else if (ev.type === "turn") {
+        inflightUsd.set(callId, ev.costUsd);
+        activity = { label, event: "turn", name: "model", costUsd: ev.costUsd };
+      } else {
+        return;
+      }
       opts.onActivity?.(activity);
       if (journal) {
         journal.append({ type: "activity", label, data: { ...activity } }).catch(() => undefined);
@@ -170,7 +186,9 @@ export function createRuntime(runId: string, opts: RuntimeOptions): Runtime {
       sem.release();
     }
 
+    // Settle: the run's cost enters the budget; its in-flight tally retires.
     if (run.cost) budget = budget.record(callOpts.model ?? opts.model, run.cost.usage);
+    inflightUsd.delete(callId);
     if (journal) {
       await journal.append({
         type: "agent",
@@ -217,5 +235,10 @@ export function createRuntime(runId: string, opts: RuntimeOptions): Runtime {
     pipeline,
     log,
     budgetSnapshot: () => budget.snapshot(),
+    liveCostUsd: () => {
+      let inflight = 0;
+      for (const usd of inflightUsd.values()) inflight += usd;
+      return budget.snapshot().usd + inflight;
+    },
   };
 }

@@ -560,6 +560,7 @@ export async function* runQuery(
     usage = addUsage(usage, response.usage);
     lastInputTokens = response.usage.inputTokens;
     cost = cost.add(response.model, response.usage);
+    yield { type: "turn", turns, costUsd: cost.total().usd };
 
     // Text is emitted by chatWithRetry; here we record the assistant turn and
     // dispatch any tool calls. An empty assistant turn (output cut at the

@@ -161,6 +161,13 @@ describe("renderLedgerRow", () => {
 // (footer line rendering itself is covered in cliFooter.test.ts)
 // ---------------------------------------------------------------------------
 
+const TURN_ROW = `${JSON.stringify({
+  type: "activity",
+  label: "implement:demo-add#1",
+  data: { event: "turn", name: "model", costUsd: 0.005 },
+  seq: 0,
+  ts: 850,
+})}\n`;
 const ACTIVITY_LINE = `${JSON.stringify({
   type: "activity",
   label: "implement:demo-add#1",
@@ -224,7 +231,10 @@ async function tempRunDir(): Promise<string> {
 describe("watchRun", () => {
   test("replay: a finished run renders fully and exits 0", async () => {
     const runDir = await tempRunDir();
-    await writeFile(join(runDir, "journal.jsonl"), ACTIVITY_LINE + AGENT_LINE + RUBRIC_LINE);
+    await writeFile(
+      join(runDir, "journal.jsonl"),
+      TURN_ROW + ACTIVITY_LINE + AGENT_LINE + RUBRIC_LINE,
+    );
     await writeFile(join(runDir, "ledger.jsonl"), FEATURE_ROW + RUN_END_ROW);
     const io = fakeIo();
 
@@ -240,9 +250,23 @@ describe("watchRun", () => {
       "run end: 1 passing · 0 blocked · all_resolved",
     ]);
     // Aggregates reach the footer: 2 agent costs summed, 1 feature resolved.
+    // The turn row's in-flight tally was settled by its agent row — no
+    // double count ($0.0212, not $0.0262).
     const last = io.statuses.at(-1);
     expect(last).toContain("1 features");
     expect(last).toContain("$0.0212");
+  });
+
+  test("an in-flight run shows the running per-turn cost before any agent settles", async () => {
+    const runDir = await tempRunDir();
+    await writeFile(join(runDir, "journal.jsonl"), TURN_ROW);
+    await writeFile(join(runDir, "ledger.jsonl"), RUN_END_ROW);
+    const io = fakeIo();
+
+    const code = await watchRun(runDir, io, { palette: plain, pollMs: 1 });
+
+    expect(code).toBe(0);
+    expect(io.statuses.at(-1)).toContain("$0.0050");
   });
 
   test("replay: reads the feature list total when given", async () => {

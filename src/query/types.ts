@@ -88,6 +88,12 @@ export type QueryEvent =
       /** Model the next attempt will use — makes fallback downgrades observable. */
       readonly toModel: string;
     }
+  | {
+      /** One model round-trip finished — running totals for live panels. */
+      readonly type: "turn";
+      readonly turns: number;
+      readonly costUsd: number;
+    }
   | { readonly type: "error"; readonly message: string }
   | { readonly type: "done"; readonly status: TerminalStatus };
 

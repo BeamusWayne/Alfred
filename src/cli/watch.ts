@@ -187,6 +187,17 @@ function activityCurrent(value: unknown): string | undefined {
   return `${label} · ${data["describe"]}`;
 }
 
+/** Running spend from a turn activity entry; null otherwise. */
+function activityTurnUsd(value: unknown): number | null {
+  if (!isRecord(value) || value["type"] !== "activity" || !isRecord(value["data"])) return null;
+  const data = value["data"];
+  return data["event"] === "turn" && typeof data["costUsd"] === "number" ? data["costUsd"] : null;
+}
+
+function entryLabel(value: unknown): string {
+  return isRecord(value) && typeof value["label"] === "string" ? value["label"] : "agent";
+}
+
 function agentCostUsd(value: unknown): number {
   if (!isRecord(value) || value["type"] !== "agent" || !isRecord(value["data"])) return 0;
   const cost = value["data"]["cost"];
@@ -221,7 +232,10 @@ export async function watchRun(runDir: string, io: WatchIo, opts: WatchOptions):
 
   let journalTail = FRESH_TAIL;
   let ledgerTail = FRESH_TAIL;
-  let costUsd = 0;
+  let settledUsd = 0;
+  // Latest per-turn spend of each in-flight agent, by label; an agent row
+  // settles its label so the footer never double-counts.
+  const inflightUsd = new Map<string, number>();
   let resolved = 0;
   let ended = false;
   let firstTs: number | null = null;
@@ -243,11 +257,17 @@ export async function watchRun(runDir: string, io: WatchIo, opts: WatchOptions):
 
     for (const value of journal.values) {
       track(value);
-      costUsd += agentCostUsd(value);
+      settledUsd += agentCostUsd(value);
       const beat = activityCurrent(value);
       if (beat !== undefined) current = beat;
-      // An agent row closes its activity stream — nothing is in flight.
-      if (isRecord(value) && value["type"] === "agent") current = undefined;
+      const turnUsd = activityTurnUsd(value);
+      if (turnUsd !== null) inflightUsd.set(entryLabel(value), turnUsd);
+      // An agent row closes its activity stream: nothing in flight, and its
+      // spend is settled — retire the running tally for that label.
+      if (isRecord(value) && value["type"] === "agent") {
+        current = undefined;
+        inflightUsd.delete(entryLabel(value));
+      }
       const line = renderJournalEntry(value, c);
       if (line !== null) io.out(line);
     }
@@ -264,6 +284,8 @@ export async function watchRun(runDir: string, io: WatchIo, opts: WatchOptions):
         ? lastTs - firstTs
         : io.now() - (firstTs ?? startedAt);
     const total = await featureTotal(opts.featureListPath);
+    let costUsd = settledUsd;
+    for (const usd of inflightUsd.values()) costUsd += usd;
     io.status(renderFooterLines({ resolved, total, costUsd, elapsedMs, current }));
 
     if (ended) {

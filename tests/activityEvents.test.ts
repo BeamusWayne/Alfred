@@ -103,3 +103,53 @@ describe("runtime — activity journal rows", () => {
     expect(raw).not.toContain('"ok"'); // the tool's output stays out too
   });
 });
+
+describe("engine — turn events", () => {
+  test("each model round-trip yields a turn event with the running cost", async () => {
+    const provider = new MockProvider([toolUseResponse("echo", {}), textResponse("done")]);
+    const turns: number[] = [];
+    const costs: unknown[] = [];
+
+    await runAgent("go", {
+      provider,
+      model: "mock",
+      permissions,
+      tools: [echo],
+      onEvent: (ev) => {
+        if (ev.type === "turn") {
+          turns.push(ev.turns);
+          costs.push(ev.costUsd);
+        }
+      },
+    });
+
+    expect(turns).toEqual([1, 2]);
+    expect(costs.every((c) => typeof c === "number")).toBe(true);
+  });
+});
+
+describe("runtime — live cost", () => {
+  test("turn beats surface and settle: liveCostUsd matches the budget after completion", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "alfred-activity-"));
+    const journal = new Journal(join(dir, "journal.jsonl"));
+    const provider = new MockProvider([toolUseResponse("echo", {}), textResponse("done")]);
+    const seen: AgentActivity[] = [];
+
+    const rt = createRuntime("r1", {
+      provider,
+      model: "mock",
+      permissions,
+      journal,
+      onActivity: (a) => seen.push(a),
+    });
+    await rt.agent("go", { tools: [echo], label: "implement:f1#1" });
+
+    expect(seen.some((a) => a.event === "turn" && typeof a.costUsd === "number")).toBe(true);
+    const turnRows = (await journal.readAll())
+      .filter((e) => e.type === "activity")
+      .map((e) => (e.data as Record<string, unknown>)["event"]);
+    expect(turnRows).toContain("turn");
+    // The in-flight tally is cleared once the agent's cost is settled.
+    expect(rt.liveCostUsd()).toBe(rt.budgetSnapshot().usd);
+  });
+});
