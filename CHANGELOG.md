@@ -4,6 +4,15 @@ All notable changes to Alfred are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/) (0.x: minor = feature rounds, patch = fixes).
 
+## [0.3.1] — 2026-06-11
+
+### Fixed
+- `alfred run` without a `feature_list.json` now fails at the front door —
+  the missing path plus the three ways forward (`alfred init`,
+  `--feature-list <path>`, `alfred demo`) — instead of a raw
+  `loadFeatureList` stack trace. Hit by the first `bun install -g` user
+  minutes after 0.3.0 shipped.
+
 ## [0.3.0] — 2026-06-11
 
 The CLI UX round: the front door, the run-time face, and the post-run audit.
