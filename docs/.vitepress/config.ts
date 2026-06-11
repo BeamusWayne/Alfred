@@ -30,10 +30,8 @@ export default defineConfig({
     ["meta", { property: "og:image", content: "https://beamuswayne.github.io/Alfred/og.png" }],
     ["meta", { name: "twitter:card", content: "summary_large_image" }],
   ],
-  // 28 pages were authored in parallel and cross-link heavily; don't fail the
-  // build on a stray link. Tighten to an allowlist once links are audited.
-  ignoreDeadLinks: true,
   themeConfig: {
+    logo: "/favicon.svg",
     nav: [
       { text: "Guide", link: "/guide/introduction" },
       { text: "CLI", link: "/cli/overview" },
@@ -49,6 +47,7 @@ export default defineConfig({
           { text: "Introduction", link: "/guide/introduction" },
           { text: "Installation", link: "/guide/installation" },
           { text: "Quickstart", link: "/guide/quickstart" },
+          { text: "Use cases", link: "/guide/use-cases" },
           { text: "Concepts", link: "/guide/concepts" },
         ],
       },
@@ -58,6 +57,7 @@ export default defineConfig({
           { text: "alfred (one-shot)", link: "/cli/overview" },
           { text: "alfred run", link: "/cli/run" },
           { text: "alfred eval", link: "/cli/eval" },
+          { text: "alfred ledger", link: "/cli/ledger" },
         ],
       },
       {
