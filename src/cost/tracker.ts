@@ -85,6 +85,12 @@ export const PRICING_TABLE: Readonly<Record<string, ModelPricing>> = {
     cacheReadPerMillion: 0.11,
     cacheWritePerMillion: 0.75,
   },
+  "glm-4.7": {
+    inputPerMillion: 0.6,
+    outputPerMillion: 2.2,
+    cacheReadPerMillion: 0.11,
+    cacheWritePerMillion: 0.75,
+  },
   "glm-5.1": {
     inputPerMillion: 0.6,
     outputPerMillion: 2.2,
