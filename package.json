@@ -1,6 +1,6 @@
 {
   "name": "alfred-agent",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Alfred — a verifiable autonomous coding agent (CLI). Machine-enforced done-gates, agent-curated inspectable memory, signed replayable run ledgers. TypeScript on Bun.",
   "type": "module",
   "bin": {

@@ -4,7 +4,7 @@ All notable changes to Alfred are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/) (0.x: minor = feature rounds, patch = fixes).
 
-## [Unreleased]
+## [0.6.1] — 2026-06-11
 
 ### Fixed
 - **Ctrl-C is now truthful.** An operator interrupt used to leave the
