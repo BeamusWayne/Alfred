@@ -23,11 +23,10 @@ describe("Gemini thought signatures", () => {
         { thought: true, text: "internal reasoning summary", thoughtSignature: "tsig-think" },
         { functionCall: { name: "glob", args: { pattern: "*" } }, thoughtSignature: "tsig-1" },
       ]);
-    const r = await new GoogleProvider(fetcher).chat(
-      [{ role: "user", content: "go" }],
-      [],
-      { model: "gemini-3.1-pro-preview", apiKey: "k" },
-    );
+    const r = await new GoogleProvider(fetcher).chat([{ role: "user", content: "go" }], [], {
+      model: "gemini-3.1-pro-preview",
+      apiKey: "k",
+    });
     expect(r.stopReason).toBe("tool_use");
     expect(r.content).toEqual([
       {
@@ -68,7 +67,10 @@ describe("Gemini thought signatures", () => {
       model: "gemini-3.1-pro-preview",
       apiKey: "k",
     });
-    const contents = body.contents as Array<{ role: string; parts: Array<Record<string, unknown>> }>;
+    const contents = body.contents as Array<{
+      role: string;
+      parts: Array<Record<string, unknown>>;
+    }>;
     const modelTurn = contents.find((c) => c.role === "model");
     expect(modelTurn?.parts[0]).toEqual({
       functionCall: { name: "glob", args: { pattern: "*" } },
@@ -91,7 +93,10 @@ describe("Gemini thought signatures", () => {
       { role: "tool_result", toolUseId: "call_grep_0", content: "hit", isError: false },
     ];
     await new GoogleProvider(fetcher).chat(history, [], { model: "gemini-2.5-flash", apiKey: "k" });
-    const contents = body.contents as Array<{ role: string; parts: Array<Record<string, unknown>> }>;
+    const contents = body.contents as Array<{
+      role: string;
+      parts: Array<Record<string, unknown>>;
+    }>;
     const modelTurn = contents.find((c) => c.role === "model");
     expect(modelTurn?.parts[0]).toEqual({ functionCall: { name: "grep", args: { pattern: "x" } } });
     expect("thoughtSignature" in (modelTurn?.parts[0] ?? {})).toBe(false);

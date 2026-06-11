@@ -328,7 +328,7 @@ describe("makeSkillTool (load_skill)", () => {
 
     expect(result.isError).toBe(true);
     expect(typeof result.content).toBe("string");
-    expect((result.content as string)).toContain("nonexistent");
+    expect(result.content as string).toContain("nonexistent");
   });
 
   test("describeCall formats the name correctly", () => {

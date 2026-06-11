@@ -4,11 +4,7 @@
  * All tests use an injected fake `fetcher` — no real network calls are made.
  */
 import { describe, test, expect } from "bun:test";
-import {
-  policyFromEnv,
-  fetchWithPolicy,
-  webFetchTool,
-} from "../src/tools/webFetch.ts";
+import { policyFromEnv, fetchWithPolicy, webFetchTool } from "../src/tools/webFetch.ts";
 import type { Fetcher } from "../src/tools/webFetch.ts";
 import { DEFAULT_EGRESS_POLICY } from "../src/security/egress.ts";
 
@@ -71,11 +67,7 @@ describe("policyFromEnv", () => {
     const policy = policyFromEnv({
       ALFRED_EGRESS_ALLOW: "docs.python.org,*.github.com,api.example.com",
     });
-    expect(policy.allowHosts).toEqual([
-      "docs.python.org",
-      "*.github.com",
-      "api.example.com",
-    ]);
+    expect(policy.allowHosts).toEqual(["docs.python.org", "*.github.com", "api.example.com"]);
   });
 
   test("trims whitespace around entries", () => {
@@ -254,12 +246,7 @@ describe("webFetchTool — redaction and taint", () => {
    * A cleaner approach: the tool's `call` implementation uses `policyFromEnv()`
    * which reads `process.env`. We set process.env for the test then restore it.
    */
-  async function callTool(
-    url: string,
-    body: string,
-    allowHosts: string,
-    maxBytes?: number,
-  ) {
+  async function callTool(url: string, body: string, allowHosts: string, maxBytes?: number) {
     const prevAllow = process.env["ALFRED_EGRESS_ALLOW"];
     const prevFetch = globalThis.fetch;
 
@@ -302,11 +289,7 @@ describe("webFetchTool — redaction and taint", () => {
 
   test("OpenAI key in body is redacted", async () => {
     const body = "Here is a secret: sk-abcdefghijklmnopqrstuvwxyz012345 end";
-    const result = await callTool(
-      "https://docs.python.org/3/",
-      body,
-      "docs.python.org",
-    );
+    const result = await callTool("https://docs.python.org/3/", body, "docs.python.org");
     expect(result.isError).toBeFalsy();
     expect(result.content).not.toContain("sk-abcdefghijklmnopqrstuvwxyz012345");
     expect(result.content as string).toMatch(/\[REDACTED:/);
@@ -326,11 +309,7 @@ describe("webFetchTool — redaction and taint", () => {
   });
 
   test("isError:true and no untrusted flag when egress is denied", async () => {
-    const result = await callTool(
-      "https://evil.com/exfil",
-      "should not appear",
-      "docs.python.org",
-    );
+    const result = await callTool("https://evil.com/exfil", "should not appear", "docs.python.org");
     expect(result.isError).toBe(true);
     expect(result.untrusted).toBeFalsy();
   });
@@ -354,10 +333,7 @@ describe("webFetchTool — redaction and taint", () => {
           workingDir: "/",
         },
       };
-      const result = await webFetchTool.call(
-        { url: "https://docs.python.org/missing" },
-        ctx,
-      );
+      const result = await webFetchTool.call({ url: "https://docs.python.org/missing" }, ctx);
       expect(result.isError).toBe(true);
       expect(result.untrusted).toBeFalsy();
     } finally {

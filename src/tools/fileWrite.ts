@@ -16,10 +16,7 @@ const inputSchema = z.object({
   content: z.string().describe("Full file contents to write"),
 });
 
-function checkWritePermission(
-  path: string,
-  ctx: ToolPermissionContext,
-): PermissionResult {
+function checkWritePermission(path: string, ctx: ToolPermissionContext): PermissionResult {
   if (!isInside(ctx.workingDir, path)) {
     return deny(`refusing to write outside the workspace: ${path}`);
   }

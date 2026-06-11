@@ -6,7 +6,7 @@
  */
 
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
-import { mkdtempSync, writeFileSync, rmSync, } from "node:fs";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadHooksConfig, runHooks } from "../src/hooks/engine.ts";
@@ -30,9 +30,7 @@ afterAll(() => {
 // Helper
 // ---------------------------------------------------------------------------
 
-function makeConfig(
-  ...hooks: HooksConfig["hooks"][number][]
-): HooksConfig {
+function makeConfig(...hooks: HooksConfig["hooks"][number][]): HooksConfig {
   return { hooks };
 }
 

@@ -155,10 +155,7 @@ export async function applyWinner(
   baseRef: string,
 ): Promise<void> {
   // ── A: tracked changes (committed in the worktree) ─────────────────────
-  const diffNamesResult = await git(
-    ["diff", baseRef, "HEAD", "--name-only"],
-    worktreePath,
-  );
+  const diffNamesResult = await git(["diff", baseRef, "HEAD", "--name-only"], worktreePath);
   if (diffNamesResult.exitCode !== 0) {
     throw new Error(
       `applyWinner: git diff --name-only ${baseRef} HEAD failed in worktree: ${diffNamesResult.stderr}`,
@@ -175,10 +172,7 @@ export async function applyWinner(
   }
 
   // ── B: untracked files (not staged/committed yet in worktree) ──────────
-  const lsFilesResult = await git(
-    ["ls-files", "--others", "--exclude-standard"],
-    worktreePath,
-  );
+  const lsFilesResult = await git(["ls-files", "--others", "--exclude-standard"], worktreePath);
   if (lsFilesResult.exitCode !== 0) {
     throw new Error(
       `applyWinner: git ls-files --others failed in worktree: ${lsFilesResult.stderr}`,
@@ -208,17 +202,8 @@ export async function applyWinner(
  * and the loop stops at the first pass (short-circuit). All worktrees are
  * cleaned up in a `finally` block.
  */
-export async function bestOfNCode(
-  opts: BestOfNCodeOptions,
-): Promise<BestOfNCodeResult> {
-  const {
-    cwd,
-    n,
-    verifyCmd,
-    verifyTimeoutMs,
-    implement,
-    baseRef: baseRefOpt,
-  } = opts;
+export async function bestOfNCode(opts: BestOfNCodeOptions): Promise<BestOfNCodeResult> {
+  const { cwd, n, verifyCmd, verifyTimeoutMs, implement, baseRef: baseRefOpt } = opts;
 
   // ── Precondition: must be inside a git repo ──────────────────────────────
   const revParseResult = await git(["rev-parse", "--git-dir"], cwd);
@@ -235,10 +220,7 @@ export async function bestOfNCode(
   })();
 
   // Verify the ref resolves cleanly.
-  const refCheckResult = await git(
-    ["rev-parse", "--verify", resolvedBaseRef],
-    cwd,
-  );
+  const refCheckResult = await git(["rev-parse", "--verify", resolvedBaseRef], cwd);
   if (refCheckResult.exitCode !== 0) {
     throw new Error(
       `bestOfNCode: cannot resolve baseRef "${resolvedBaseRef}": ${refCheckResult.stderr}`,
@@ -257,10 +239,7 @@ export async function bestOfNCode(
       const worktreePath = join(tmpBase, "worktree");
       worktreePaths.push(worktreePath);
 
-      const addResult = await git(
-        ["worktree", "add", "--detach", worktreePath, resolvedSha],
-        cwd,
-      );
+      const addResult = await git(["worktree", "add", "--detach", worktreePath, resolvedSha], cwd);
       if (addResult.exitCode !== 0) {
         throw new Error(
           `bestOfNCode: git worktree add failed for candidate ${i}: ${addResult.stderr}`,

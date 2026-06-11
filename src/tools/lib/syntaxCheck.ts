@@ -14,7 +14,9 @@
 type BunLoader = "ts" | "tsx" | "js" | "jsx";
 
 /** Result type: a discriminated union so callers must handle both branches. */
-export type SyntaxCheckResult = { readonly ok: true } | { readonly ok: false; readonly error: string };
+export type SyntaxCheckResult =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly error: string };
 
 /** Maps file extensions to the Bun transpiler loader that can parse them. */
 export const LOADER_MAP: Readonly<Record<string, BunLoader>> = {

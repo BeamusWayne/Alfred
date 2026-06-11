@@ -13,7 +13,7 @@
  */
 
 import { readdir } from "node:fs/promises";
-import { join, relative, } from "node:path";
+import { join, relative } from "node:path";
 import { extractSymbols, langFor, type SymbolMap } from "./lib/symbols.ts";
 import { pageRank, type Edge } from "./lib/pagerank.ts";
 
@@ -102,10 +102,7 @@ async function walkRepo(rootDir: string): Promise<readonly string[]> {
 // Graph construction
 // ---------------------------------------------------------------------------
 
-function buildGraph(
-  files: readonly FileInfo[],
-  focusFiles: ReadonlySet<string>,
-): readonly Edge[] {
+function buildGraph(files: readonly FileInfo[], focusFiles: ReadonlySet<string>): readonly Edge[] {
   // Build lookup: defName → set of file relPaths that define it
   const defToFiles = new Map<string, string[]>();
   for (const f of files) {
@@ -213,10 +210,7 @@ function renderMap(
  * referenced, biased toward `focusFiles`. Output is truncated to
  * ~`tokenBudget` tokens (estimated as chars / 4).
  */
-export async function buildRepoMap(
-  rootDir: string,
-  opts: RepomapOptions = {},
-): Promise<string> {
+export async function buildRepoMap(rootDir: string, opts: RepomapOptions = {}): Promise<string> {
   const tokenBudget = opts.tokenBudget ?? DEFAULT_TOKEN_BUDGET;
   const charBudget = tokenBudget * CHARS_PER_TOKEN;
 

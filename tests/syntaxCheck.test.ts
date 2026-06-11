@@ -93,7 +93,9 @@ describe("checkSyntax — JSX (.jsx)", () => {
 // ---------------------------------------------------------------------------
 describe("checkSyntax — JSON (.json)", () => {
   test("valid JSON passes", () => {
-    expect(checkSyntax("package.json", '{"name":"alfred","version":"0.1.0"}')).toEqual({ ok: true });
+    expect(checkSyntax("package.json", '{"name":"alfred","version":"0.1.0"}')).toEqual({
+      ok: true,
+    });
   });
 
   test("broken JSON (trailing comma) returns ok:false with a message", () => {

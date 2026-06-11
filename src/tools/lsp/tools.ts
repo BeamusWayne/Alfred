@@ -166,7 +166,10 @@ export function makeLspTools(client: LspClient): readonly Tool[] {
       try {
         abs = resolveInside(ctx.workingDir, input.path);
       } catch {
-        return { content: `lsp_definition error: path '${input.path}' is outside the workspace`, isError: true };
+        return {
+          content: `lsp_definition error: path '${input.path}' is outside the workspace`,
+          isError: true,
+        };
       }
       const uri = toFileUri(abs);
       const pos = { line: input.line, character: input.character };
@@ -197,7 +200,10 @@ export function makeLspTools(client: LspClient): readonly Tool[] {
       try {
         abs = resolveInside(ctx.workingDir, input.path);
       } catch {
-        return { content: `lsp_references error: path '${input.path}' is outside the workspace`, isError: true };
+        return {
+          content: `lsp_references error: path '${input.path}' is outside the workspace`,
+          isError: true,
+        };
       }
       const uri = toFileUri(abs);
       const pos = { line: input.line, character: input.character };
@@ -228,7 +234,10 @@ export function makeLspTools(client: LspClient): readonly Tool[] {
       try {
         abs = resolveInside(ctx.workingDir, input.path);
       } catch {
-        return { content: `lsp_hover error: path '${input.path}' is outside the workspace`, isError: true };
+        return {
+          content: `lsp_hover error: path '${input.path}' is outside the workspace`,
+          isError: true,
+        };
       }
       const uri = toFileUri(abs);
       const pos = { line: input.line, character: input.character };

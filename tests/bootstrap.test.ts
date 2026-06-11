@@ -71,9 +71,7 @@ function autoRespond(
     if (!("id" in req)) return;
     try {
       const result = responder(req);
-      fake.deliver(
-        JSON.stringify({ jsonrpc: "2.0", id: req["id"], result }),
-      );
+      fake.deliver(JSON.stringify({ jsonrpc: "2.0", id: req["id"], result }));
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       fake.deliver(
@@ -88,9 +86,7 @@ function autoRespond(
 }
 
 /** Build a fake McpClient that serves initialize + tools/list responses. */
-function makeClientWithTools(
-  toolNames: readonly string[],
-): McpClient {
+function makeClientWithTools(toolNames: readonly string[]): McpClient {
   const fake = fakeTransport();
   autoRespond(fake, (req) => {
     if (req["method"] === "initialize") {
@@ -363,16 +359,8 @@ describe("bootstrapExtensions", () => {
     const dir = await makeTmpDir();
     const alfredDir = path.join(dir, ".alfred");
     await fs.mkdir(alfredDir);
-    await fs.writeFile(
-      path.join(alfredDir, "mcp.json"),
-      JSON.stringify({ servers: [] }),
-      "utf8",
-    );
-    await fs.writeFile(
-      path.join(alfredDir, "lsp.json"),
-      JSON.stringify({ servers: [] }),
-      "utf8",
-    );
+    await fs.writeFile(path.join(alfredDir, "mcp.json"), JSON.stringify({ servers: [] }), "utf8");
+    await fs.writeFile(path.join(alfredDir, "lsp.json"), JSON.stringify({ servers: [] }), "utf8");
 
     const result = await bootstrapExtensions(dir);
 
@@ -384,11 +372,7 @@ describe("bootstrapExtensions", () => {
     const dir = await makeTmpDir();
     const alfredDir = path.join(dir, ".alfred");
     await fs.mkdir(alfredDir);
-    await fs.writeFile(
-      path.join(alfredDir, "mcp.json"),
-      "{ this is not json!!!",
-      "utf8",
-    );
+    await fs.writeFile(path.join(alfredDir, "mcp.json"), "{ this is not json!!!", "utf8");
 
     const result = await bootstrapExtensions(dir);
 
@@ -400,11 +384,7 @@ describe("bootstrapExtensions", () => {
     const dir = await makeTmpDir();
     const alfredDir = path.join(dir, ".alfred");
     await fs.mkdir(alfredDir);
-    await fs.writeFile(
-      path.join(alfredDir, "lsp.json"),
-      "INVALID",
-      "utf8",
-    );
+    await fs.writeFile(path.join(alfredDir, "lsp.json"), "INVALID", "utf8");
 
     const result = await bootstrapExtensions(dir);
 

@@ -67,9 +67,7 @@ type Optional =
 export type ToolSpec<In extends z.ZodTypeAny, Out> = Omit<Tool<In, Out>, Optional> &
   Partial<Pick<Tool<In, Out>, Optional>>;
 
-export function buildTool<In extends z.ZodTypeAny, Out>(
-  spec: ToolSpec<In, Out>,
-): Tool<In, Out> {
+export function buildTool<In extends z.ZodTypeAny, Out>(spec: ToolSpec<In, Out>): Tool<In, Out> {
   return {
     isEnabled: () => true,
     isReadOnly: () => false,
@@ -79,10 +77,7 @@ export function buildTool<In extends z.ZodTypeAny, Out>(
     render: (result) => [
       {
         type: "text",
-        text:
-          typeof result.content === "string"
-            ? result.content
-            : JSON.stringify(result.content),
+        text: typeof result.content === "string" ? result.content : JSON.stringify(result.content),
       },
     ],
     ...spec,

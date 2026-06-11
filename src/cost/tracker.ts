@@ -43,87 +43,84 @@ export const PRICING_TABLE: Readonly<Record<string, ModelPricing>> = {
     cacheWritePerMillion: 12.5,
   },
   "claude-haiku-4-5": {
-    inputPerMillion: 1.00,
-    outputPerMillion: 5.00,
-    cacheReadPerMillion: 0.10,
+    inputPerMillion: 1.0,
+    outputPerMillion: 5.0,
+    cacheReadPerMillion: 0.1,
     cacheWritePerMillion: 1.25,
   },
   "claude-sonnet-4-6": {
-    inputPerMillion: 3.00,
-    outputPerMillion: 15.00,
-    cacheReadPerMillion: 0.30,
+    inputPerMillion: 3.0,
+    outputPerMillion: 15.0,
+    cacheReadPerMillion: 0.3,
     cacheWritePerMillion: 3.75,
   },
   "claude-opus-4-6": {
-    inputPerMillion: 5.00,
-    outputPerMillion: 25.00,
-    cacheReadPerMillion: 0.50,
+    inputPerMillion: 5.0,
+    outputPerMillion: 25.0,
+    cacheReadPerMillion: 0.5,
     cacheWritePerMillion: 6.25,
   },
   "claude-opus-4-7": {
-    inputPerMillion: 5.00,
-    outputPerMillion: 25.00,
-    cacheReadPerMillion: 0.50,
+    inputPerMillion: 5.0,
+    outputPerMillion: 25.0,
+    cacheReadPerMillion: 0.5,
     cacheWritePerMillion: 6.25,
   },
   "claude-opus-4-8": {
-    inputPerMillion: 5.00,
-    outputPerMillion: 25.00,
-    cacheReadPerMillion: 0.50,
+    inputPerMillion: 5.0,
+    outputPerMillion: 25.0,
+    cacheReadPerMillion: 0.5,
     cacheWritePerMillion: 6.25,
   },
   // Zhipu GLM — approximate public pricing (USD per 1M tokens).
   "glm-4.5": {
-    inputPerMillion: 0.60,
-    outputPerMillion: 2.20,
+    inputPerMillion: 0.6,
+    outputPerMillion: 2.2,
     cacheReadPerMillion: 0.11,
     cacheWritePerMillion: 0.75,
   },
   "glm-4.6": {
-    inputPerMillion: 0.60,
-    outputPerMillion: 2.20,
+    inputPerMillion: 0.6,
+    outputPerMillion: 2.2,
     cacheReadPerMillion: 0.11,
     cacheWritePerMillion: 0.75,
   },
   "glm-5.1": {
-    inputPerMillion: 0.60,
-    outputPerMillion: 2.20,
+    inputPerMillion: 0.6,
+    outputPerMillion: 2.2,
     cacheReadPerMillion: 0.11,
     cacheWritePerMillion: 0.75,
   },
   // Google Gemini — approximate public pricing (USD per 1M tokens).
   "gemini-2.5-flash": {
-    inputPerMillion: 0.30,
-    outputPerMillion: 2.50,
+    inputPerMillion: 0.3,
+    outputPerMillion: 2.5,
     cacheReadPerMillion: 0.075,
-    cacheWritePerMillion: 0.30,
+    cacheWritePerMillion: 0.3,
   },
   "gemini-2.5-pro": {
     inputPerMillion: 1.25,
-    outputPerMillion: 10.00,
+    outputPerMillion: 10.0,
     cacheReadPerMillion: 0.31,
     cacheWritePerMillion: 1.25,
   },
   "gemini-2.0-flash": {
-    inputPerMillion: 0.10,
-    outputPerMillion: 0.40,
+    inputPerMillion: 0.1,
+    outputPerMillion: 0.4,
     cacheReadPerMillion: 0.025,
-    cacheWritePerMillion: 0.10,
+    cacheWritePerMillion: 0.1,
   },
 };
 
 /** Fallback pricing applied to unrecognised model ids. */
 const DEFAULT_PRICING: ModelPricing = {
-  inputPerMillion: 3.00,
-  outputPerMillion: 15.00,
-  cacheReadPerMillion: 0.30,
+  inputPerMillion: 3.0,
+  outputPerMillion: 15.0,
+  cacheReadPerMillion: 0.3,
   cacheWritePerMillion: 3.75,
 };
 
-function pricingFor(
-  model: string,
-  table: Readonly<Record<string, ModelPricing>>,
-): ModelPricing {
+function pricingFor(model: string, table: Readonly<Record<string, ModelPricing>>): ModelPricing {
   return table[model] ?? DEFAULT_PRICING;
 }
 
@@ -198,18 +195,14 @@ export class CostTracker {
    * Per-model breakdown sorted by model name for stable output.
    */
   byModel(): readonly ModelRecord[] {
-    return [...this.records.values()].sort((a, b) =>
-      a.model.localeCompare(b.model),
-    );
+    return [...this.records.values()].sort((a, b) => a.model.localeCompare(b.model));
   }
 
   /**
    * Convenience factory: build a tracker that uses a custom pricing table
    * (useful in tests or when integrating a newer model).
    */
-  static withPricing(
-    table: Readonly<Record<string, ModelPricing>>,
-  ): CostTracker {
+  static withPricing(table: Readonly<Record<string, ModelPricing>>): CostTracker {
     return new CostTracker(new Map(), table);
   }
 }

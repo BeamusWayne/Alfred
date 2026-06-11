@@ -81,8 +81,8 @@ describe("estimateMessages", () => {
 
   test("mixed messages sum correctly", () => {
     const msgs: readonly Message[] = [
-      userMsg("aaaa"),       // 4 → 1
-      assistantMsg("bbbb"),  // 4 → 1
+      userMsg("aaaa"), // 4 → 1
+      assistantMsg("bbbb"), // 4 → 1
       toolResultMsg("x", "cccc"), // 4 → 1
     ];
     expect(estimateMessages(msgs)).toBe(3);
@@ -149,7 +149,7 @@ describe("compact — happy path", () => {
       assistantMsg("done 2"),
       userMsg("task 3"),
       assistantMsg("done 3"),
-      userMsg("task 4"),      // tail starts here (keepRecent=6, split at index ~2)
+      userMsg("task 4"), // tail starts here (keepRecent=6, split at index ~2)
       assistantMsg("done 4"),
       userMsg("task 5"),
       assistantMsg("done 5"),
@@ -177,7 +177,7 @@ describe("compact — happy path", () => {
       assistantMsg("old reply 1"),
       userMsg("old 2"),
       assistantMsg("old reply 2"),
-      userMsg("recent A"),   // these form the tail
+      userMsg("recent A"), // these form the tail
       assistantMsg("recent reply A"),
       userMsg("recent B"),
       assistantMsg("recent reply B"),
@@ -202,10 +202,14 @@ describe("compact — happy path", () => {
     const provider = new MockProvider([textResponse("brief summary")]);
 
     const messages: readonly Message[] = [
-      userMsg("m1"), assistantMsg("r1"),
-      userMsg("m2"), assistantMsg("r2"),
-      userMsg("m3"), assistantMsg("r3"),
-      userMsg("m4"), assistantMsg("r4"),
+      userMsg("m1"),
+      assistantMsg("r1"),
+      userMsg("m2"),
+      assistantMsg("r2"),
+      userMsg("m3"),
+      assistantMsg("r3"),
+      userMsg("m4"),
+      assistantMsg("r4"),
     ];
 
     await compact(messages, { provider, model: "mock", keepRecent: 4, maxContextTokens: 100_000 });
@@ -256,10 +260,14 @@ describe("compact — user-boundary invariant", () => {
     const provider = new MockProvider([textResponse("summary text")]);
 
     const messages: readonly Message[] = [
-      userMsg("a"), assistantMsg("b"),
-      userMsg("c"), assistantMsg("d"),
-      userMsg("e"), assistantMsg("f"),
-      userMsg("g"), assistantMsg("h"),
+      userMsg("a"),
+      assistantMsg("b"),
+      userMsg("c"),
+      assistantMsg("d"),
+      userMsg("e"),
+      assistantMsg("f"),
+      userMsg("g"),
+      assistantMsg("h"),
     ];
 
     const result = await compact(messages, {
@@ -281,9 +289,7 @@ describe("compact — no-op cases", () => {
   test("returns input unchanged when messages <= keepRecent", async () => {
     const provider = new MockProvider([textResponse("should not be called")]);
 
-    const messages: readonly Message[] = [
-      userMsg("only"), assistantMsg("two"),
-    ];
+    const messages: readonly Message[] = [userMsg("only"), assistantMsg("two")];
 
     const result = await compact(messages, {
       provider,
@@ -322,10 +328,14 @@ describe("compact — provider error handling", () => {
     const provider = new MockProvider([new Error("network timeout")]);
 
     const messages: readonly Message[] = [
-      userMsg("a"), assistantMsg("b"),
-      userMsg("c"), assistantMsg("d"),
-      userMsg("e"), assistantMsg("f"),
-      userMsg("g"), assistantMsg("h"),
+      userMsg("a"),
+      assistantMsg("b"),
+      userMsg("c"),
+      assistantMsg("d"),
+      userMsg("e"),
+      assistantMsg("f"),
+      userMsg("g"),
+      assistantMsg("h"),
     ];
 
     const result = await compact(messages, {
@@ -343,10 +353,14 @@ describe("compact — provider error handling", () => {
     const provider = new MockProvider([new Error("500 Internal Server Error")]);
 
     const messages: readonly Message[] = [
-      userMsg("1"), assistantMsg("2"),
-      userMsg("3"), assistantMsg("4"),
-      userMsg("5"), assistantMsg("6"),
-      userMsg("7"), assistantMsg("8"),
+      userMsg("1"),
+      assistantMsg("2"),
+      userMsg("3"),
+      assistantMsg("4"),
+      userMsg("5"),
+      assistantMsg("6"),
+      userMsg("7"),
+      assistantMsg("8"),
     ];
 
     let threw = false;

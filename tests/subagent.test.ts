@@ -102,10 +102,20 @@ describe("spawn_subagent", () => {
   });
 
   test("sub-run usage folds into the parent run", async () => {
-    const subUsage = { inputTokens: 100, outputTokens: 50, cacheReadTokens: 0, cacheWriteTokens: 0 };
+    const subUsage = {
+      inputTokens: 100,
+      outputTokens: 50,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+    };
     const provider = new MockProvider([
       spawnCall("work"),
-      { content: [{ type: "text", text: "sub done" }], stopReason: "end_turn", usage: subUsage, model: "mock-sub" },
+      {
+        content: [{ type: "text", text: "sub done" }],
+        stopReason: "end_turn",
+        usage: subUsage,
+        model: "mock-sub",
+      },
       textResponse("parent done"),
     ]);
     const { state } = await collect(runQuery("go", config(provider)));
@@ -119,9 +129,7 @@ describe("spawn_subagent", () => {
       textResponse("sub done"),
       textResponse("parent done"),
     ]);
-    await collect(
-      runQuery("go", config(provider, { roles: { subagent: "mock-cheap" } })),
-    );
+    await collect(runQuery("go", config(provider, { roles: { subagent: "mock-cheap" } })));
     expect(provider.configs[1]?.model).toBe("mock-cheap");
     expect(provider.configs[1]?.effort).toBe("low");
   });

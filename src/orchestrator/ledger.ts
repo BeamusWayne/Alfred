@@ -76,9 +76,7 @@ function canonicalise(value: unknown): string {
   }
   if (Array.isArray(value)) {
     return (
-      "[" +
-      value.map((v) => (isJsonUnrepresentable(v) ? "null" : canonicalise(v))).join(",") +
-      "]"
+      "[" + value.map((v) => (isJsonUnrepresentable(v) ? "null" : canonicalise(v))).join(",") + "]"
     );
   }
   const obj = value as Record<string, unknown>;
@@ -111,11 +109,7 @@ function redactData(data: Record<string, unknown>): Record<string, unknown> {
  * The payload fields included are the four LedgerPayload fields only —
  * prevSig and sig are NOT part of the signed payload to avoid circularity.
  */
-function signEntry(
-  secret: string,
-  payload: LedgerPayload,
-  prevSig: string,
-): string {
+function signEntry(secret: string, payload: LedgerPayload, prevSig: string): string {
   const canonical = canonicalise({
     data: payload.data,
     kind: payload.kind,
@@ -169,11 +163,7 @@ export class Ledger {
    */
   private writeQueue: Promise<void> = Promise.resolve();
 
-  constructor(
-    path: string,
-    secret: string,
-    opts?: { readonly now?: () => number },
-  ) {
+  constructor(path: string, secret: string, opts?: { readonly now?: () => number }) {
     this.path = path;
     this.secret = secret;
     this.now = opts?.now ?? ((): number => Date.now());
@@ -200,8 +190,7 @@ export class Ledger {
         await ensureParentDir(this.path);
         const prior = await this.readRaw();
         const seq = prior.length;
-        const prevSig =
-          seq === 0 ? GENESIS_PREV_SIG : (prior[seq - 1]?.sig ?? GENESIS_PREV_SIG);
+        const prevSig = seq === 0 ? GENESIS_PREV_SIG : (prior[seq - 1]?.sig ?? GENESIS_PREV_SIG);
 
         const payload: LedgerPayload = {
           seq,
@@ -252,9 +241,7 @@ export class Ledger {
    * Returns `{ ok: true }` when the chain is intact, or
    * `{ ok: false, brokenAt: index, reason: string }` on the first violation.
    */
-  async verify(): Promise<
-    { ok: true } | { ok: false; brokenAt: number; reason: string }
-  > {
+  async verify(): Promise<{ ok: true } | { ok: false; brokenAt: number; reason: string }> {
     const entries = await this.readRaw();
 
     for (let i = 0; i < entries.length; i++) {
@@ -306,7 +293,11 @@ export class Ledger {
     const head = await this.readHead();
     if (entries.length === 0) {
       if (head !== null && head.count !== 0) {
-        return { ok: false, brokenAt: 0, reason: "head anchor claims entries but ledger is empty (truncation)" };
+        return {
+          ok: false,
+          brokenAt: 0,
+          reason: "head anchor claims entries but ledger is empty (truncation)",
+        };
       }
       return { ok: true };
     }
@@ -319,7 +310,11 @@ export class Ledger {
     }
     const last = entries[entries.length - 1]!;
     const expectedHeadSig = headAnchorSig(this.secret, entries.length, last.sig);
-    if (head.count !== entries.length || head.lastSig !== last.sig || head.headSig !== expectedHeadSig) {
+    if (
+      head.count !== entries.length ||
+      head.lastSig !== last.sig ||
+      head.headSig !== expectedHeadSig
+    ) {
       return {
         ok: false,
         brokenAt: entries.length,

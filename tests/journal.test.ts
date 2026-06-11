@@ -20,7 +20,10 @@ let testDir: string;
 
 beforeEach(async () => {
   // Each test gets its own isolated temp directory.
-  const base = join(tmpdir(), `alfred-journal-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const base = join(
+    tmpdir(),
+    `alfred-journal-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
   await mkdir(base, { recursive: true });
   testDir = base;
 });
@@ -87,7 +90,14 @@ describe("readAll — round-trip", () => {
     const all = await j.readAll();
     expect(all.length).toBe(3);
 
-    expect(all[0]).toMatchObject({ seq: 1, type: "a", key: "k1", label: "Alpha", data: { x: 1 }, ts: 999 });
+    expect(all[0]).toMatchObject({
+      seq: 1,
+      type: "a",
+      key: "k1",
+      label: "Alpha",
+      data: { x: 1 },
+      ts: 999,
+    });
     expect(all[1]).toMatchObject({ seq: 2, type: "b", key: "k2", data: [1, 2, 3], ts: 999 });
     expect(all[2]).toMatchObject({ seq: 3, type: "c", data: null, ts: 999 });
   });

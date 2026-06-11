@@ -191,7 +191,7 @@ export const MODEL_CATALOG: Readonly<Record<string, ModelProfile>> = {
     supportsServerCompaction: false,
     tier: "strong",
   },
-  "o3": {
+  o3: {
     contextWindow: 200_000,
     maxOutput: 100_000,
     thinking: "none",
@@ -309,7 +309,9 @@ export function tierIterationBudget(tier: ModelTier): number {
  * the architect thinks hardest, the editor balances cost, subagents and
  * utility calls stay cheap. Callers can override per query.
  */
-export function defaultEffortForRole(role: "architect" | "editor" | "subagent" | undefined): Effort | undefined {
+export function defaultEffortForRole(
+  role: "architect" | "editor" | "subagent" | undefined,
+): Effort | undefined {
   switch (role) {
     case "architect":
       return "xhigh";

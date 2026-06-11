@@ -50,10 +50,7 @@ export interface HookOutcome {
 // Zod schema — used by `loadHooksConfig` to validate the JSON file.
 // ---------------------------------------------------------------------------
 
-const hookEventSchema = z.union([
-  z.literal("PreToolUse"),
-  z.literal("PostToolUse"),
-]);
+const hookEventSchema = z.union([z.literal("PreToolUse"), z.literal("PostToolUse")]);
 
 const hookMatcherSchema = z.object({
   event: hookEventSchema,

@@ -19,9 +19,7 @@ export const egressPolicySchema = z.object({
   allowHosts: z
     .array(z.string().min(1))
     .readonly()
-    .describe(
-      'Allowed hostnames or wildcard patterns (e.g. "api.example.com", "*.example.com").',
-    ),
+    .describe('Allowed hostnames or wildcard patterns (e.g. "api.example.com", "*.example.com").'),
 });
 
 // ---------------------------------------------------------------------------
@@ -111,9 +109,7 @@ export function checkEgress(url: string, policy: EgressPolicy): EgressResult {
 
   const host = parsed.hostname.toLowerCase();
 
-  const matched = policy.allowHosts.some((pattern) =>
-    matchesPattern(host, pattern.toLowerCase()),
-  );
+  const matched = policy.allowHosts.some((pattern) => matchesPattern(host, pattern.toLowerCase()));
 
   if (!matched) {
     return {

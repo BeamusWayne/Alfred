@@ -4,11 +4,7 @@
  */
 import { describe, test, expect } from "bun:test";
 import { fence, isTainted } from "../src/security/taint.ts";
-import {
-  checkEgress,
-  DEFAULT_EGRESS_POLICY,
-  type EgressPolicy,
-} from "../src/security/egress.ts";
+import { checkEgress, DEFAULT_EGRESS_POLICY, type EgressPolicy } from "../src/security/egress.ts";
 import { redact } from "../src/security/redact.ts";
 
 // ---------------------------------------------------------------------------
@@ -39,10 +35,7 @@ describe("fence()", () => {
     const result = fence(injected, "web");
     // The raw closing tag must not appear inside the fenced content
     // (it will appear only once as the real closing tag at the very end)
-    const inner = result.slice(
-      result.indexOf(">") + 1,
-      result.lastIndexOf("</untrusted-data>"),
-    );
+    const inner = result.slice(result.indexOf(">") + 1, result.lastIndexOf("</untrusted-data>"));
     expect(inner).not.toContain("</untrusted-data>");
   });
 

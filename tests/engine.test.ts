@@ -65,7 +65,9 @@ describe("runQuery", () => {
     expect(state.status).toBe("success");
     expect(state.turns).toBe(2);
     const toolResult = events.find((e) => e.type === "tool_result");
-    expect(toolResult && toolResult.type === "tool_result" && toolResult.output).toContain("note.txt");
+    expect(toolResult && toolResult.type === "tool_result" && toolResult.output).toContain(
+      "note.txt",
+    );
     expect(events.some((e) => e.type === "text" && e.text === "done")).toBe(true);
   });
 
@@ -81,7 +83,9 @@ describe("runQuery", () => {
       toolUseResponse("file_write", { path: "x.txt", content: "hi" }),
       textResponse("ok"),
     ]);
-    const { events, state } = await collect(runQuery("write", config(provider, { mode: "default" })));
+    const { events, state } = await collect(
+      runQuery("write", config(provider, { mode: "default" })),
+    );
     const result = events.find((e) => e.type === "tool_result");
     expect(result && result.type === "tool_result" && result.isError).toBe(true);
     expect(result && result.type === "tool_result" && result.output).toContain("Approval required");

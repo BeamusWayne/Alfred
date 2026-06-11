@@ -10,12 +10,7 @@ import type { MemoryProvider } from "../memory/types.ts";
  * tell "resume me" from "fatal" (the review flagged the old loop's single
  * overloaded error type as a real gap).
  */
-export type TerminalStatus =
-  | "success"
-  | "max_turns"
-  | "provider_error"
-  | "truncated"
-  | "aborted";
+export type TerminalStatus = "success" | "max_turns" | "provider_error" | "truncated" | "aborted";
 
 export interface ApprovalRequest {
   readonly toolName: string;

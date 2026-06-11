@@ -91,8 +91,12 @@ describe("upsert → get → search", () => {
   });
 
   test("search finds fact by keyword (FTS5)", async () => {
-    await provider.upsert(fakeFact({ slug: "typescript-strict", content: "Strict TypeScript mode is enabled." }));
-    await provider.upsert(fakeFact({ slug: "immutability-rule", content: "Never mutate inputs or existing objects." }));
+    await provider.upsert(
+      fakeFact({ slug: "typescript-strict", content: "Strict TypeScript mode is enabled." }),
+    );
+    await provider.upsert(
+      fakeFact({ slug: "immutability-rule", content: "Never mutate inputs or existing objects." }),
+    );
 
     const results = await provider.search("TypeScript");
     const slugs = results.map((f) => f.slug);
@@ -121,7 +125,9 @@ describe("upsert → get → search", () => {
 
   test("search across multiple facts returns all matching", async () => {
     await provider.upsert(fakeFact({ slug: "fact-a", content: "Alfred agent coding CLI." }));
-    await provider.upsert(fakeFact({ slug: "fact-b", content: "Alfred uses streaming responses." }));
+    await provider.upsert(
+      fakeFact({ slug: "fact-b", content: "Alfred uses streaming responses." }),
+    );
     await provider.upsert(fakeFact({ slug: "fact-c", content: "Unrelated content about python." }));
 
     const results = await provider.search("Alfred");
@@ -342,8 +348,18 @@ describe("EpisodeStore", () => {
   });
 
   test("query finds episodes by keyword", async () => {
-    await store.write({ goal: "Fix SQLite FTS bug", approach: "Debug index", worked: [], failed: [] });
-    await store.write({ goal: "Add new endpoint", approach: "REST design", worked: [], failed: [] });
+    await store.write({
+      goal: "Fix SQLite FTS bug",
+      approach: "Debug index",
+      worked: [],
+      failed: [],
+    });
+    await store.write({
+      goal: "Add new endpoint",
+      approach: "REST design",
+      worked: [],
+      failed: [],
+    });
 
     const results = await store.query(["SQLite"], 10);
     expect(results.length).toBe(1);
@@ -425,7 +441,9 @@ describe("contradict", () => {
 describe("prefetch", () => {
   test("returns up to k results", async () => {
     for (let i = 0; i < 5; i++) {
-      await provider.upsert(fakeFact({ slug: `pf-fact-${i}`, content: `Prefetch test content item ${i}.` }));
+      await provider.upsert(
+        fakeFact({ slug: `pf-fact-${i}`, content: `Prefetch test content item ${i}.` }),
+      );
     }
     const results = await provider.prefetch("Prefetch test content", 3);
     expect(results.length).toBeLessThanOrEqual(3);
@@ -439,12 +457,18 @@ describe("prefetch", () => {
 describe("slug containment", () => {
   test("forget/get/upsert reject a traversal slug and never touch outside files", async () => {
     // A file living outside the facts dir (and outside the workspace root).
-    const outside = join(tempRoot, "..", `outside-secret-${Math.random().toString(36).slice(2)}.md`);
+    const outside = join(
+      tempRoot,
+      "..",
+      `outside-secret-${Math.random().toString(36).slice(2)}.md`,
+    );
     await writeFile(outside, "do not delete", "utf8");
     try {
       await expect(provider.forget("../../foo")).rejects.toThrow(/invalid memory slug/);
       await expect(provider.get("../../foo")).rejects.toThrow(/invalid memory slug/);
-      await expect(provider.upsert(fakeFact({ slug: "../../evil" }))).rejects.toThrow(/invalid memory slug/);
+      await expect(provider.upsert(fakeFact({ slug: "../../evil" }))).rejects.toThrow(
+        /invalid memory slug/,
+      );
       await expect(provider.forget("a/b")).rejects.toThrow(/invalid memory slug/);
       // The outside file must be untouched.
       expect(await Bun.file(outside).exists()).toBe(true);

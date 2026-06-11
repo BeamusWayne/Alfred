@@ -168,10 +168,12 @@ export class LocalFileProvider implements MemoryProvider {
   private async indexFact(fact: Fact): Promise<void> {
     const db = await this.openDb();
     db.run("DELETE FROM facts_fts WHERE slug = ?", [fact.slug]);
-    db.run(
-      "INSERT INTO facts_fts(slug, type, scope, content) VALUES (?, ?, ?, ?)",
-      [fact.slug, fact.type, fact.scope ?? "", fact.content],
-    );
+    db.run("INSERT INTO facts_fts(slug, type, scope, content) VALUES (?, ?, ?, ?)", [
+      fact.slug,
+      fact.type,
+      fact.scope ?? "",
+      fact.content,
+    ]);
   }
 
   private async deindexFact(slug: string): Promise<void> {
@@ -222,9 +224,7 @@ export class LocalFileProvider implements MemoryProvider {
     let entries: string[] = [];
     try {
       const files = await readdir(this.factsDir());
-      const slugs = files
-        .filter((f) => f.endsWith(".md"))
-        .map(filenameToSlug);
+      const slugs = files.filter((f) => f.endsWith(".md")).map(filenameToSlug);
       const facts = await Promise.all(slugs.map((s) => this.readFactFile(s)));
       entries = facts
         .filter((f): f is Fact => f !== null)
@@ -249,9 +249,7 @@ export class LocalFileProvider implements MemoryProvider {
     const userSection = userText.trim()
       ? `## User Preferences & Conventions\n${userText.trim()}`
       : "";
-    const memSection = memoryText.trim()
-      ? `## Memory Index\n${memoryText.trim()}`
-      : "";
+    const memSection = memoryText.trim() ? `## Memory Index\n${memoryText.trim()}` : "";
 
     const parts = [userSection, memSection].filter(Boolean);
     const combined = parts.join("\n\n");
@@ -353,7 +351,8 @@ export class LocalFileProvider implements MemoryProvider {
         // Annotate with staleness reason before archiving
         const raw = await safeReadText(this.factPath(slug));
         if (raw !== null) {
-          const annotated = raw.trimEnd() + `\n\n<!-- archived: ${reason} at ${now.toISOString()} -->\n`;
+          const annotated =
+            raw.trimEnd() + `\n\n<!-- archived: ${reason} at ${now.toISOString()} -->\n`;
           staleArchiveOps.push(
             (async () => {
               await Bun.write(archivePath, annotated);
@@ -387,8 +386,7 @@ export class LocalFileProvider implements MemoryProvider {
       if (prev !== undefined) {
         // Keep the newer one (by ts), archive the older
         const prevFact = await this.readFactFile(prev);
-        const slugToRemove =
-          prevFact !== null && fact.ts >= prevFact.ts ? prev : slug;
+        const slugToRemove = prevFact !== null && fact.ts >= prevFact.ts ? prev : slug;
         const keepSlug = slugToRemove === prev ? slug : prev;
         seen.set(key, keepSlug);
         const archivePath = join(this.archiveDir(), slugToFilename(slugToRemove));
@@ -498,5 +496,4 @@ export class LocalFileProvider implements MemoryProvider {
       this.db = null;
     }
   }
-
 }

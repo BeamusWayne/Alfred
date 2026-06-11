@@ -165,9 +165,7 @@ describe("runAgent — no-schema path", () => {
 describe("runAgent — status propagation", () => {
   test("status is max_turns when engine hits the turn limit", async () => {
     // Always returns a tool call that the engine cannot find → keeps looping.
-    const provider = new MockProvider([
-      () => toolUseResponse("nonexistent_tool", {}),
-    ]);
+    const provider = new MockProvider([() => toolUseResponse("nonexistent_tool", {})]);
 
     const run = await runAgent("loop", {
       ...makeOpts(provider),

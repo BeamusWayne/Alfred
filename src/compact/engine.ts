@@ -52,10 +52,7 @@ const DEFAULT_KEEP_RECENT = 6;
  * Returns `true` when the context size exceeds `threshold × maxContextTokens`.
  * Prefers the real `actualTokens` count when supplied, else a char/4 estimate.
  */
-export function shouldCompact(
-  messages: readonly Message[],
-  opts: ShouldCompactOptions,
-): boolean {
+export function shouldCompact(messages: readonly Message[], opts: ShouldCompactOptions): boolean {
   const threshold = opts.threshold ?? DEFAULT_THRESHOLD;
   const budget = Math.floor(opts.maxContextTokens * threshold);
   const used =
@@ -125,7 +122,10 @@ function renderExcerpt(messages: readonly Message[]): string {
       const text =
         typeof msg.content === "string"
           ? msg.content
-          : msg.content.map((b) => renderBlock(b, false)).filter((s) => s.length > 0).join(" ");
+          : msg.content
+              .map((b) => renderBlock(b, false))
+              .filter((s) => s.length > 0)
+              .join(" ");
       parts.push(`USER: ${text}`);
     } else if (msg.role === "assistant") {
       const text = msg.content

@@ -12,11 +12,7 @@
  */
 
 import { describe, test, expect } from "bun:test";
-import {
-  CostTracker,
-  PRICING_TABLE,
-  type ModelPricing,
-} from "../src/cost/tracker.ts";
+import { CostTracker, PRICING_TABLE, type ModelPricing } from "../src/cost/tracker.ts";
 import type { Usage } from "../src/providers/types.ts";
 
 // ---------------------------------------------------------------------------
@@ -64,61 +60,43 @@ describe("PRICING_TABLE", () => {
 describe("CostTracker — known model pricing", () => {
   test("claude-haiku-4-5: 1M input tokens costs $1.00", () => {
     const t = new CostTracker().add("claude-haiku-4-5", usage(1_000_000));
-    expect(approxEqual(t.total().usd, 1.00)).toBe(true);
+    expect(approxEqual(t.total().usd, 1.0)).toBe(true);
   });
 
   test("claude-sonnet-4-6: 1M output tokens costs $15.00", () => {
     const t = new CostTracker().add("claude-sonnet-4-6", usage(0, 1_000_000));
-    expect(approxEqual(t.total().usd, 15.00)).toBe(true);
+    expect(approxEqual(t.total().usd, 15.0)).toBe(true);
   });
 
   test("claude-opus-4-8: 1M input + 1M output", () => {
-    const t = new CostTracker().add(
-      "claude-opus-4-8",
-      usage(1_000_000, 1_000_000),
-    );
+    const t = new CostTracker().add("claude-opus-4-8", usage(1_000_000, 1_000_000));
     // 5 (input) + 25 (output) = $30
-    expect(approxEqual(t.total().usd, 30.00)).toBe(true);
+    expect(approxEqual(t.total().usd, 30.0)).toBe(true);
   });
 
   test("haiku cache-read tokens priced at $0.10/M", () => {
-    const t = new CostTracker().add(
-      "claude-haiku-4-5",
-      usage(0, 0, 1_000_000, 0),
-    );
-    expect(approxEqual(t.total().usd, 0.10)).toBe(true);
+    const t = new CostTracker().add("claude-haiku-4-5", usage(0, 0, 1_000_000, 0));
+    expect(approxEqual(t.total().usd, 0.1)).toBe(true);
   });
 
   test("haiku cache-write tokens priced at $1.25/M", () => {
-    const t = new CostTracker().add(
-      "claude-haiku-4-5",
-      usage(0, 0, 0, 1_000_000),
-    );
+    const t = new CostTracker().add("claude-haiku-4-5", usage(0, 0, 0, 1_000_000));
     expect(approxEqual(t.total().usd, 1.25)).toBe(true);
   });
 
   test("sonnet cache-read tokens priced at $0.30/M", () => {
-    const t = new CostTracker().add(
-      "claude-sonnet-4-6",
-      usage(0, 0, 1_000_000, 0),
-    );
-    expect(approxEqual(t.total().usd, 0.30)).toBe(true);
+    const t = new CostTracker().add("claude-sonnet-4-6", usage(0, 0, 1_000_000, 0));
+    expect(approxEqual(t.total().usd, 0.3)).toBe(true);
   });
 
   test("opus cache-write tokens priced at $6.25/M", () => {
-    const t = new CostTracker().add(
-      "claude-opus-4-8",
-      usage(0, 0, 0, 1_000_000),
-    );
+    const t = new CostTracker().add("claude-opus-4-8", usage(0, 0, 0, 1_000_000));
     expect(approxEqual(t.total().usd, 6.25)).toBe(true);
   });
 
   test("combined usage across all token types for sonnet", () => {
     // 100k input + 50k output + 200k cache-read + 10k cache-write
-    const t = new CostTracker().add(
-      "claude-sonnet-4-6",
-      usage(100_000, 50_000, 200_000, 10_000),
-    );
+    const t = new CostTracker().add("claude-sonnet-4-6", usage(100_000, 50_000, 200_000, 10_000));
     const p = PRICING_TABLE["claude-sonnet-4-6"]!;
     const expected =
       (100_000 * p.inputPerMillion) / 1_000_000 +
@@ -137,12 +115,12 @@ describe("CostTracker — unknown model fallback", () => {
   test("unknown model falls back to default pricing (sonnet rates)", () => {
     const t = new CostTracker().add("gpt-unknown-9000", usage(1_000_000));
     // Default is sonnet-level: $3.00/M input
-    expect(approxEqual(t.total().usd, 3.00)).toBe(true);
+    expect(approxEqual(t.total().usd, 3.0)).toBe(true);
   });
 
   test("unknown model output tokens use default output rate", () => {
     const t = new CostTracker().add("gpt-unknown-9000", usage(0, 1_000_000));
-    expect(approxEqual(t.total().usd, 15.00)).toBe(true);
+    expect(approxEqual(t.total().usd, 15.0)).toBe(true);
   });
 });
 
@@ -167,9 +145,9 @@ describe("CostTracker — immutability", () => {
     // t0 untouched
     expect(t0.total().usd).toBe(0);
     // t1 has 1M tokens
-    expect(approxEqual(t1.total().usd, 1.00)).toBe(true);
+    expect(approxEqual(t1.total().usd, 1.0)).toBe(true);
     // t2 has 2M tokens
-    expect(approxEqual(t2.total().usd, 2.00)).toBe(true);
+    expect(approxEqual(t2.total().usd, 2.0)).toBe(true);
   });
 
   test("add() for same model accumulates usage in new tracker", () => {
@@ -177,9 +155,9 @@ describe("CostTracker — immutability", () => {
     const t2 = t1.add("claude-opus-4-8", usage(500_000));
 
     // Combined: 1M input tokens at opus rate ($5)
-    expect(approxEqual(t2.total().usd, 5.00)).toBe(true);
+    expect(approxEqual(t2.total().usd, 5.0)).toBe(true);
     // t1 is half that
-    expect(approxEqual(t1.total().usd, 2.50)).toBe(true);
+    expect(approxEqual(t1.total().usd, 2.5)).toBe(true);
   });
 });
 
@@ -190,9 +168,9 @@ describe("CostTracker — immutability", () => {
 describe("CostTracker — total()", () => {
   test("total() aggregates USD across multiple models", () => {
     const t = new CostTracker()
-      .add("claude-haiku-4-5", usage(1_000_000))      // $1.00
-      .add("claude-sonnet-4-6", usage(1_000_000));    // $3.00
-    expect(approxEqual(t.total().usd, 4.00)).toBe(true);
+      .add("claude-haiku-4-5", usage(1_000_000)) // $1.00
+      .add("claude-sonnet-4-6", usage(1_000_000)); // $3.00
+    expect(approxEqual(t.total().usd, 4.0)).toBe(true);
   });
 
   test("total() aggregates Usage across multiple models", () => {
@@ -255,25 +233,19 @@ describe("CostTracker.withPricing()", () => {
   test("uses custom pricing for a known model", () => {
     const customTable: Readonly<Record<string, ModelPricing>> = {
       "my-model": {
-        inputPerMillion: 1.00,
-        outputPerMillion: 2.00,
-        cacheReadPerMillion: 0.10,
-        cacheWritePerMillion: 0.50,
+        inputPerMillion: 1.0,
+        outputPerMillion: 2.0,
+        cacheReadPerMillion: 0.1,
+        cacheWritePerMillion: 0.5,
       },
     };
-    const t = CostTracker.withPricing(customTable).add(
-      "my-model",
-      usage(1_000_000),
-    );
-    expect(approxEqual(t.total().usd, 1.00)).toBe(true);
+    const t = CostTracker.withPricing(customTable).add("my-model", usage(1_000_000));
+    expect(approxEqual(t.total().usd, 1.0)).toBe(true);
   });
 
   test("custom table still falls back to default for unknown models", () => {
-    const t = CostTracker.withPricing({}).add(
-      "some-unknown-model",
-      usage(1_000_000),
-    );
+    const t = CostTracker.withPricing({}).add("some-unknown-model", usage(1_000_000));
     // Falls back to default ($3.00/M)
-    expect(approxEqual(t.total().usd, 3.00)).toBe(true);
+    expect(approxEqual(t.total().usd, 3.0)).toBe(true);
   });
 });

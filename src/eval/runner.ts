@@ -91,9 +91,7 @@ export async function runEvalCase(c: EvalCase): Promise<EvalResult> {
 
   // Assert terminal status.
   if (exp.status !== undefined && state.status !== exp.status) {
-    failures.push(
-      `status: expected "${exp.status}" but got "${state.status}"`,
-    );
+    failures.push(`status: expected "${exp.status}" but got "${state.status}"`);
   }
 
   // Assert ordered tool subsequence: every tool in exp.toolsUsed must appear
@@ -114,10 +112,7 @@ export async function runEvalCase(c: EvalCase): Promise<EvalResult> {
   }
 
   // Assert tool call count ceiling.
-  if (
-    exp.toolCallCountAtMost !== undefined &&
-    toolsUsed.length > exp.toolCallCountAtMost
-  ) {
+  if (exp.toolCallCountAtMost !== undefined && toolsUsed.length > exp.toolCallCountAtMost) {
     failures.push(
       `toolCallCountAtMost: expected at most ${exp.toolCallCountAtMost} tool call(s) ` +
         `but observed ${toolsUsed.length}`,
@@ -128,8 +123,7 @@ export async function runEvalCase(c: EvalCase): Promise<EvalResult> {
   if (exp.finalTextIncludes !== undefined) {
     for (const substr of exp.finalTextIncludes) {
       if (!finalText.includes(substr)) {
-        const preview =
-          finalText.length > 120 ? `${finalText.slice(0, 120)}…` : finalText;
+        const preview = finalText.length > 120 ? `${finalText.slice(0, 120)}…` : finalText;
         failures.push(
           `finalTextIncludes: expected substring "${substr}" not found in "${preview}"`,
         );
@@ -151,9 +145,7 @@ export async function runEvalCase(c: EvalCase): Promise<EvalResult> {
  * Run all cases in the suite sequentially and aggregate results into an
  * EvalReport. Sequential execution keeps MockProvider state isolated per case.
  */
-export async function runEvalSuite(
-  cases: readonly EvalCase[],
-): Promise<EvalReport> {
+export async function runEvalSuite(cases: readonly EvalCase[]): Promise<EvalReport> {
   const results: EvalResult[] = [];
   for (const c of cases) {
     results.push(await runEvalCase(c));

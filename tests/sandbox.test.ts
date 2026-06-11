@@ -12,11 +12,7 @@
 
 import { describe, test, expect } from "bun:test";
 import { seatbeltProfile } from "../src/sandbox/seatbelt.ts";
-import {
-  sandboxAvailable,
-  wrapCommand,
-  defaultPolicy,
-} from "../src/sandbox/index.ts";
+import { sandboxAvailable, wrapCommand, defaultPolicy } from "../src/sandbox/index.ts";
 import type { SandboxPolicy } from "../src/sandbox/index.ts";
 
 // ---------------------------------------------------------------------------

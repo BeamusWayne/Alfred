@@ -144,8 +144,8 @@ describe("Tracer — span nesting", () => {
     gp.end();
 
     const spans = cap.spans;
-    expect(spans[0]!.parentId).toBe("p-2");   // child's parent
-    expect(spans[1]!.parentId).toBe("gp-1");  // parent's parent
+    expect(spans[0]!.parentId).toBe("p-2"); // child's parent
+    expect(spans[1]!.parentId).toBe("gp-1"); // parent's parent
     expect(spans[2]!.parentId).toBeUndefined();
   });
 });
@@ -165,11 +165,7 @@ describe("Tracer — deterministic ids", () => {
     tracer.startSpan("b").end();
     tracer.startSpan("c").end();
 
-    expect(cap.spans.map((s) => s.spanId)).toEqual([
-      "test-1",
-      "test-2",
-      "test-3",
-    ]);
+    expect(cap.spans.map((s) => s.spanId)).toEqual(["test-1", "test-2", "test-3"]);
   });
 
   test("injected now produces predictable timestamps", () => {
@@ -255,13 +251,15 @@ describe("FileExporter", () => {
 describe("NoopExporter", () => {
   test("swallows spans without throwing", () => {
     const noop = new NoopExporter();
-    expect(() => noop.export({
-      name: "x",
-      spanId: "1",
-      startTime: 0,
-      attributes: {},
-      status: "unset",
-    })).not.toThrow();
+    expect(() =>
+      noop.export({
+        name: "x",
+        spanId: "1",
+        startTime: 0,
+        attributes: {},
+        status: "unset",
+      }),
+    ).not.toThrow();
   });
 });
 

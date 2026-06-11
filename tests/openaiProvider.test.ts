@@ -12,7 +12,11 @@ import type { Message, ToolDefinition, ProviderConfig } from "../src/providers/t
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeFetcher(status: number, body: unknown, headers: Record<string, string> = {}): {
+function makeFetcher(
+  status: number,
+  body: unknown,
+  headers: Record<string, string> = {},
+): {
   fetcher: Fetcher;
   calls: Array<{ url: string; init: RequestInit }>;
 } {
@@ -33,9 +37,7 @@ const BASE_CONFIG: ProviderConfig = {
   maxTokens: 1024,
 };
 
-const USER_MESSAGES: readonly Message[] = [
-  { role: "user", content: "Hello, world!" },
-];
+const USER_MESSAGES: readonly Message[] = [{ role: "user", content: "Hello, world!" }];
 
 // ---------------------------------------------------------------------------
 // 1. Text completion (finish_reason = "stop")
@@ -196,9 +198,7 @@ describe("OpenAIProvider — request shape", () => {
       },
     ];
 
-    const messages: readonly Message[] = [
-      { role: "user", content: "List /tmp" },
-    ];
+    const messages: readonly Message[] = [{ role: "user", content: "List /tmp" }];
 
     await provider.chat(messages, tools, config);
 
@@ -256,9 +256,7 @@ describe("OpenAIProvider — request shape", () => {
       { role: "user", content: "Run the tool" },
       {
         role: "assistant",
-        content: [
-          { type: "tool_use", id: "call_99", name: "exec", input: { cmd: "ls" } },
-        ],
+        content: [{ type: "tool_use", id: "call_99", name: "exec", input: { cmd: "ls" } }],
       },
       {
         role: "tool_result",
@@ -270,9 +268,9 @@ describe("OpenAIProvider — request shape", () => {
 
     await provider.chat(messages, [], BASE_CONFIG);
 
-    const body = JSON.parse(
-      (calls[0]!.init as { body: string }).body,
-    ) as { messages: Array<{ role: string; tool_call_id?: string; content?: string | null }> };
+    const body = JSON.parse((calls[0]!.init as { body: string }).body) as {
+      messages: Array<{ role: string; tool_call_id?: string; content?: string | null }>;
+    };
 
     const toolMsg = body.messages.find((m) => m.role === "tool");
     expect(toolMsg).toBeDefined();
@@ -410,7 +408,9 @@ describe("OpenAIProvider — malformed response + network resilience", () => {
     };
     let caught: unknown;
     try {
-      await new OpenAIProvider(fetcher).chat(USER_MESSAGES, [], BASE_CONFIG, { signal: controller.signal });
+      await new OpenAIProvider(fetcher).chat(USER_MESSAGES, [], BASE_CONFIG, {
+        signal: controller.signal,
+      });
     } catch (e) {
       caught = e;
     }
@@ -439,10 +439,14 @@ function sse(...objs: unknown[]): string {
   return objs.map((o) => `data: ${JSON.stringify(o)}\n\n`).join("") + "data: [DONE]\n\n";
 }
 function sseFetcher(body: string): Fetcher {
-  return async () => new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } });
+  return async () =>
+    new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } });
 }
 async function drainStream(
-  gen: AsyncGenerator<{ type: "text_delta"; text: string }, import("../src/providers/types.ts").LLMResponse>,
+  gen: AsyncGenerator<
+    { type: "text_delta"; text: string },
+    import("../src/providers/types.ts").LLMResponse
+  >,
 ): Promise<{ deltas: string[]; final: import("../src/providers/types.ts").LLMResponse }> {
   const deltas: string[] = [];
   let r = await gen.next();
@@ -472,8 +476,26 @@ describe("OpenAIProvider — streaming", () => {
 
   test("reassembles a tool call streamed in fragments", async () => {
     const body = sse(
-      { choices: [{ delta: { tool_calls: [{ index: 0, id: "call_1", function: { name: "bash", arguments: '{"comm' } }] }, finish_reason: null }] },
-      { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: 'and":"ls"}' } }] }, finish_reason: "tool_calls" }] },
+      {
+        choices: [
+          {
+            delta: {
+              tool_calls: [
+                { index: 0, id: "call_1", function: { name: "bash", arguments: '{"comm' } },
+              ],
+            },
+            finish_reason: null,
+          },
+        ],
+      },
+      {
+        choices: [
+          {
+            delta: { tool_calls: [{ index: 0, function: { arguments: 'and":"ls"}' } }] },
+            finish_reason: "tool_calls",
+          },
+        ],
+      },
     );
     const { final } = await drainStream(
       new OpenAIProvider(sseFetcher(body)).stream(USER_MESSAGES, [], BASE_CONFIG),

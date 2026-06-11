@@ -68,7 +68,7 @@ function parseResponse(json: string): JsonRpcResponse | null {
 /** Flatten MCP content items to a single string. */
 function flattenContent(items: readonly McpContentItem[]): string {
   return items
-    .map((item) => (item.text ?? ""))
+    .map((item) => item.text ?? "")
     .join("\n")
     .trimEnd();
 }
@@ -242,10 +242,7 @@ function spawnMcpProc(command: string, args: readonly string[]) {
  * Bun.spawn-backed transport for a real MCP server process.
  * Messages are newline-delimited JSON on the process's stdin/stdout.
  */
-export function stdioTransport(
-  command: string,
-  args: readonly string[] = [],
-): McpTransport {
+export function stdioTransport(command: string, args: readonly string[] = []): McpTransport {
   // IIFE keeps `proc`'s precise piped-stdio types while still catching the
   // synchronous throw a missing binary produces; the rethrow names the command
   // so the bootstrap layer can report exactly which server failed to launch.

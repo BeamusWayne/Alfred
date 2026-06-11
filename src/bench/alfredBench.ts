@@ -205,11 +205,7 @@ export async function alfredBench(spec: BenchSpec, deps: BenchDeps): Promise<Ben
  * reports a passing receipt for a run that proved nothing.
  */
 export function benchPassed(result: BenchResult): boolean {
-  return (
-    result.features > 0 &&
-    result.dualPassConfirmed === result.features &&
-    result.ledgerOk
-  );
+  return result.features > 0 && result.dualPassConfirmed === result.features && result.ledgerOk;
 }
 
 // ---------------------------------------------------------------------------

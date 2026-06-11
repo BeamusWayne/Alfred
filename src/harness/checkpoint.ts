@@ -49,7 +49,10 @@ async function git(args: readonly string[], cwd: string): Promise<GitResult> {
 async function listUntracked(cwd: string): Promise<string[]> {
   const r = await git(["ls-files", "--others", "--exclude-standard"], cwd);
   if (r.exitCode !== 0) return [];
-  return r.stdout.split("\n").map((s) => s.trim()).filter((s) => s.length > 0);
+  return r.stdout
+    .split("\n")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -145,7 +148,7 @@ export async function rollback(cwd: string, cp: Checkpoint): Promise<void> {
   const resetResult = await git(["reset", "--hard", cp.head], cwd);
   if (resetResult.exitCode !== 0) {
     throw new Error(
-      `checkpoint rollback: git reset --hard ${cp.head} failed: ${resetResult.stderr}`
+      `checkpoint rollback: git reset --hard ${cp.head} failed: ${resetResult.stderr}`,
     );
   }
 
@@ -166,7 +169,7 @@ export async function rollback(cwd: string, cp: Checkpoint): Promise<void> {
       // Surface as a non-fatal warning via returned error information.
       // Callers that care can inspect; we do not swallow silently by design.
       throw new Error(
-        `checkpoint rollback: git stash apply ${cp.stashRef} failed (HEAD was reset OK): ${applyResult.stderr}`
+        `checkpoint rollback: git stash apply ${cp.stashRef} failed (HEAD was reset OK): ${applyResult.stderr}`,
       );
     }
   }

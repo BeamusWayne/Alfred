@@ -95,9 +95,7 @@ if (!process.env["ANTHROPIC_API_KEY"]) {
 
 if (!process.env["ALFRED_LEDGER_SECRET"]) {
   process.stderr.write(
-    dim(
-      "[alfred-bench] warning: ALFRED_LEDGER_SECRET is not set — using insecure default\n",
-    ),
+    dim("[alfred-bench] warning: ALFRED_LEDGER_SECRET is not set — using insecure default\n"),
   );
 }
 

@@ -38,10 +38,7 @@ const DRAIN_GRACE_MS = 2000;
  * Enforces `timeoutMs` (kills the process and sets `timedOut: true`).
  * Honours `signal` for external cancellation.
  */
-export async function runVerify(
-  command: string,
-  opts: VerifyOptions,
-): Promise<VerifyResult> {
+export async function runVerify(command: string, opts: VerifyOptions): Promise<VerifyResult> {
   const { cwd, timeoutMs, signal, env } = opts;
   const start = Date.now();
 
@@ -140,12 +137,8 @@ export async function runVerify(
   }
 
   const decoder = new TextDecoder();
-  const stdout = decoder.decode(
-    mergeChunks(stdoutChunks),
-  );
-  const stderr = decoder.decode(
-    mergeChunks(stderrChunks),
-  );
+  const stdout = decoder.decode(mergeChunks(stdoutChunks));
+  const stderr = decoder.decode(mergeChunks(stderrChunks));
 
   const exitCode = timedOut ? 1 : (proc.exitCode ?? 1);
   const durationMs = Date.now() - start;

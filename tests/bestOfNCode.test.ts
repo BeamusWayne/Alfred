@@ -81,49 +81,46 @@ afterEach(async () => {
 // ---------------------------------------------------------------------------
 
 describe("bestOfNCode — first passing candidate wins", () => {
-  test(
-    "winner === 1 when candidate 0 fails and candidate 1 passes; winner's file present in cwd; all worktrees removed",
-    async () => {
-      // verifyCmd checks for a sentinel file written by the passing candidate.
-      const sentinelFile = "PASSING.txt";
-      const verifyCmd = `test -f ${sentinelFile}`;
+  test("winner === 1 when candidate 0 fails and candidate 1 passes; winner's file present in cwd; all worktrees removed", async () => {
+    // verifyCmd checks for a sentinel file written by the passing candidate.
+    const sentinelFile = "PASSING.txt";
+    const verifyCmd = `test -f ${sentinelFile}`;
 
-      const result = await bestOfNCode({
-        cwd: repoDir,
-        n: 2,
-        verifyCmd,
-        implement: async (worktreePath, candidate) => {
-          if (candidate === 0) {
-            // Candidate 0: write a wrong file — verify will fail.
-            await writeFile(join(worktreePath, "WRONG.txt"), "bad\n");
-          } else {
-            // Candidate 1: write the sentinel — verify will pass.
-            await writeFile(join(worktreePath, sentinelFile), "good\n");
-          }
-        },
-      });
+    const result = await bestOfNCode({
+      cwd: repoDir,
+      n: 2,
+      verifyCmd,
+      implement: async (worktreePath, candidate) => {
+        if (candidate === 0) {
+          // Candidate 0: write a wrong file — verify will fail.
+          await writeFile(join(worktreePath, "WRONG.txt"), "bad\n");
+        } else {
+          // Candidate 1: write the sentinel — verify will pass.
+          await writeFile(join(worktreePath, sentinelFile), "good\n");
+        }
+      },
+    });
 
-      // Correct winner.
-      expect(result.winner).toBe(1);
+    // Correct winner.
+    expect(result.winner).toBe(1);
 
-      // Both candidates were attempted.
-      expect(result.outcomes).toHaveLength(2);
+    // Both candidates were attempted.
+    expect(result.outcomes).toHaveLength(2);
 
-      // Candidate 0 failed; candidate 1 passed.
-      expect(result.outcomes[0]?.passed).toBe(false);
-      expect(result.outcomes[1]?.passed).toBe(true);
+    // Candidate 0 failed; candidate 1 passed.
+    expect(result.outcomes[0]?.passed).toBe(false);
+    expect(result.outcomes[1]?.passed).toBe(true);
 
-      // The winner's sentinel file must now exist in the main repo.
-      const sentinelInCwd = Bun.file(join(repoDir, sentinelFile));
-      expect(await sentinelInCwd.exists()).toBe(true);
+    // The winner's sentinel file must now exist in the main repo.
+    const sentinelInCwd = Bun.file(join(repoDir, sentinelFile));
+    expect(await sentinelInCwd.exists()).toBe(true);
 
-      // Only the main worktree should remain.
-      const worktrees = await listWorktrees(repoDir);
-      expect(worktrees).toHaveLength(1);
-      // The sole remaining entry is the main repo itself (resolve symlinks for macOS /var → /private/var).
-      expect(worktrees[0]).toBe(await realPath(repoDir));
-    },
-  );
+    // Only the main worktree should remain.
+    const worktrees = await listWorktrees(repoDir);
+    expect(worktrees).toHaveLength(1);
+    // The sole remaining entry is the main repo itself (resolve symlinks for macOS /var → /private/var).
+    expect(worktrees[0]).toBe(await realPath(repoDir));
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -131,46 +128,43 @@ describe("bestOfNCode — first passing candidate wins", () => {
 // ---------------------------------------------------------------------------
 
 describe("bestOfNCode — all candidates fail", () => {
-  test(
-    "winner is null and cwd is unchanged when every candidate fails",
-    async () => {
-      const sentinelFile = "MUST_NOT_EXIST.txt";
-      const verifyCmd = `test -f ${sentinelFile}`;
+  test("winner is null and cwd is unchanged when every candidate fails", async () => {
+    const sentinelFile = "MUST_NOT_EXIST.txt";
+    const verifyCmd = `test -f ${sentinelFile}`;
 
-      // Capture the initial state of cwd.
-      const readmeContentBefore = await Bun.file(join(repoDir, "README.md")).text();
+    // Capture the initial state of cwd.
+    const readmeContentBefore = await Bun.file(join(repoDir, "README.md")).text();
 
-      const result = await bestOfNCode({
-        cwd: repoDir,
-        n: 3,
-        verifyCmd,
-        implement: async (worktreePath, candidate) => {
-          // All candidates write a file that is NOT the sentinel → verify fails.
-          await writeFile(join(worktreePath, `candidate-${candidate}.txt`), "nope\n");
-        },
-      });
+    const result = await bestOfNCode({
+      cwd: repoDir,
+      n: 3,
+      verifyCmd,
+      implement: async (worktreePath, candidate) => {
+        // All candidates write a file that is NOT the sentinel → verify fails.
+        await writeFile(join(worktreePath, `candidate-${candidate}.txt`), "nope\n");
+      },
+    });
 
-      expect(result.winner).toBeNull();
-      expect(result.outcomes).toHaveLength(3);
+    expect(result.winner).toBeNull();
+    expect(result.outcomes).toHaveLength(3);
 
-      for (const outcome of result.outcomes) {
-        expect(outcome.passed).toBe(false);
-      }
+    for (const outcome of result.outcomes) {
+      expect(outcome.passed).toBe(false);
+    }
 
-      // The sentinel must not appear in cwd.
-      const sentinelInCwd = Bun.file(join(repoDir, sentinelFile));
-      expect(await sentinelInCwd.exists()).toBe(false);
+    // The sentinel must not appear in cwd.
+    const sentinelInCwd = Bun.file(join(repoDir, sentinelFile));
+    expect(await sentinelInCwd.exists()).toBe(false);
 
-      // README.md must be unchanged (no winner merge occurred).
-      const readmeContentAfter = await Bun.file(join(repoDir, "README.md")).text();
-      expect(readmeContentAfter).toBe(readmeContentBefore);
+    // README.md must be unchanged (no winner merge occurred).
+    const readmeContentAfter = await Bun.file(join(repoDir, "README.md")).text();
+    expect(readmeContentAfter).toBe(readmeContentBefore);
 
-      // All worktrees cleaned up.
-      const worktrees = await listWorktrees(repoDir);
-      expect(worktrees).toHaveLength(1);
-      expect(worktrees[0]).toBe(await realPath(repoDir));
-    },
-  );
+    // All worktrees cleaned up.
+    const worktrees = await listWorktrees(repoDir);
+    expect(worktrees).toHaveLength(1);
+    expect(worktrees[0]).toBe(await realPath(repoDir));
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -219,7 +213,10 @@ describe("applyWinner — applies worktree diff to cwd", () => {
       // Write a new file in the worktree and stage+commit it so `git diff` sees it.
       await writeFile(join(worktreePath, "applied.txt"), "applied content\n");
       await spawn(["git", "add", "applied.txt"], worktreePath);
-      await spawn(["git", "-c", "user.email=t@t.com", "-c", "user.name=T", "commit", "-m", "add applied"], worktreePath);
+      await spawn(
+        ["git", "-c", "user.email=t@t.com", "-c", "user.name=T", "commit", "-m", "add applied"],
+        worktreePath,
+      );
 
       // Apply the worktree's diff back to the main repo.
       await applyWinner(repoDir, worktreePath, baseSha);

@@ -134,7 +134,12 @@ export function createRuntime(runId: string, opts: RuntimeOptions): Runtime {
 
     if (run.cost) budget = budget.record(callOpts.model ?? opts.model, run.cost.usage);
     if (journal) {
-      await journal.append({ type: "agent", key: callOpts.key, label: callOpts.label ?? "agent", data: run });
+      await journal.append({
+        type: "agent",
+        key: callOpts.key,
+        label: callOpts.label ?? "agent",
+        data: run,
+      });
     }
     return run;
   };
@@ -162,7 +167,8 @@ export function createRuntime(runId: string, opts: RuntimeOptions): Runtime {
     opts.onLog?.(message);
     // Fire-and-forget: a log write must never surface as an unhandled rejection
     // (which can crash the run). Swallow — the message already went to onLog.
-    if (journal) journal.append({ type: "log", label: "log", data: { message } }).catch(() => undefined);
+    if (journal)
+      journal.append({ type: "log", label: "log", data: { message } }).catch(() => undefined);
   };
 
   return {

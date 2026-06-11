@@ -30,9 +30,7 @@ describe("buildRequest — context_management", () => {
       false,
     );
     expect((params as unknown as Record<string, unknown>).context_management).toEqual({
-      edits: [
-        { type: "compact_20260112", trigger: { type: "input_tokens", value: 800_000 } },
-      ],
+      edits: [{ type: "compact_20260112", trigger: { type: "input_tokens", value: 800_000 } }],
     });
     expect(betas).toEqual(["compact-2026-01-12"]);
   });
@@ -71,7 +69,11 @@ describe("compaction block round-trip", () => {
       { type: "compaction", content: "summary…", encrypted_content: "opaque" } as never,
       { type: "text", text: "go on", citations: null },
     ]);
-    expect(blocks[0]).toEqual({ type: "compaction", content: "summary…", encryptedContent: "opaque" });
+    expect(blocks[0]).toEqual({
+      type: "compaction",
+      content: "summary…",
+      encryptedContent: "opaque",
+    });
     const params = toAnthropicMessages([
       { role: "user", content: "q" },
       { role: "assistant", content: blocks },

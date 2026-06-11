@@ -107,10 +107,7 @@ describe("editContext — under threshold", () => {
   });
 
   test("evicted is 0 when under threshold even with old tool_results", () => {
-    const msgs: readonly Message[] = [
-      toolResultMsg("id1", "old result"),
-      userMsg("recent"),
-    ];
+    const msgs: readonly Message[] = [toolResultMsg("id1", "old result"), userMsg("recent")];
     const result = editContext(msgs, { maxContextTokens: 1_000_000 });
     expect(result.evicted).toBe(0);
   });
@@ -212,7 +209,7 @@ describe("editContext — recent window protection", () => {
       assistantMsg("a1"),
       userMsg("u2"),
       assistantMsg("a2"),
-      recentResult,                              // inside window (last 3)
+      recentResult, // inside window (last 3)
     ];
     // keepRecent = 3 → protected = indices 3, 4, 5
     const result = editContext(msgs, { maxContextTokens: 1000, keepRecent: 3 });
@@ -330,11 +327,7 @@ describe("editContext — evicted count", () => {
   });
 
   test("evicted = 0 when nothing qualifies", () => {
-    const msgs: readonly Message[] = [
-      userMsg("u1"),
-      assistantMsg("a1"),
-      userMsg("u2"),
-    ];
+    const msgs: readonly Message[] = [userMsg("u1"), assistantMsg("a1"), userMsg("u2")];
     // No tool_results at all
     const msgs2: readonly Message[] = [
       ...msgs,
@@ -468,8 +461,7 @@ describe("editContext — immutability", () => {
       assistantMsg("r6"),
     ];
     const originalLength = msgs.length;
-    const originalContent =
-      msgs[0]?.role === "tool_result" ? msgs[0].content : "";
+    const originalContent = msgs[0]?.role === "tool_result" ? msgs[0].content : "";
 
     editContext(msgs, { maxContextTokens: 1000, keepRecent: 6 });
 

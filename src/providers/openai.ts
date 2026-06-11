@@ -130,7 +130,9 @@ interface OpenAIRequestBody {
 }
 
 /** Alfred effort → OpenAI `reasoning_effort` (which tops out at "high"). */
-function toReasoningEffort(effort: NonNullable<ProviderConfig["effort"]>): "low" | "medium" | "high" {
+function toReasoningEffort(
+  effort: NonNullable<ProviderConfig["effort"]>,
+): "low" | "medium" | "high" {
   return effort === "xhigh" || effort === "max" ? "high" : effort;
 }
 
@@ -347,11 +349,7 @@ async function toProviderError(response: Response): Promise<ProviderError> {
   let message = `OpenAI API error: HTTP ${status}`;
   try {
     const body: unknown = await response.json();
-    if (
-      body !== null &&
-      typeof body === "object" &&
-      "error" in body
-    ) {
+    if (body !== null && typeof body === "object" && "error" in body) {
       const errBody = body as OpenAIErrorBody;
       if (errBody.error?.message) {
         message = errBody.error.message;
@@ -543,7 +541,12 @@ export class OpenAIProvider implements Provider {
     const blocks: ContentBlock[] = [];
     if (text.length > 0) blocks.push({ type: "text", text });
     for (const [, tc] of [...toolAcc.entries()].sort((a, b) => a[0] - b[0])) {
-      blocks.push({ type: "tool_use", id: tc.id || `call_${tc.name}`, name: tc.name, input: parseToolInput(tc.args) });
+      blocks.push({
+        type: "tool_use",
+        id: tc.id || `call_${tc.name}`,
+        name: tc.name,
+        input: parseToolInput(tc.args),
+      });
     }
     const stopReason: StopReason = toolAcc.size > 0 ? "tool_use" : fromFinishReason(finishReason);
     return { content: blocks, stopReason, usage, model };

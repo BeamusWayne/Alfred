@@ -57,7 +57,12 @@ export type AutonomousEvent =
     }
   | { readonly type: "feature_passing"; readonly featureId: string }
   | { readonly type: "feature_blocked"; readonly featureId: string; readonly reason: string }
-  | { readonly type: "run_end"; readonly passing: number; readonly blocked: number; readonly stopped: string };
+  | {
+      readonly type: "run_end";
+      readonly passing: number;
+      readonly blocked: number;
+      readonly stopped: string;
+    };
 
 export interface AutonomousRunOptions {
   readonly runtime: Runtime;
@@ -114,7 +119,9 @@ function implementPrompt(
     `## Feature: ${feature.title}`,
     feature.description,
     "",
-    steps.length > 0 ? `## Plan to follow\n${steps.map((s, i) => `${i + 1}. ${s}`).join("\n")}\n` : "",
+    steps.length > 0
+      ? `## Plan to follow\n${steps.map((s, i) => `${i + 1}. ${s}`).join("\n")}\n`
+      : "",
     feedback ? `## Previous attempt feedback\n${feedback}\n` : "",
     "This run is unattended: never ask questions or wait for confirmation. For any minor",
     "decision, pick a reasonable option and continue — the verify gate is the sole arbiter.",
@@ -197,94 +204,116 @@ export async function autonomousRun(opts: AutonomousRunOptions): Promise<Autonom
     let rubric: Rubric | null = null;
     let aborted: string | null = null;
     try {
-    for (let attempt = 1; attempt <= iterationBudget; attempt++) {
-      opts.onEvent?.({ type: "attempt", featureId: feature.id, attempt });
-      if (opts.bestOfN && opts.bestOfN > 1) {
-        const fb = feedback;
-        // Honor the architect/editor split (ADR 0005) inside best-of-N: plan
-        // once with the architect, then run N editor candidates against it,
-        // instead of silently dropping the operator's split-model intent.
-        const steps = useSplit
-          ? (
-              await opts.runtime.agent<Plan>(planPrompt(feature, feedback), {
-                schema: planSchema,
-                model: opts.architectModel,
-                role: "architect",
-                label: `architect:${feature.id}#${attempt}`,
-              })
-            ).data?.steps ?? []
-          : [];
-        await bestOfNCode({
-          cwd: opts.cwd,
-          n: opts.bestOfN,
-          verifyCmd: opts.verifyCmd,
-          verifyTimeoutMs: opts.verifyTimeoutMs ?? DEFAULT_VERIFY_TIMEOUT_MS,
-          implement: async (worktreePath, candidate) => {
-            await opts.runtime.agent(
-              `${implementPrompt(feature, opts.verifyCmd, fb, steps)}\n\n(Candidate ${candidate + 1} — explore a distinct approach.)`,
-              {
-                ...(useSplit ? { model: opts.editorModel, role: "editor" as const } : {}),
-                permissions: { mode: "bypass", allowedTools: new Set(), deniedTools: new Set(), workingDir: worktreePath },
-                label: `bestof:${feature.id}#${attempt}.${candidate}`,
-              },
-            );
-          },
-        });
-      } else if (useSplit) {
-        const plan = await opts.runtime.agent<Plan>(planPrompt(feature, feedback), {
-          schema: planSchema,
-          model: opts.architectModel,
-          role: "architect",
-          label: `architect:${feature.id}#${attempt}`,
-        });
-        await opts.runtime.agent(implementPrompt(feature, opts.verifyCmd, feedback, plan.data?.steps ?? []), {
-          model: opts.editorModel,
-          role: "editor",
-          label: `editor:${feature.id}#${attempt}`,
-        });
-      } else {
-        await opts.runtime.agent(implementPrompt(feature, opts.verifyCmd, feedback, []), {
-          label: `implement:${feature.id}#${attempt}`,
-        });
-      }
-      // Fast pre-gate: a cheap failure signal (affected tests, lint, tsc)
-      // short-circuits back into the fix loop without paying for the full
-      // suite. It can only reject — never accept.
-      if (opts.fastVerifyCmd) {
-        const fast = await runVerify(opts.fastVerifyCmd, {
+      for (let attempt = 1; attempt <= iterationBudget; attempt++) {
+        opts.onEvent?.({ type: "attempt", featureId: feature.id, attempt });
+        if (opts.bestOfN && opts.bestOfN > 1) {
+          const fb = feedback;
+          // Honor the architect/editor split (ADR 0005) inside best-of-N: plan
+          // once with the architect, then run N editor candidates against it,
+          // instead of silently dropping the operator's split-model intent.
+          const steps = useSplit
+            ? ((
+                await opts.runtime.agent<Plan>(planPrompt(feature, feedback), {
+                  schema: planSchema,
+                  model: opts.architectModel,
+                  role: "architect",
+                  label: `architect:${feature.id}#${attempt}`,
+                })
+              ).data?.steps ?? [])
+            : [];
+          await bestOfNCode({
+            cwd: opts.cwd,
+            n: opts.bestOfN,
+            verifyCmd: opts.verifyCmd,
+            verifyTimeoutMs: opts.verifyTimeoutMs ?? DEFAULT_VERIFY_TIMEOUT_MS,
+            implement: async (worktreePath, candidate) => {
+              await opts.runtime.agent(
+                `${implementPrompt(feature, opts.verifyCmd, fb, steps)}\n\n(Candidate ${candidate + 1} — explore a distinct approach.)`,
+                {
+                  ...(useSplit ? { model: opts.editorModel, role: "editor" as const } : {}),
+                  permissions: {
+                    mode: "bypass",
+                    allowedTools: new Set(),
+                    deniedTools: new Set(),
+                    workingDir: worktreePath,
+                  },
+                  label: `bestof:${feature.id}#${attempt}.${candidate}`,
+                },
+              );
+            },
+          });
+        } else if (useSplit) {
+          const plan = await opts.runtime.agent<Plan>(planPrompt(feature, feedback), {
+            schema: planSchema,
+            model: opts.architectModel,
+            role: "architect",
+            label: `architect:${feature.id}#${attempt}`,
+          });
+          await opts.runtime.agent(
+            implementPrompt(feature, opts.verifyCmd, feedback, plan.data?.steps ?? []),
+            {
+              model: opts.editorModel,
+              role: "editor",
+              label: `editor:${feature.id}#${attempt}`,
+            },
+          );
+        } else {
+          await opts.runtime.agent(implementPrompt(feature, opts.verifyCmd, feedback, []), {
+            label: `implement:${feature.id}#${attempt}`,
+          });
+        }
+        // Fast pre-gate: a cheap failure signal (affected tests, lint, tsc)
+        // short-circuits back into the fix loop without paying for the full
+        // suite. It can only reject — never accept.
+        if (opts.fastVerifyCmd) {
+          const fast = await runVerify(opts.fastVerifyCmd, {
+            cwd: opts.cwd,
+            timeoutMs: opts.verifyTimeoutMs ?? DEFAULT_VERIFY_TIMEOUT_MS,
+          });
+          opts.onEvent?.({
+            type: "verify",
+            featureId: feature.id,
+            attempt,
+            exitCode: fast.exitCode,
+            passed: passed(fast),
+            gate: "fast",
+          });
+          if (!passed(fast)) {
+            verify = fast;
+            feedback =
+              `Attempt ${attempt} failed the FAST verify gate (exit ${fast.exitCode}): \`${opts.fastVerifyCmd}\`.\n` +
+              `stderr:\n${fast.stderr.slice(0, 3000)}\nstdout:\n${fast.stdout.slice(0, 1000)}`;
+            continue;
+          }
+        }
+
+        verify = await runVerify(opts.verifyCmd, {
           cwd: opts.cwd,
           timeoutMs: opts.verifyTimeoutMs ?? DEFAULT_VERIFY_TIMEOUT_MS,
         });
-        opts.onEvent?.({ type: "verify", featureId: feature.id, attempt, exitCode: fast.exitCode, passed: passed(fast), gate: "fast" });
-        if (!passed(fast)) {
-          verify = fast;
-          feedback =
-            `Attempt ${attempt} failed the FAST verify gate (exit ${fast.exitCode}): \`${opts.fastVerifyCmd}\`.\n` +
-            `stderr:\n${fast.stderr.slice(0, 3000)}\nstdout:\n${fast.stdout.slice(0, 1000)}`;
-          continue;
-        }
+        opts.onEvent?.({
+          type: "verify",
+          featureId: feature.id,
+          attempt,
+          exitCode: verify.exitCode,
+          passed: passed(verify),
+          gate: "full",
+        });
+        if (passed(verify)) break;
+        feedback =
+          `Attempt ${attempt} failed the verify gate (exit ${verify.exitCode}).\n` +
+          `stderr:\n${verify.stderr.slice(0, 3000)}\nstdout:\n${verify.stdout.slice(0, 1000)}`;
       }
 
-      verify = await runVerify(opts.verifyCmd, {
-        cwd: opts.cwd,
-        timeoutMs: opts.verifyTimeoutMs ?? DEFAULT_VERIFY_TIMEOUT_MS,
+      const rubricRun = await opts.runtime.agent<Rubric>(rubricPrompt(feature, verify), {
+        schema: rubricSchema,
+        role: "subagent",
+        // Evidence access: the judge inspects the real files instead of scoring
+        // from a possibly-empty verify output (which biased strict models to 0).
+        tools: [fileReadTool, globTool, grepTool],
+        label: `rubric:${feature.id}`,
       });
-      opts.onEvent?.({ type: "verify", featureId: feature.id, attempt, exitCode: verify.exitCode, passed: passed(verify), gate: "full" });
-      if (passed(verify)) break;
-      feedback =
-        `Attempt ${attempt} failed the verify gate (exit ${verify.exitCode}).\n` +
-        `stderr:\n${verify.stderr.slice(0, 3000)}\nstdout:\n${verify.stdout.slice(0, 1000)}`;
-    }
-
-    const rubricRun = await opts.runtime.agent<Rubric>(rubricPrompt(feature, verify), {
-      schema: rubricSchema,
-      role: "subagent",
-      // Evidence access: the judge inspects the real files instead of scoring
-      // from a possibly-empty verify output (which biased strict models to 0).
-      tools: [fileReadTool, globTool, grepTool],
-      label: `rubric:${feature.id}`,
-    });
-    rubric = rubricRun.data;
+      rubric = rubricRun.data;
     } catch (err) {
       // A throw mid-feature (budget exhausted, provider/abort error) must not
       // crash the whole run with an unhandled rejection and leave the feature

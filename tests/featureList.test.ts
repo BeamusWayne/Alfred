@@ -66,10 +66,7 @@ describe("pickNext", () => {
   });
 
   test("skips features whose deps are not yet passing", () => {
-    const list = makeList([
-      makeFeature({ id: "b", deps: ["a"] }),
-      makeFeature({ id: "a" }),
-    ]);
+    const list = makeList([makeFeature({ id: "b", deps: ["a"] }), makeFeature({ id: "a" })]);
     // "a" has no deps → eligible; "b" depends on "a" which is still pending
     expect(pickNext(list)?.id).toBe("a");
   });
@@ -126,10 +123,7 @@ describe("pickNext", () => {
   });
 
   test("stable ordering for no-priority: array position wins", () => {
-    const list = makeList([
-      makeFeature({ id: "first" }),
-      makeFeature({ id: "second" }),
-    ]);
+    const list = makeList([makeFeature({ id: "first" }), makeFeature({ id: "second" })]);
     expect(pickNext(list)?.id).toBe("first");
   });
 });
@@ -158,9 +152,7 @@ describe("transitions — immutability", () => {
 
   test("setStatus throws for unknown id", () => {
     const list = makeList([makeFeature({ id: "a" })]);
-    expect(() => setStatus(list, "missing", "passing")).toThrow(
-      /no feature with id "missing"/,
-    );
+    expect(() => setStatus(list, "missing", "passing")).toThrow(/no feature with id "missing"/);
   });
 
   test("markInProgress sets status to in_progress", () => {
@@ -179,10 +171,7 @@ describe("transitions — immutability", () => {
   });
 
   test("unrelated features are not touched by setStatus", () => {
-    const list = makeList([
-      makeFeature({ id: "a" }),
-      makeFeature({ id: "b" }),
-    ]);
+    const list = makeList([makeFeature({ id: "a" }), makeFeature({ id: "b" })]);
     const updated = setStatus(list, "a", "passing");
     expect(updated.features[1]?.status).toBe("pending");
     // same object reference for the untouched feature
@@ -190,10 +179,7 @@ describe("transitions — immutability", () => {
   });
 
   test("chained transitions each produce a fresh list", () => {
-    const l0 = makeList([
-      makeFeature({ id: "a" }),
-      makeFeature({ id: "b" }),
-    ]);
+    const l0 = makeList([makeFeature({ id: "a" }), makeFeature({ id: "b" })]);
     const l1 = markInProgress(l0, "a");
     const l2 = markPassing(l1, "a");
     const l3 = markBlocked(l2, "b");
@@ -224,17 +210,12 @@ describe("allResolved", () => {
   });
 
   test("false when any feature is pending", () => {
-    const list = makeList([
-      makeFeature({ id: "a", status: "passing" }),
-      makeFeature({ id: "b" }),
-    ]);
+    const list = makeList([makeFeature({ id: "a", status: "passing" }), makeFeature({ id: "b" })]);
     expect(allResolved(list)).toBe(false);
   });
 
   test("false when any feature is in_progress", () => {
-    const list = makeList([
-      makeFeature({ id: "a", status: "in_progress" }),
-    ]);
+    const list = makeList([makeFeature({ id: "a", status: "in_progress" })]);
     expect(allResolved(list)).toBe(false);
   });
 });
@@ -251,14 +232,15 @@ describe("counts", () => {
 
   test("accurate counts across all statuses", () => {
     const statuses: FeatureStatus[] = [
-      "pending", "pending",
+      "pending",
+      "pending",
       "in_progress",
-      "passing", "passing", "passing",
+      "passing",
+      "passing",
+      "passing",
       "blocked",
     ];
-    const list = makeList(
-      statuses.map((s, i) => makeFeature({ id: String(i), status: s })),
-    );
+    const list = makeList(statuses.map((s, i) => makeFeature({ id: String(i), status: s })));
     expect(counts(list)).toEqual({
       pending: 2,
       in_progress: 1,
@@ -282,9 +264,7 @@ describe("loadFeatureList / saveFeatureList", () => {
   }
 
   afterEach(async () => {
-    await Promise.all(
-      tmpFiles.splice(0).map((p) => rm(p, { force: true })),
-    );
+    await Promise.all(tmpFiles.splice(0).map((p) => rm(p, { force: true })));
   });
 
   test("round-trip: save then load returns equivalent data", async () => {
@@ -310,9 +290,9 @@ describe("loadFeatureList / saveFeatureList", () => {
   });
 
   test("loadFeatureList throws for a missing file", async () => {
-    await expect(
-      loadFeatureList("/tmp/alfred-does-not-exist-xyz.json"),
-    ).rejects.toThrow(/file not found/);
+    await expect(loadFeatureList("/tmp/alfred-does-not-exist-xyz.json")).rejects.toThrow(
+      /file not found/,
+    );
   });
 
   test("loadFeatureList throws for invalid JSON", async () => {
@@ -325,9 +305,7 @@ describe("loadFeatureList / saveFeatureList", () => {
     const path = tmpPath("badschema");
     // Missing required fields
     await Bun.write(path, JSON.stringify({ features: [{ id: 123 }] }, null, 2));
-    await expect(loadFeatureList(path)).rejects.toThrow(
-      /schema validation failed/,
-    );
+    await expect(loadFeatureList(path)).rejects.toThrow(/schema validation failed/);
   });
 
   test("loadFeatureList rejects an unknown status value", async () => {

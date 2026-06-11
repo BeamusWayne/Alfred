@@ -34,7 +34,7 @@ export class PathEscapeError extends Error {
 function lexicallyInside(absRoot: string, abs: string): boolean {
   if (abs === absRoot) return true;
   const rel = relative(absRoot, abs);
-  if (rel === "" ) return true;
+  if (rel === "") return true;
   return rel !== ".." && !rel.startsWith(".." + sep) && !isAbsolute(rel);
 }
 

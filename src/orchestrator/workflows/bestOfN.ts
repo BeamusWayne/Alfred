@@ -84,16 +84,15 @@ export async function bestOfN<T>(opts: BestOfNOptions<T>): Promise<BestOfNResult
 
   const thunks: ReadonlyArray<() => Promise<IndexedRun>> = Array.from(
     { length: n },
-    (_, i) =>
-      () =>
-        runtime
-          .agent<T>(prompt + variantSuffix(i, n), {
-            schema,
-            label: `${labelPrefix}#${i}`,
-            model,
-            systemPrompt,
-          })
-          .then((run): IndexedRun => [i, run] as const),
+    (_, i) => () =>
+      runtime
+        .agent<T>(prompt + variantSuffix(i, n), {
+          schema,
+          label: `${labelPrefix}#${i}`,
+          model,
+          systemPrompt,
+        })
+        .then((run): IndexedRun => [i, run] as const),
   );
 
   const settled = await runtime.parallel(thunks);

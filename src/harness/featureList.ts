@@ -61,9 +61,7 @@ export const featureListSchema: z.ZodType<FeatureList> = z.object({
  * Returns true when no feature is `pending` or `in_progress`.
  */
 export function allResolved(list: FeatureList): boolean {
-  return list.features.every(
-    (f) => f.status !== "pending" && f.status !== "in_progress",
-  );
+  return list.features.every((f) => f.status !== "pending" && f.status !== "in_progress");
 }
 
 /**
@@ -96,9 +94,7 @@ export function counts(list: FeatureList): Record<FeatureStatus, number> {
  * Returns `null` when no eligible feature exists.
  */
 export function pickNext(list: FeatureList): Feature | null {
-  const passingIds = new Set(
-    list.features.filter((f) => f.status === "passing").map((f) => f.id),
-  );
+  const passingIds = new Set(list.features.filter((f) => f.status === "passing").map((f) => f.id));
 
   const eligible = list.features.filter((f) => {
     if (f.status !== "pending") return false;
@@ -130,11 +126,7 @@ export function pickNext(list: FeatureList): Feature | null {
  * Return a new FeatureList with the feature identified by `id` set to `status`.
  * Throws when no feature with that id exists.
  */
-export function setStatus(
-  list: FeatureList,
-  id: string,
-  status: FeatureStatus,
-): FeatureList {
+export function setStatus(list: FeatureList, id: string, status: FeatureStatus): FeatureList {
   let found = false;
   const features = list.features.map((f) => {
     if (f.id !== id) return f;
@@ -188,12 +180,8 @@ export async function loadFeatureList(path: string): Promise<FeatureList> {
 
   const result = featureListSchema.safeParse(raw);
   if (!result.success) {
-    const issues = result.error.issues
-      .map((i) => `  ${i.path.join(".")}: ${i.message}`)
-      .join("\n");
-    throw new Error(
-      `loadFeatureList: schema validation failed for "${path}":\n${issues}`,
-    );
+    const issues = result.error.issues.map((i) => `  ${i.path.join(".")}: ${i.message}`).join("\n");
+    throw new Error(`loadFeatureList: schema validation failed for "${path}":\n${issues}`);
   }
 
   return result.data;
@@ -203,9 +191,6 @@ export async function loadFeatureList(path: string): Promise<FeatureList> {
  * Persist a feature list to `path` as pretty-printed JSON.
  * The file is created or overwritten atomically via `Bun.write`.
  */
-export async function saveFeatureList(
-  path: string,
-  list: FeatureList,
-): Promise<void> {
+export async function saveFeatureList(path: string, list: FeatureList): Promise<void> {
   await Bun.write(path, JSON.stringify(list, null, 2) + "\n");
 }

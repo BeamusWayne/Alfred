@@ -131,7 +131,8 @@ function sanitizeSchema(schema: unknown): Record<string, unknown> {
 function toGeminiFunctionDecl(t: ToolDefinition): Record<string, unknown> {
   const params = sanitizeSchema(t.inputSchema);
   const props = params["properties"];
-  const hasProps = props !== null && typeof props === "object" && Object.keys(props as object).length > 0;
+  const hasProps =
+    props !== null && typeof props === "object" && Object.keys(props as object).length > 0;
   return {
     name: t.name,
     description: t.description,
@@ -171,7 +172,10 @@ function toGeminiContents(messages: readonly Message[]): readonly GeminiContentM
       const text =
         typeof m.content === "string"
           ? m.content
-          : m.content.filter((b) => b.type === "text").map((b) => (b as { text: string }).text).join("\n");
+          : m.content
+              .filter((b) => b.type === "text")
+              .map((b) => (b as { text: string }).text)
+              .join("\n");
       out.push({ role: "user", parts: [{ text }] });
       continue;
     }
@@ -314,7 +318,9 @@ function buildBody(
         : {}),
       // Native structured output: tools and responseSchema are mutually
       // exclusive on Gemini, so the schema only applies to tool-less calls.
-      ...(profile.supportsStructuredOutput && config.responseSchema !== undefined && tools.length === 0
+      ...(profile.supportsStructuredOutput &&
+      config.responseSchema !== undefined &&
+      tools.length === 0
         ? {
             responseMimeType: "application/json",
             responseSchema: sanitizeSchema(config.responseSchema),

@@ -23,7 +23,10 @@ const titleSchema = z.object({
 
 type TitleResult = z.infer<typeof titleSchema>;
 
-function makeOpts(provider: MockProvider, extra: Partial<Parameters<typeof quarantineExtract>[2]> = {}) {
+function makeOpts(
+  provider: MockProvider,
+  extra: Partial<Parameters<typeof quarantineExtract>[2]> = {},
+) {
   return {
     provider,
     model: "mock",
@@ -70,11 +73,7 @@ describe("quarantineExtract — prompt fencing", () => {
       textResponse("done"),
     ]);
 
-    await quarantineExtract<TitleResult>(
-      untrusted,
-      "Extract title and score.",
-      makeOpts(provider),
-    );
+    await quarantineExtract<TitleResult>(untrusted, "Extract title and score.", makeOpts(provider));
 
     // MockProvider.calls[0] is the first chat() invocation's message list.
     const firstCall = provider.calls[0];
@@ -143,8 +142,7 @@ describe("quarantineExtract — prompt fencing", () => {
     // When the content is a plain string the attribute has unescaped quotes;
     // when it was JSON-stringified the quotes are escaped — accept either form.
     const hasFileSource =
-      contentStr.includes('source="file"') ||
-      contentStr.includes('source=\\"file\\"');
+      contentStr.includes('source="file"') || contentStr.includes('source=\\"file\\"');
     expect(hasFileSource).toBe(true);
   });
 });

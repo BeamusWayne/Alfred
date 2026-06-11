@@ -22,9 +22,15 @@ describe("toAnthropicMessages cache breakpoints", () => {
   test("marks the last two user-role messages in a tool-use transcript", () => {
     const messages: Message[] = [
       { role: "user", content: "fix the bug" },
-      { role: "assistant", content: [{ type: "tool_use", id: "t1", name: "file_read", input: {} }] },
+      {
+        role: "assistant",
+        content: [{ type: "tool_use", id: "t1", name: "file_read", input: {} }],
+      },
       { role: "tool_result", toolUseId: "t1", content: "file body", isError: false },
-      { role: "assistant", content: [{ type: "tool_use", id: "t2", name: "file_edit", input: {} }] },
+      {
+        role: "assistant",
+        content: [{ type: "tool_use", id: "t2", name: "file_edit", input: {} }],
+      },
       { role: "tool_result", toolUseId: "t2", content: "ok", isError: false },
     ];
     const params = toAnthropicMessages(messages);
@@ -67,7 +73,12 @@ describe("toAnthropicMessages cache breakpoints", () => {
         role: "assistant",
         content: [{ type: "tool_use", id: `t${i}`, name: "bash", input: {} }],
       });
-      messages.push({ role: "tool_result", toolUseId: `t${i}`, content: `out ${i}`, isError: false });
+      messages.push({
+        role: "tool_result",
+        toolUseId: `t${i}`,
+        content: `out ${i}`,
+        isError: false,
+      });
     }
     const marks = cacheMarks(toAnthropicMessages(messages));
     expect(marks).toHaveLength(2);
@@ -89,7 +100,11 @@ describe("toAnthropicMessages cache breakpoints", () => {
     const content = params[0]?.content;
     if (Array.isArray(content)) {
       expect(content[0]).toEqual({ type: "text", text: "context" });
-      expect(content[1]).toMatchObject({ type: "text", text: "question", cache_control: { type: "ephemeral" } });
+      expect(content[1]).toMatchObject({
+        type: "text",
+        text: "question",
+        cache_control: { type: "ephemeral" },
+      });
     }
   });
 });

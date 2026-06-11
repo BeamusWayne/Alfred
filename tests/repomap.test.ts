@@ -120,7 +120,7 @@ describe("pageRank", () => {
 
   test("single node with no edges gets non-zero rank", () => {
     const result = pageRank(["a"], []);
-    expect((result.get("a") ?? 0)).toBeGreaterThan(0);
+    expect(result.get("a") ?? 0).toBeGreaterThan(0);
   });
 
   test("node pointed-to by many edges ranks higher", () => {

@@ -86,7 +86,12 @@ describe("Gemini generationConfig — thinkingBudget", () => {
 describe("Anthropic output_config.format", () => {
   test("responseSchema becomes output_config.format on supporting models", () => {
     const schema = { type: "object", properties: {}, additionalProperties: false };
-    const { params } = buildRequest(MSGS, [], { model: "claude-fable-5", responseSchema: schema }, false);
+    const { params } = buildRequest(
+      MSGS,
+      [],
+      { model: "claude-fable-5", responseSchema: schema },
+      false,
+    );
     expect(params.output_config?.format).toEqual({ type: "json_schema", schema });
   });
 
@@ -103,7 +108,10 @@ describe("toStrictJsonSchema", () => {
       $schema: "https://json-schema.org/draft/2020-12/schema",
       type: "object",
       properties: {
-        steps: { type: "array", items: { type: "object", properties: { a: { type: "string" } }, required: ["a"] } },
+        steps: {
+          type: "array",
+          items: { type: "object", properties: { a: { type: "string" } }, required: ["a"] },
+        },
       },
       required: ["steps"],
     });

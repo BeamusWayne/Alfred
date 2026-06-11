@@ -82,7 +82,7 @@ describe("loadModelOverrides", () => {
     // Schema violations are also rejected, not partially applied.
     await writeFile(
       join(dir, ".alfred", "models.json"),
-      JSON.stringify({ "m": { contextWindow: -5 } }),
+      JSON.stringify({ m: { contextWindow: -5 } }),
     );
     loadModelOverrides(dir, (m) => warnings.push(m));
     expect(warnings).toHaveLength(2);

@@ -48,7 +48,9 @@ function makeFakeTransport(): FakeTransport {
     onMessage(cb: (json: string) => void): void {
       listener = cb;
     },
-    close(): void { /* no-op in tests */ },
+    close(): void {
+      /* no-op in tests */
+    },
     deliver(json: string): void {
       if (listener !== null) listener(json);
     },
@@ -110,7 +112,11 @@ describe("encodeMessage + createFrameParser", () => {
   });
 
   test("reassembles a message split across two chunks", () => {
-    const obj = { jsonrpc: "2.0", method: "textDocument/publishDiagnostics", params: { uri: "file:///a.ts", diagnostics: [] } };
+    const obj = {
+      jsonrpc: "2.0",
+      method: "textDocument/publishDiagnostics",
+      params: { uri: "file:///a.ts", diagnostics: [] },
+    };
     const framed = encodeMessage(obj);
 
     // Split somewhere in the middle of the body
@@ -233,12 +239,17 @@ describe("LspClient.definition", () => {
     const defReq = lastSent(t);
     expect(defReq["method"]).toBe("textDocument/definition");
     const params = defReq["params"] as Record<string, unknown>;
-    expect((params["textDocument"] as Record<string, unknown>)["uri"]).toBe("file:///ws/src/foo.ts");
+    expect((params["textDocument"] as Record<string, unknown>)["uri"]).toBe(
+      "file:///ws/src/foo.ts",
+    );
     expect(params["position"]).toEqual({ line: 10, character: 5 });
 
     t.deliver(
       successResponse(defReq["id"] as number, [
-        { uri: "file:///ws/src/bar.ts", range: { start: { line: 3, character: 0 }, end: { line: 3, character: 10 } } },
+        {
+          uri: "file:///ws/src/bar.ts",
+          range: { start: { line: 3, character: 0 }, end: { line: 3, character: 10 } },
+        },
       ]),
     );
 
@@ -282,8 +293,14 @@ describe("LspClient.references", () => {
 
     t.deliver(
       successResponse(req["id"] as number, [
-        { uri: "file:///ws/a.ts", range: { start: { line: 1, character: 2 }, end: { line: 1, character: 8 } } },
-        { uri: "file:///ws/b.ts", range: { start: { line: 5, character: 0 }, end: { line: 5, character: 6 } } },
+        {
+          uri: "file:///ws/a.ts",
+          range: { start: { line: 1, character: 2 }, end: { line: 1, character: 8 } },
+        },
+        {
+          uri: "file:///ws/b.ts",
+          range: { start: { line: 5, character: 0 }, end: { line: 5, character: 6 } },
+        },
       ]),
     );
 
@@ -310,7 +327,11 @@ describe("LspClient.hover", () => {
     const req = lastSent(t);
     expect(req["method"]).toBe("textDocument/hover");
 
-    t.deliver(successResponse(req["id"] as number, { contents: { kind: "markdown", value: "```ts\nconst x: number\n```" } }));
+    t.deliver(
+      successResponse(req["id"] as number, {
+        contents: { kind: "markdown", value: "```ts\nconst x: number\n```" },
+      }),
+    );
 
     const text = await hoverP;
     expect(text).toBe("```ts\nconst x: number\n```");
@@ -397,10 +418,31 @@ describe("LspClient diagnostics (publishDiagnostics)", () => {
     await initP;
 
     const uri = "file:///ws/clean.ts";
-    t.deliver(JSON.stringify({ jsonrpc: "2.0", method: "textDocument/publishDiagnostics", params: { uri, diagnostics: [{ range: { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } }, severity: 2, message: "warning" }] } }));
+    t.deliver(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        method: "textDocument/publishDiagnostics",
+        params: {
+          uri,
+          diagnostics: [
+            {
+              range: { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } },
+              severity: 2,
+              message: "warning",
+            },
+          ],
+        },
+      }),
+    );
     expect(client.diagnostics(uri)).toHaveLength(1);
 
-    t.deliver(JSON.stringify({ jsonrpc: "2.0", method: "textDocument/publishDiagnostics", params: { uri, diagnostics: [] } }));
+    t.deliver(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        method: "textDocument/publishDiagnostics",
+        params: { uri, diagnostics: [] },
+      }),
+    );
     expect(client.diagnostics(uri)).toEqual([]);
   });
 });
@@ -425,7 +467,12 @@ describe("lsp_definition tool", () => {
       workingDir: "/ws",
       signal: new AbortController().signal,
       readFileState: new Map(),
-      permissions: { mode: "default" as const, allowedTools: new Set<string>(), deniedTools: new Set<string>(), workingDir: "/ws" },
+      permissions: {
+        mode: "default" as const,
+        allowedTools: new Set<string>(),
+        deniedTools: new Set<string>(),
+        workingDir: "/ws",
+      },
     };
 
     const callPromise = defTool!.call({ path: "/ws/src/index.ts", line: 5, character: 3 }, ctx);
@@ -434,7 +481,10 @@ describe("lsp_definition tool", () => {
     const defReq = await waitForRequest(t, "textDocument/definition");
     t.deliver(
       successResponse(defReq["id"] as number, [
-        { uri: "file:///ws/lib/utils.ts", range: { start: { line: 11, character: 0 }, end: { line: 11, character: 12 } } },
+        {
+          uri: "file:///ws/lib/utils.ts",
+          range: { start: { line: 11, character: 0 }, end: { line: 11, character: 12 } },
+        },
       ]),
     );
 
@@ -458,7 +508,12 @@ describe("lsp_definition tool", () => {
       workingDir: "/ws",
       signal: new AbortController().signal,
       readFileState: new Map(),
-      permissions: { mode: "default" as const, allowedTools: new Set<string>(), deniedTools: new Set<string>(), workingDir: "/ws" },
+      permissions: {
+        mode: "default" as const,
+        allowedTools: new Set<string>(),
+        deniedTools: new Set<string>(),
+        workingDir: "/ws",
+      },
     };
 
     const callP = defTool.call({ path: "/ws/src/index.ts", line: 0, character: 0 }, ctx);
@@ -503,7 +558,12 @@ describe("LSP tools — workspace containment", () => {
     workingDir: "/ws",
     signal: new AbortController().signal,
     readFileState: new Map(),
-    permissions: { mode: "default" as const, allowedTools: new Set<string>(), deniedTools: new Set<string>(), workingDir: "/ws" },
+    permissions: {
+      mode: "default" as const,
+      allowedTools: new Set<string>(),
+      deniedTools: new Set<string>(),
+      workingDir: "/ws",
+    },
   };
 
   test("a path outside the workspace is refused and never sent to the server", async () => {
@@ -565,7 +625,11 @@ describe("LSP tools — workspace containment", () => {
       const tools = makeLspTools(client);
       const def = tools.find((x) => x.name === "lsp_definition")!;
       const hov = tools.find((x) => x.name === "lsp_hover")!;
-      const ctx = { ...wsCtx, workingDir: dir, permissions: { ...wsCtx.permissions, workingDir: dir } };
+      const ctx = {
+        ...wsCtx,
+        workingDir: dir,
+        permissions: { ...wsCtx.permissions, workingDir: dir },
+      };
 
       // Two parallel calls for the SAME not-yet-opened file.
       await Promise.all([

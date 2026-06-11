@@ -33,7 +33,10 @@ export interface Location {
 }
 
 export interface Hover {
-  readonly contents: string | { readonly value: string } | ReadonlyArray<{ readonly value: string }>;
+  readonly contents:
+    | string
+    | { readonly value: string }
+    | ReadonlyArray<{ readonly value: string }>;
 }
 
 export type DiagnosticSeverity = 1 | 2 | 3 | 4; // Error | Warning | Information | Hint

@@ -154,10 +154,7 @@ export class Tracer {
       get spanId(): string {
         return spanId;
       },
-      setAttribute(
-        key: string,
-        value: string | number | boolean,
-      ): SpanHandle {
+      setAttribute(key: string, value: string | number | boolean): SpanHandle {
         currentAttrs = { ...currentAttrs, [key]: value };
         return handle;
       },
@@ -189,8 +186,6 @@ export class Tracer {
 
 export function tracerFromEnv(options?: TracerOptions): Tracer {
   const filePath = process.env["ALFRED_OTEL_FILE"];
-  const exporter: SpanExporter = filePath
-    ? new FileExporter(filePath)
-    : new NoopExporter();
+  const exporter: SpanExporter = filePath ? new FileExporter(filePath) : new NoopExporter();
   return new Tracer(exporter, options);
 }

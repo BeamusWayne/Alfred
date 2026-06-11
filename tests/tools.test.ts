@@ -53,7 +53,10 @@ describe("file tools", () => {
   test("edit refuses a file that was not read first", async () => {
     const ctx = makeCtx();
     await writeFile(join(dir, "b.ts"), "hello");
-    const r = await fileEditTool.call({ path: "b.ts", old_string: "hello", new_string: "bye" }, ctx);
+    const r = await fileEditTool.call(
+      { path: "b.ts", old_string: "hello", new_string: "bye" },
+      ctx,
+    );
     expect(r.isError).toBe(true);
     expect(String(r.content)).toContain("before editing");
   });
@@ -83,7 +86,10 @@ describe("file tools", () => {
     const ctx = makeCtx();
     await fileWriteTool.call({ path: "e.ts", content: "x=1;\nx=1;\n" }, ctx);
     await fileReadTool.call({ path: "e.ts" }, ctx);
-    const r = await fileEditTool.call({ path: "e.ts", old_string: "x=1;", new_string: "y=2;" }, ctx);
+    const r = await fileEditTool.call(
+      { path: "e.ts", old_string: "x=1;", new_string: "y=2;" },
+      ctx,
+    );
     expect(r.isError).toBe(true);
     expect(String(r.content)).toContain("matches");
   });
@@ -106,7 +112,9 @@ describe("file tools", () => {
 
   test("file tools are path-jailed to the workspace", async () => {
     const ctx = makeCtx();
-    await expect(fileReadTool.call({ path: "../../etc/passwd" }, ctx)).rejects.toThrow(PathEscapeError);
+    await expect(fileReadTool.call({ path: "../../etc/passwd" }, ctx)).rejects.toThrow(
+      PathEscapeError,
+    );
   });
 });
 
@@ -171,8 +179,12 @@ describe("bash safety", () => {
 
   test("kill-list denies catastrophic commands (even before bypass)", async () => {
     const ctx = makeCtx();
-    expect((await bashTool.checkPermissions({ command: "rm -rf /" }, ctx.permissions)).behavior).toBe("deny");
-    expect((await bashTool.checkPermissions({ command: "echo hi" }, ctx.permissions)).behavior).toBe("ask");
+    expect(
+      (await bashTool.checkPermissions({ command: "rm -rf /" }, ctx.permissions)).behavior,
+    ).toBe("deny");
+    expect(
+      (await bashTool.checkPermissions({ command: "echo hi" }, ctx.permissions)).behavior,
+    ).toBe("ask");
   });
 
   test("kill-list is not defeated by quoting the destructive target", async () => {
@@ -181,7 +193,10 @@ describe("bash safety", () => {
       expect((await bashTool.checkPermissions({ command }, ctx.permissions)).behavior).toBe("deny");
     }
     // A quoted real subpath is still not the catastrophic target → not denied.
-    expect((await bashTool.checkPermissions({ command: 'rm -rf "/tmp/scratch"' }, ctx.permissions)).behavior).not.toBe("deny");
+    expect(
+      (await bashTool.checkPermissions({ command: 'rm -rf "/tmp/scratch"' }, ctx.permissions))
+        .behavior,
+    ).not.toBe("deny");
   });
 
   test("runs a simple command and captures output", async () => {

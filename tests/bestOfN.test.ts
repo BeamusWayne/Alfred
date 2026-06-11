@@ -64,7 +64,7 @@ describe("bestOfN — selects highest-scoring candidate", () => {
     // Three candidates with values 10, 30, 20. Expect winner = index 1 (value=30).
     const candidates: Solution[] = [
       { value: 10, label: "alpha" },
-      { value: 30, label: "beta" },   // winner
+      { value: 30, label: "beta" }, // winner
       { value: 20, label: "gamma" },
     ];
 
@@ -135,9 +135,7 @@ describe("bestOfN — all candidates null", () => {
   test("best is null and bestScore is -Infinity when all agents return null data", async () => {
     // Simulate the model ignoring the tool and returning plain text — runAgent
     // will set data=null when JSON.parse fails or the tool is never called.
-    const provider = new MockProvider([
-      textResponse("I refuse to produce structured output."),
-    ]);
+    const provider = new MockProvider([textResponse("I refuse to produce structured output.")]);
 
     const runtime = makeRuntime(provider);
     const result = await bestOfN<Solution>({
@@ -201,7 +199,7 @@ describe("bestOfN — async scorer", () => {
   test("supports a scorer that returns a Promise", async () => {
     const candidates: Solution[] = [
       { value: 5, label: "low" },
-      { value: 99, label: "high" },  // winner
+      { value: 99, label: "high" }, // winner
     ];
 
     const provider = new MockProvider([
@@ -235,9 +233,7 @@ describe("bestOfN — async scorer", () => {
 describe("bestOfN — labelPrefix option", () => {
   test("defaults to 'best-of-n' and still works correctly", async () => {
     const candidate: Solution = { value: 7, label: "x" };
-    const provider = new MockProvider([
-      toolUseResponse("structured_output", candidate),
-    ]);
+    const provider = new MockProvider([toolUseResponse("structured_output", candidate)]);
 
     const runtime = makeRuntime(provider);
     const result = await bestOfN<Solution>({

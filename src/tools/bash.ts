@@ -33,9 +33,31 @@ const MAX_OUTPUT = 30_000;
 // auto-classified read-only. find/sort stay but their write/exec flags are
 // caught by hasWriteIndicator below.
 const READ_ONLY = new Set([
-  "ls", "cat", "head", "tail", "wc", "echo", "pwd", "which", "type", "find",
-  "grep", "rg", "tree", "stat", "file", "date", "whoami", "printenv",
-  "basename", "dirname", "realpath", "diff", "sort", "uniq", "cut",
+  "ls",
+  "cat",
+  "head",
+  "tail",
+  "wc",
+  "echo",
+  "pwd",
+  "which",
+  "type",
+  "find",
+  "grep",
+  "rg",
+  "tree",
+  "stat",
+  "file",
+  "date",
+  "whoami",
+  "printenv",
+  "basename",
+  "dirname",
+  "realpath",
+  "diff",
+  "sort",
+  "uniq",
+  "cut",
 ]);
 const GIT_READ_ONLY = new Set(["status", "log", "diff", "branch", "show", "remote", "rev-parse"]);
 
@@ -75,13 +97,12 @@ function hasWriteIndicator(command: string): boolean {
   // Command / process substitution can run arbitrary code.
   if (command.includes("$(") || command.includes("`") || /[<>]\(/.test(command)) return true;
   // find's executor/deleter actions write or run programs.
-  if (/\bfind\b[^|;&]*\s-(?:exec|execdir|ok|okdir|delete|fprint|fprintf|fls)\b/.test(command)) return true;
+  if (/\bfind\b[^|;&]*\s-(?:exec|execdir|ok|okdir|delete|fprint|fprintf|fls)\b/.test(command))
+    return true;
   // sort -o writes its output to a file.
   if (/\bsort\b[^|;&]*\s-o\b/.test(command)) return true;
   // File-writing output redirection, excluding fd dups (2>&1) and the bit-bucket.
-  const redir = command
-    .replace(/\d?>&\d?/g, " ")
-    .replace(/>>?\s*\/dev\/null\b/g, " ");
+  const redir = command.replace(/\d?>&\d?/g, " ").replace(/>>?\s*\/dev\/null\b/g, " ");
   if (/>>?/.test(redir)) return true;
   return false;
 }
@@ -156,9 +177,10 @@ export const bashTool = buildTool({
           ctx.signal.removeEventListener("abort", onAbort);
           const out = (stdout ?? "") + (stderr ? `\n${stderr}` : "");
           if (err) {
-            const code = typeof (err as { code?: number }).code === "number"
-              ? (err as { code?: number }).code
-              : 1;
+            const code =
+              typeof (err as { code?: number }).code === "number"
+                ? (err as { code?: number }).code
+                : 1;
             resolve({ content: truncate(`[exit ${code}]\n${out}`.trimEnd()), isError: true });
           } else {
             resolve({ content: truncate(out.trimEnd()) || "(no output)" });

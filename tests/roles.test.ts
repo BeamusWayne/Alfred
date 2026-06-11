@@ -5,11 +5,7 @@
  * dedup, primary-first, with/without role), and schema validation.
  */
 import { describe, expect, it } from "bun:test";
-import {
-  fallbackChain,
-  resolveRole,
-  roleModelMapSchema,
-} from "../src/config/roles.ts";
+import { fallbackChain, resolveRole, roleModelMapSchema } from "../src/config/roles.ts";
 import type { Role, RoleModelMap } from "../src/config/roles.ts";
 
 // ---------------------------------------------------------------------------
@@ -163,10 +159,7 @@ describe("fallbackChain", () => {
       editor: { provider: "openai", model: "gpt-5.2" },
     };
     const chain = fallbackChain("claude-sonnet-4-6", map, "architect");
-    expect(chain).toEqual([
-      { model: "claude-fable-5" },
-      { provider: "openai", model: "gpt-5.2" },
-    ]);
+    expect(chain).toEqual([{ model: "claude-fable-5" }, { provider: "openai", model: "gpt-5.2" }]);
   });
 
   it("cross-provider: same model id on different providers is NOT deduplicated", () => {
@@ -208,9 +201,7 @@ describe("roleModelMapSchema", () => {
   });
 
   it("accepts a partial map (only architect)", () => {
-    expect(() =>
-      roleModelMapSchema.parse({ architect: "claude-opus-4-5" })
-    ).not.toThrow();
+    expect(() => roleModelMapSchema.parse({ architect: "claude-opus-4-5" })).not.toThrow();
   });
 
   it("rejects an empty string model id", () => {
@@ -223,7 +214,7 @@ describe("roleModelMapSchema", () => {
 
   it("rejects unknown keys (strict mode)", () => {
     expect(() =>
-      roleModelMapSchema.parse({ architect: "claude-opus-4-5", unknown_key: "x" })
+      roleModelMapSchema.parse({ architect: "claude-opus-4-5", unknown_key: "x" }),
     ).toThrow();
   });
 

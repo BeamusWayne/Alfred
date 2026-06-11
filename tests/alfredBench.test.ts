@@ -33,7 +33,17 @@ async function fixture(): Promise<BenchSpec> {
   );
   await writeFile(
     join(targetDir, "feature_list.json"),
-    JSON.stringify({ features: [{ id: "add", title: "add", description: "Create src/add.ts exporting add(a,b).", status: "pending", iterationBudget: 1 }] }),
+    JSON.stringify({
+      features: [
+        {
+          id: "add",
+          title: "add",
+          description: "Create src/add.ts exporting add(a,b).",
+          status: "pending",
+          iterationBudget: 1,
+        },
+      ],
+    }),
   );
   return {
     targetDir,
@@ -60,7 +70,12 @@ function benchDeps(targetDir: string, root: string, script: Script) {
   const runtime = createRuntime("t", {
     provider: new MockProvider([script]),
     model: "mock",
-    permissions: { mode: "bypass", allowedTools: new Set(), deniedTools: new Set(), workingDir: targetDir },
+    permissions: {
+      mode: "bypass",
+      allowedTools: new Set(),
+      deniedTools: new Set(),
+      workingDir: targetDir,
+    },
     journal,
   });
   return { runtime, ledger, journal };
@@ -75,11 +90,16 @@ describe("alfredBench — dual FAIL→PASS", () => {
       const t = firstUser && typeof firstUser.content === "string" ? firstUser.content : "";
       const last = messages[messages.length - 1];
       if (t.includes("Assess whether")) {
-        return last && last.role === "tool_result" ? textResponse("done") : toolUseResponse("structured_output", { verification: 2, reasoning: "built" });
+        return last && last.role === "tool_result"
+          ? textResponse("done")
+          : toolUseResponse("structured_output", { verification: 2, reasoning: "built" });
       }
       return last && last.role === "tool_result"
         ? textResponse("built")
-        : toolUseResponse("file_write", { path: "src/add.ts", content: "export function add(a: number, b: number): number { return a + b; }\n" });
+        : toolUseResponse("file_write", {
+            path: "src/add.ts",
+            content: "export function add(a: number, b: number): number { return a + b; }\n",
+          });
     };
     const deps = benchDeps(spec.targetDir, root, buildScript);
     const result = await alfredBench(spec, deps);
@@ -97,7 +117,8 @@ describe("alfredBench — dual FAIL→PASS", () => {
     const noopScript: Script = (messages) => {
       const firstUser = messages.find((m) => m.role === "user");
       const t = firstUser && typeof firstUser.content === "string" ? firstUser.content : "";
-      if (t.includes("Assess whether")) return toolUseResponse("structured_output", { verification: 0, reasoning: "nothing" });
+      if (t.includes("Assess whether"))
+        return toolUseResponse("structured_output", { verification: 0, reasoning: "nothing" });
       return textResponse("I did nothing");
     };
     const deps = benchDeps(spec.targetDir, root, noopScript);
@@ -112,16 +133,48 @@ describe("alfredBench — dual FAIL→PASS", () => {
 
 describe("benchPassed — empty feature list is not a pass", () => {
   test("features=0 is NOT a pass (no false green receipt)", () => {
-    expect(benchPassed({ features: 0, passing: 0, dualPassConfirmed: 0, ledgerOk: true, baselineFailed: false })).toBe(false);
+    expect(
+      benchPassed({
+        features: 0,
+        passing: 0,
+        dualPassConfirmed: 0,
+        ledgerOk: true,
+        baselineFailed: false,
+      }),
+    ).toBe(false);
   });
   test("all features dual-confirmed with an intact ledger passes", () => {
-    expect(benchPassed({ features: 2, passing: 2, dualPassConfirmed: 2, ledgerOk: true, baselineFailed: true })).toBe(true);
+    expect(
+      benchPassed({
+        features: 2,
+        passing: 2,
+        dualPassConfirmed: 2,
+        ledgerOk: true,
+        baselineFailed: true,
+      }),
+    ).toBe(true);
   });
   test("a partially-confirmed run does not pass", () => {
-    expect(benchPassed({ features: 2, passing: 1, dualPassConfirmed: 1, ledgerOk: true, baselineFailed: true })).toBe(false);
+    expect(
+      benchPassed({
+        features: 2,
+        passing: 1,
+        dualPassConfirmed: 1,
+        ledgerOk: true,
+        baselineFailed: true,
+      }),
+    ).toBe(false);
   });
   test("a tampered ledger never passes", () => {
-    expect(benchPassed({ features: 1, passing: 1, dualPassConfirmed: 1, ledgerOk: false, baselineFailed: true })).toBe(false);
+    expect(
+      benchPassed({
+        features: 1,
+        passing: 1,
+        dualPassConfirmed: 1,
+        ledgerOk: false,
+        baselineFailed: true,
+      }),
+    ).toBe(false);
   });
 });
 
@@ -134,7 +187,12 @@ describe("autonomousRun — resilient to a mid-run throw", () => {
     const runtime = createRuntime("t", {
       provider: new MockProvider([() => textResponse("done")]),
       model: "mock",
-      permissions: { mode: "bypass", allowedTools: new Set(), deniedTools: new Set(), workingDir: spec.targetDir },
+      permissions: {
+        mode: "bypass",
+        allowedTools: new Set(),
+        deniedTools: new Set(),
+        workingDir: spec.targetDir,
+      },
       journal,
       budget: { maxUsd: 0 }, // already exhausted → the first runtime.agent() throws
     });

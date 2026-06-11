@@ -18,10 +18,7 @@ import type { EvalCase } from "../src/eval/types.ts";
 const casePassToolSequence: EvalCase = {
   name: "search-then-respond",
   prompt: "List all txt files then tell me the result.",
-  scripts: [
-    toolUseResponse("glob", { pattern: "**/*.txt" }),
-    textResponse("I found some files."),
-  ],
+  scripts: [toolUseResponse("glob", { pattern: "**/*.txt" }), textResponse("I found some files.")],
   expect: {
     status: "success",
     toolsUsed: ["glob"],
@@ -157,9 +154,7 @@ describe("runEvalCase", () => {
   test("finalTextIncludes mismatch failure names the missing substring", async () => {
     const result = await runEvalCase(caseFailTextMismatch);
     expect(result.passed).toBe(false);
-    const textFailure = result.failures.find((f) =>
-      f.startsWith("finalTextIncludes:"),
-    );
+    const textFailure = result.failures.find((f) => f.startsWith("finalTextIncludes:"));
     expect(textFailure).toBeDefined();
     expect(textFailure).toContain("EXPECTED_MISSING_STRING");
   });
@@ -263,9 +258,7 @@ describe("formatReport", () => {
     const caseLineIdx = lines.findIndex((l) => l.includes("wrong-expectations"));
     expect(caseLineIdx).toBeGreaterThanOrEqual(0);
     // At least one indented failure line follows the case line.
-    const failureLine = lines
-      .slice(caseLineIdx + 1)
-      .find((l) => l.trimStart().startsWith("-"));
+    const failureLine = lines.slice(caseLineIdx + 1).find((l) => l.trimStart().startsWith("-"));
     expect(failureLine).toBeDefined();
   });
 

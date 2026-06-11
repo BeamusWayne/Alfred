@@ -23,7 +23,10 @@ import type { Tool } from "../tools/types.ts";
 // ---------------------------------------------------------------------------
 
 const LoadSkillInputSchema = z.object({
-  name: z.string().min(1).describe("The skill name to load (must match a subdirectory in skillsDir)"),
+  name: z
+    .string()
+    .min(1)
+    .describe("The skill name to load (must match a subdirectory in skillsDir)"),
 });
 
 type LoadSkillInput = z.infer<typeof LoadSkillInputSchema>;
@@ -70,7 +73,10 @@ export function makeSkillTool(skillsDir: string): Tool<typeof LoadSkillInputSche
 // ---------------------------------------------------------------------------
 
 /** The built-in `load_skill` tool, rooted at `<ctx.workingDir>/.alfred/skills`. */
-export const skillTool: Tool<typeof LoadSkillInputSchema, string> = buildTool<typeof LoadSkillInputSchema, string>({
+export const skillTool: Tool<typeof LoadSkillInputSchema, string> = buildTool<
+  typeof LoadSkillInputSchema,
+  string
+>({
   name: "load_skill",
   description: DESCRIPTION,
   inputSchema: LoadSkillInputSchema,

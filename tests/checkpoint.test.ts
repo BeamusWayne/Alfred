@@ -10,12 +10,7 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mkdtemp, rm, writeFile, readFile } from "node:fs/promises";
-import {
-  isGitRepo,
-  currentSha,
-  checkpoint,
-  rollback,
-} from "../src/harness/checkpoint.ts";
+import { isGitRepo, currentSha, checkpoint, rollback } from "../src/harness/checkpoint.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -23,7 +18,7 @@ import {
 
 async function spawn(
   args: readonly string[],
-  cwd: string
+  cwd: string,
 ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   const proc = Bun.spawn([...args], { cwd, stdout: "pipe", stderr: "pipe" });
   const [stdout, stderr] = await Promise.all([

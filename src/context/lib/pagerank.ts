@@ -52,10 +52,7 @@ export function pageRank(
 
   // Build adjacency: for each source node, collect [targetIndex, weight] pairs
   // and total outgoing weight.
-  const outEdges: Array<Array<readonly [number, number]>> = Array.from(
-    { length: n },
-    () => [],
-  );
+  const outEdges: Array<Array<readonly [number, number]>> = Array.from({ length: n }, () => []);
   const outWeight: number[] = new Array(n).fill(0) as number[];
 
   for (const edge of edges) {
@@ -79,14 +76,14 @@ export function pageRank(
       const ow = outWeight[fi] ?? 0;
       if (ow === 0) {
         // Dangling node: distribute rank evenly (standard dangling-node fix)
-        const share = damping * (ranks[fi] ?? 0) / n;
+        const share = (damping * (ranks[fi] ?? 0)) / n;
         for (let ti = 0; ti < n; ti++) {
           (next[ti] as number) += share;
         }
       } else {
         const edges_ = outEdges[fi] ?? [];
         for (const [ti, w] of edges_) {
-          (next[ti] as number) += damping * (ranks[fi] ?? 0) * w / ow;
+          (next[ti] as number) += (damping * (ranks[fi] ?? 0) * w) / ow;
         }
       }
     }

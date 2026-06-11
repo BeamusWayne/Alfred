@@ -39,10 +39,7 @@ export class Budget {
   private readonly limits: BudgetLimits;
   private readonly tracker: CostTracker;
 
-  constructor(
-    limits: BudgetLimits = {},
-    tracker: CostTracker = new CostTracker(),
-  ) {
+  constructor(limits: BudgetLimits = {}, tracker: CostTracker = new CostTracker()) {
     this.limits = limits;
     this.tracker = tracker;
   }
@@ -65,12 +62,7 @@ export class Budget {
    */
   spentTokens(): number {
     const { usage } = this.tracker.total();
-    return (
-      usage.inputTokens +
-      usage.outputTokens +
-      usage.cacheReadTokens +
-      usage.cacheWriteTokens
-    );
+    return usage.inputTokens + usage.outputTokens + usage.cacheReadTokens + usage.cacheWriteTokens;
   }
 
   /**
@@ -96,12 +88,9 @@ export class Budget {
    * exceeded. When no limits are set, always returns `false`.
    */
   exceeded(): boolean {
-    const usdOver =
-      this.limits.maxUsd !== undefined &&
-      this.spentUsd() >= this.limits.maxUsd;
+    const usdOver = this.limits.maxUsd !== undefined && this.spentUsd() >= this.limits.maxUsd;
     const tokensOver =
-      this.limits.maxTokens !== undefined &&
-      this.spentTokens() >= this.limits.maxTokens;
+      this.limits.maxTokens !== undefined && this.spentTokens() >= this.limits.maxTokens;
     return usdOver || tokensOver;
   }
 

@@ -19,7 +19,9 @@ async function collect(s: ReadableStream<Uint8Array> | null): Promise<string[]> 
 
 describe("sseData", () => {
   test("yields each data payload, stops at [DONE]", async () => {
-    const out = await collect(streamOf(['data: {"a":1}\n\n', 'data: {"b":2}\n\n', "data: [DONE]\n\n"]));
+    const out = await collect(
+      streamOf(['data: {"a":1}\n\n', 'data: {"b":2}\n\n', "data: [DONE]\n\n"]),
+    );
     expect(out).toEqual(['{"a":1}', '{"b":2}']);
   });
 
@@ -39,7 +41,9 @@ describe("sseData", () => {
   });
 
   test("ignores comment/event lines and joins multi-line data", async () => {
-    const out = await collect(streamOf([": keep-alive\n\n", "event: x\ndata: line1\ndata: line2\n\n"]));
+    const out = await collect(
+      streamOf([": keep-alive\n\n", "event: x\ndata: line1\ndata: line2\n\n"]),
+    );
     expect(out).toEqual(["line1\nline2"]);
   });
 

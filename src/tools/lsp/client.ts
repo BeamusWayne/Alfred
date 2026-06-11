@@ -15,16 +15,8 @@
  * from `./protocol.ts`. It is NOT exercised by unit tests.
  */
 
-import {
-  encodeMessage,
-  createFrameParser,
-} from "./protocol.ts";
-import type {
-  Diagnostic,
-  Location,
-  Position,
-  LspTransport,
-} from "./protocol.ts";
+import { encodeMessage, createFrameParser } from "./protocol.ts";
+import type { Diagnostic, Location, Position, LspTransport } from "./protocol.ts";
 
 // ---------------------------------------------------------------------------
 // Re-export protocol types so callers import from one place
@@ -305,9 +297,7 @@ export class LspClient {
       if (pending.timer !== undefined) clearTimeout(pending.timer);
 
       if (frame.error !== undefined) {
-        pending.reject(
-          new Error(`LSP JSON-RPC error ${frame.error.code}: ${frame.error.message}`),
-        );
+        pending.reject(new Error(`LSP JSON-RPC error ${frame.error.code}: ${frame.error.message}`));
       } else {
         pending.resolve(frame.result);
       }
@@ -334,9 +324,10 @@ export class LspClient {
               start: { line: Number(start["line"]), character: Number(start["character"]) },
               end: { line: Number(end["line"]), character: Number(end["character"]) },
             },
-            severity: typeof diag["severity"] === "number"
-              ? (diag["severity"] as 1 | 2 | 3 | 4)
-              : undefined,
+            severity:
+              typeof diag["severity"] === "number"
+                ? (diag["severity"] as 1 | 2 | 3 | 4)
+                : undefined,
             message: typeof diag["message"] === "string" ? diag["message"] : "",
             source: typeof diag["source"] === "string" ? diag["source"] : undefined,
           },
@@ -365,10 +356,7 @@ function spawnLspProc(command: string, args: readonly string[]) {
  * Bun.spawn-backed transport for a real language server process.
  * Messages use LSP Content-Length framing on stdin/stdout.
  */
-export function stdioTransport(
-  command: string,
-  args: readonly string[] = [],
-): LspTransport {
+export function stdioTransport(command: string, args: readonly string[] = []): LspTransport {
   // IIFE keeps `proc`'s precise piped-stdio types while still catching the
   // synchronous throw a missing binary produces; the rethrow names the command
   // so the bootstrap layer can report exactly which server failed to launch.

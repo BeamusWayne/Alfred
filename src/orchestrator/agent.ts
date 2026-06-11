@@ -144,8 +144,8 @@ export async function runAgent<T = unknown>(
     schema && !useNative && systemPrompt
       ? `${systemPrompt}\n\n${SCHEMA_SYSTEM_SUFFIX}`
       : schema && !useNative
-      ? SCHEMA_SYSTEM_SUFFIX
-      : systemPrompt;
+        ? SCHEMA_SYSTEM_SUFFIX
+        : systemPrompt;
 
   // Drain the async generator; we expose only the final QueryState.
   const gen = runQuery(prompt, {

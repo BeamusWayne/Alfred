@@ -25,7 +25,10 @@ import type { LedgerEntry } from "../src/orchestrator/ledger.ts";
 let tempDirs: string[] = [];
 
 async function makeTempDir(): Promise<string> {
-  const dir = join(tmpdir(), `alfred-ledger-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const dir = join(
+    tmpdir(),
+    `alfred-ledger-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
   await mkdir(dir, { recursive: true });
   tempDirs.push(dir);
   return dir;
@@ -185,11 +188,7 @@ describe("Ledger.verify — tamper detection", () => {
       ...(entries[1] as LedgerEntry),
       data: { name: "HACKED" },
     };
-    await writeEntries(path, [
-      entries[0] as LedgerEntry,
-      tampered,
-      entries[2] as LedgerEntry,
-    ]);
+    await writeEntries(path, [entries[0] as LedgerEntry, tampered, entries[2] as LedgerEntry]);
 
     const result = await ledger.verify();
     expect(result.ok).toBe(false);
@@ -202,7 +201,12 @@ describe("Ledger.verify — tamper detection", () => {
     const dir = await makeTempDir();
     const path = ledgerPath(dir);
     let tick = 0;
-    const ledger = new Ledger(path, "secret", { now: () => { tick += 1; return tick; } });
+    const ledger = new Ledger(path, "secret", {
+      now: () => {
+        tick += 1;
+        return tick;
+      },
+    });
     await ledger.append("a", {});
     await ledger.append("b", {});
 

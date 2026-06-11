@@ -135,7 +135,8 @@ export class EpisodeStore {
     const all = await this.list();
     const lower = terms.map((t) => t.toLowerCase());
     const matched = all.filter((ep) => {
-      const haystack = `${ep.goal} ${ep.approach} ${ep.worked.join(" ")} ${ep.failed.join(" ")}`.toLowerCase();
+      const haystack =
+        `${ep.goal} ${ep.approach} ${ep.worked.join(" ")} ${ep.failed.join(" ")}`.toLowerCase();
       return lower.some((t) => haystack.includes(t));
     });
     return matched.slice(0, k);

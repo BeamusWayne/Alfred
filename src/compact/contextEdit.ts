@@ -135,11 +135,7 @@ export function editContext(
 
     const inProtectedWindow = i >= protectedStart;
 
-    if (
-      msg.role === "tool_result" &&
-      !inProtectedWindow &&
-      msg.content !== placeholder
-    ) {
+    if (msg.role === "tool_result" && !inProtectedWindow && msg.content !== placeholder) {
       // Build a new ToolResultMessage with the placeholder content.
       const pruned: ToolResultMessage = {
         role: "tool_result",

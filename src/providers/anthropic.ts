@@ -145,7 +145,12 @@ export function fromContent(blocks: Anthropic.ContentBlock[]): ContentBlock[] {
   for (const b of blocks as ReadonlyArray<Anthropic.ContentBlock | WireCompactionBlock>) {
     if (b.type === "text") out.push({ type: "text", text: b.text });
     else if (b.type === "tool_use") {
-      out.push({ type: "tool_use", id: b.id, name: b.name, input: b.input as Record<string, unknown> });
+      out.push({
+        type: "tool_use",
+        id: b.id,
+        name: b.name,
+        input: b.input as Record<string, unknown>,
+      });
     } else if (b.type === "thinking") {
       out.push({ type: "thinking", thinking: b.thinking, signature: b.signature });
     } else if (b.type === "redacted_thinking") {
@@ -267,7 +272,10 @@ export function buildRequest(
   const effort = profile.supportsEffort ? config.effort : undefined;
   const format =
     profile.supportsStructuredOutput && config.responseSchema !== undefined
-      ? ({ type: "json_schema", schema: config.responseSchema } satisfies Anthropic.JSONOutputFormat)
+      ? ({
+          type: "json_schema",
+          schema: config.responseSchema,
+        } satisfies Anthropic.JSONOutputFormat)
       : undefined;
   // task_budget is typed in the SDK's beta namespace but rides the same wire
   // field; the GA cast is confined to this one spot.

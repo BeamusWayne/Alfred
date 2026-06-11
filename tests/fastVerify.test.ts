@@ -6,7 +6,10 @@ import { test, expect, describe } from "bun:test";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { autonomousRun, type AutonomousEvent } from "../src/orchestrator/workflows/autonomousRun.ts";
+import {
+  autonomousRun,
+  type AutonomousEvent,
+} from "../src/orchestrator/workflows/autonomousRun.ts";
 import { createRuntime } from "../src/orchestrator/runtime.ts";
 import { Journal } from "../src/orchestrator/journal.ts";
 import { Ledger } from "../src/orchestrator/ledger.ts";
@@ -32,7 +35,10 @@ function harnessScript(verification: number): Script {
   };
 }
 
-async function run(dir: string, opts: { fast?: string; full: string; budget?: number; verification?: number }) {
+async function run(
+  dir: string,
+  opts: { fast?: string; full: string; budget?: number; verification?: number },
+) {
   await Bun.write(
     join(dir, "fl.json"),
     JSON.stringify({
@@ -119,7 +125,12 @@ describe("rubric evidence access", () => {
     const provider = new MockProvider([harnessScript(2)]);
     const journal = new Journal(join(dir, "j.jsonl"));
     const ledger = new Ledger(join(dir, "l.jsonl"), "s");
-    const runtime = createRuntime("t", { provider, model: "base", permissions: perms(dir), journal });
+    const runtime = createRuntime("t", {
+      provider,
+      model: "base",
+      permissions: perms(dir),
+      journal,
+    });
     await autonomousRun({
       runtime,
       ledger,

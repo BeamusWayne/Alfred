@@ -13,10 +13,7 @@
 import { z } from "zod";
 import { buildTool } from "./types.ts";
 import type { ToolResult } from "./types.ts";
-import {
-  checkEgress,
-  DEFAULT_EGRESS_POLICY,
-} from "../security/egress.ts";
+import { checkEgress, DEFAULT_EGRESS_POLICY } from "../security/egress.ts";
 import type { EgressPolicy } from "../security/egress.ts";
 import { redact } from "../security/redact.ts";
 import { ask, deny } from "../permissions/types.ts";
@@ -41,9 +38,7 @@ export type { EgressPolicy };
  *
  * @param env  Environment map to read from (defaults to `process.env`).
  */
-export function policyFromEnv(
-  env: Record<string, string | undefined> = process.env,
-): EgressPolicy {
+export function policyFromEnv(env: Record<string, string | undefined> = process.env): EgressPolicy {
   const raw = env["ALFRED_EGRESS_ALLOW"];
   if (!raw || raw.trim() === "") {
     return DEFAULT_EGRESS_POLICY;
@@ -138,7 +133,10 @@ export async function fetchWithPolicy(
     }
     const location = response.headers.get("location");
     if (location === null || location.trim() === "") {
-      return { ok: false, error: `Redirect ${response.status} from ${currentUrl} had no Location header` };
+      return {
+        ok: false,
+        error: `Redirect ${response.status} from ${currentUrl} had no Location header`,
+      };
     }
     try {
       currentUrl = new URL(location, currentUrl).toString(); // resolve relative redirects

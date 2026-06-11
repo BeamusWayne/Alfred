@@ -7,7 +7,10 @@ import { GoogleProvider, type Fetcher } from "../src/providers/google.ts";
 import { ProviderError } from "../src/providers/types.ts";
 import type { Message, ToolDefinition, ProviderConfig } from "../src/providers/types.ts";
 
-function makeFetcher(status: number, body: unknown): {
+function makeFetcher(
+  status: number,
+  body: unknown,
+): {
   fetcher: Fetcher;
   calls: Array<{ url: string; init: RequestInit }>;
 } {
@@ -62,7 +65,10 @@ describe("GoogleProvider — tool calling", () => {
       // Gemini reports finishReason STOP even for tool calls.
       candidates: [
         {
-          content: { role: "model", parts: [{ functionCall: { name: "bash", args: { command: "ls" } } }] },
+          content: {
+            role: "model",
+            parts: [{ functionCall: { name: "bash", args: { command: "ls" } } }],
+          },
           finishReason: "STOP",
         },
       ],
@@ -125,7 +131,15 @@ describe("GoogleProvider — tool calling", () => {
     await new GoogleProvider(fetcher).chat(USER, tools, CONFIG);
     const decl = JSON.parse(calls[0]!.init.body as string).tools[0].functionDeclarations[0];
     const flat = JSON.stringify(decl);
-    for (const banned of ["exclusiveMinimum", "minimum", "multipleOf", "format", "minLength", "pattern", "maxLength"]) {
+    for (const banned of [
+      "exclusiveMinimum",
+      "minimum",
+      "multipleOf",
+      "format",
+      "minLength",
+      "pattern",
+      "maxLength",
+    ]) {
       expect(flat).not.toContain(banned);
     }
     // Structural keywords survive.
@@ -139,7 +153,10 @@ describe("GoogleProvider — tool calling", () => {
     const { fetcher, calls } = makeFetcher(200, geminiText("done"));
     const convo: Message[] = [
       { role: "user", content: "list files" },
-      { role: "assistant", content: [{ type: "tool_use", id: "call_bash_0", name: "bash", input: { command: "ls" } }] },
+      {
+        role: "assistant",
+        content: [{ type: "tool_use", id: "call_bash_0", name: "bash", input: { command: "ls" } }],
+      },
       { role: "tool_result", toolUseId: "call_bash_0", content: "a.txt\nb.txt", isError: false },
     ];
     await new GoogleProvider(fetcher).chat(convo, [], CONFIG);
@@ -223,10 +240,14 @@ function sse(...objs: unknown[]): string {
   return objs.map((o) => `data: ${JSON.stringify(o)}\n\n`).join("");
 }
 function sseFetcher(body: string): Fetcher {
-  return async () => new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } });
+  return async () =>
+    new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } });
 }
 async function drainStream(
-  gen: AsyncGenerator<{ type: "text_delta"; text: string }, import("../src/providers/types.ts").LLMResponse>,
+  gen: AsyncGenerator<
+    { type: "text_delta"; text: string },
+    import("../src/providers/types.ts").LLMResponse
+  >,
 ): Promise<{ deltas: string[]; final: import("../src/providers/types.ts").LLMResponse }> {
   const deltas: string[] = [];
   let r = await gen.next();
@@ -260,7 +281,10 @@ describe("GoogleProvider — streaming", () => {
     const body = sse({
       candidates: [
         {
-          content: { role: "model", parts: [{ functionCall: { name: "get_weather", args: { city: "Paris" } } }] },
+          content: {
+            role: "model",
+            parts: [{ functionCall: { name: "get_weather", args: { city: "Paris" } } }],
+          },
           finishReason: "STOP",
         },
       ],

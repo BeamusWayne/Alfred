@@ -169,10 +169,7 @@ describe("Budget.exceeded", () => {
 
   test("exceeded when either limit is crossed (token breach only)", () => {
     // maxUsd is large, maxTokens is tiny
-    const b = new Budget({ maxUsd: 1000, maxTokens: 10 }).record(
-      MODEL,
-      USAGE_A,
-    );
+    const b = new Budget({ maxUsd: 1000, maxTokens: 10 }).record(MODEL, USAGE_A);
     expect(b.exceeded()).toBe(true);
   });
 });

@@ -32,7 +32,10 @@ export const grepTool = buildTool({
     try {
       re = new RegExp(input.pattern, input.ignoreCase ? "i" : "");
     } catch (e) {
-      return { content: `Invalid regex: ${e instanceof Error ? e.message : String(e)}`, isError: true };
+      return {
+        content: `Invalid regex: ${e instanceof Error ? e.message : String(e)}`,
+        isError: true,
+      };
     }
 
     const base = resolveInside(ctx.workingDir, input.path ?? ".");

@@ -1,6 +1,12 @@
 import { test, expect, describe } from "bun:test";
 import { evaluatePermission } from "../src/permissions/evaluate.ts";
-import { allow, ask, deny, type PermissionResult, type ToolPermissionContext } from "../src/permissions/types.ts";
+import {
+  allow,
+  ask,
+  deny,
+  type PermissionResult,
+  type ToolPermissionContext,
+} from "../src/permissions/types.ts";
 
 function ctx(
   mode: ToolPermissionContext["mode"],
@@ -18,9 +24,12 @@ const asks = async (): Promise<PermissionResult> => ask("needs ok");
 const allows = async (): Promise<PermissionResult> => allow();
 const denies = async (): Promise<PermissionResult> => deny("kill-list");
 
-async function decide(
-  p: { isReadOnly?: boolean; check?: () => Promise<PermissionResult>; ctx: ToolPermissionContext; name?: string },
-) {
+async function decide(p: {
+  isReadOnly?: boolean;
+  check?: () => Promise<PermissionResult>;
+  ctx: ToolPermissionContext;
+  name?: string;
+}) {
   return evaluatePermission({
     toolName: p.name ?? "bash",
     isReadOnly: p.isReadOnly ?? false,
@@ -67,7 +76,11 @@ describe("evaluatePermission", () => {
     // Read-only is a per-call classification that can be wrong; it must not be a
     // blanket bypass of the tool's kill-list. Previously isReadOnly skipped the
     // check entirely and auto-allowed.
-    expect((await decide({ isReadOnly: true, check: denies, ctx: ctx("bypass") })).behavior).toBe("deny");
-    expect((await decide({ isReadOnly: true, check: denies, ctx: ctx("default") })).behavior).toBe("deny");
+    expect((await decide({ isReadOnly: true, check: denies, ctx: ctx("bypass") })).behavior).toBe(
+      "deny",
+    );
+    expect((await decide({ isReadOnly: true, check: denies, ctx: ctx("default") })).behavior).toBe(
+      "deny",
+    );
   });
 });

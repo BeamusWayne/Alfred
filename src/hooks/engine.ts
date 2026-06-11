@@ -35,9 +35,7 @@ export async function loadHooksConfig(path: string): Promise<HooksConfig> {
     if (isNodeError(err) && err.code === "ENOENT") {
       return { hooks: [] };
     }
-    throw new Error(
-      `hooks: cannot read config at ${path}: ${String(err)}`,
-    );
+    throw new Error(`hooks: cannot read config at ${path}: ${String(err)}`);
   }
 
   let parsed: unknown;
@@ -49,9 +47,7 @@ export async function loadHooksConfig(path: string): Promise<HooksConfig> {
 
   const result = hooksConfigSchema.safeParse(parsed);
   if (!result.success) {
-    throw new Error(
-      `hooks: config at ${path} failed validation: ${result.error.message}`,
-    );
+    throw new Error(`hooks: config at ${path} failed validation: ${result.error.message}`);
   }
 
   return result.data;
@@ -217,11 +213,7 @@ function parseUpdatedInput(stdout: string): Record<string, unknown> | undefined 
       "updatedInput" in parsed
     ) {
       const candidate = (parsed as Record<string, unknown>)["updatedInput"];
-      if (
-        candidate !== null &&
-        typeof candidate === "object" &&
-        !Array.isArray(candidate)
-      ) {
+      if (candidate !== null && typeof candidate === "object" && !Array.isArray(candidate)) {
         return candidate as Record<string, unknown>;
       }
     }

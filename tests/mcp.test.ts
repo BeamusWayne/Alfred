@@ -49,7 +49,14 @@ function fakeTransport(): {
   };
 
   // Return a proxy so tests can toggle `closed` after the fact.
-  const state = { transport, sent, deliver, get closed() { return closed; } };
+  const state = {
+    transport,
+    sent,
+    deliver,
+    get closed() {
+      return closed;
+    },
+  };
   return state;
 }
 
@@ -101,7 +108,11 @@ describe("McpClient.initialize", () => {
     const fake = fakeTransport();
     autoRespond(fake, (req) => {
       if (req["method"] === "initialize") {
-        return { protocolVersion: "2024-11-05", capabilities: {}, serverInfo: { name: "test", version: "0.0.1" } };
+        return {
+          protocolVersion: "2024-11-05",
+          capabilities: {},
+          serverInfo: { name: "test", version: "0.0.1" },
+        };
       }
       return {};
     });
@@ -116,7 +127,7 @@ describe("McpClient.initialize", () => {
     expect(initReq).toBeDefined();
     expect(initNotif).toBeDefined();
     // notifications must not have an id
-    expect("id" in (initNotif!)).toBe(false);
+    expect("id" in initNotif!).toBe(false);
   });
 
   test("initialize request carries the correct protocolVersion", async () => {
@@ -146,7 +157,11 @@ describe("McpClient.listTools", () => {
     const fake = fakeTransport();
     autoRespond(fake, (req) => {
       if (req["method"] === "initialize") {
-        return { protocolVersion: "2024-11-05", capabilities: {}, serverInfo: { name: "s", version: "1" } };
+        return {
+          protocolVersion: "2024-11-05",
+          capabilities: {},
+          serverInfo: { name: "s", version: "1" },
+        };
       }
       if (req["method"] === "tools/list") {
         return {
@@ -159,7 +174,10 @@ describe("McpClient.listTools", () => {
             {
               name: "write_file",
               description: "Write content to a file",
-              inputSchema: { type: "object", properties: { path: { type: "string" }, content: { type: "string" } } },
+              inputSchema: {
+                type: "object",
+                properties: { path: { type: "string" }, content: { type: "string" } },
+              },
             },
           ],
         };
@@ -181,7 +199,12 @@ describe("McpClient.listTools", () => {
   test("returns empty array when tools key is missing", async () => {
     const fake = fakeTransport();
     autoRespond(fake, (req) => {
-      if (req["method"] === "initialize") return { protocolVersion: "2024-11-05", capabilities: {}, serverInfo: { name: "s", version: "1" } };
+      if (req["method"] === "initialize")
+        return {
+          protocolVersion: "2024-11-05",
+          capabilities: {},
+          serverInfo: { name: "s", version: "1" },
+        };
       return {}; // no `tools` key
     });
 
@@ -201,7 +224,12 @@ describe("McpClient.callTool", () => {
   test("flattens content array to text and returns isError=false", async () => {
     const fake = fakeTransport();
     autoRespond(fake, (req) => {
-      if (req["method"] === "initialize") return { protocolVersion: "2024-11-05", capabilities: {}, serverInfo: { name: "s", version: "1" } };
+      if (req["method"] === "initialize")
+        return {
+          protocolVersion: "2024-11-05",
+          capabilities: {},
+          serverInfo: { name: "s", version: "1" },
+        };
       if (req["method"] === "tools/call") {
         return {
           content: [
@@ -225,7 +253,12 @@ describe("McpClient.callTool", () => {
   test("returns isError=true when server signals an error", async () => {
     const fake = fakeTransport();
     autoRespond(fake, (req) => {
-      if (req["method"] === "initialize") return { protocolVersion: "2024-11-05", capabilities: {}, serverInfo: { name: "s", version: "1" } };
+      if (req["method"] === "initialize")
+        return {
+          protocolVersion: "2024-11-05",
+          capabilities: {},
+          serverInfo: { name: "s", version: "1" },
+        };
       if (req["method"] === "tools/call") {
         return {
           content: [{ type: "text", text: "Something went wrong" }],
@@ -246,7 +279,12 @@ describe("McpClient.callTool", () => {
   test("sends the correct method and tool name in the request", async () => {
     const fake = fakeTransport();
     autoRespond(fake, (req) => {
-      if (req["method"] === "initialize") return { protocolVersion: "2024-11-05", capabilities: {}, serverInfo: { name: "s", version: "1" } };
+      if (req["method"] === "initialize")
+        return {
+          protocolVersion: "2024-11-05",
+          capabilities: {},
+          serverInfo: { name: "s", version: "1" },
+        };
       return { content: [{ type: "text", text: "ok" }], isError: false };
     });
 
@@ -271,7 +309,12 @@ describe("McpClient JSON-RPC error handling", () => {
   test("rejects the promise when the server returns a JSON-RPC error", async () => {
     const fake = fakeTransport();
     autoRespond(fake, (req) => {
-      if (req["method"] === "initialize") return { protocolVersion: "2024-11-05", capabilities: {}, serverInfo: { name: "s", version: "1" } };
+      if (req["method"] === "initialize")
+        return {
+          protocolVersion: "2024-11-05",
+          capabilities: {},
+          serverInfo: { name: "s", version: "1" },
+        };
       if (req["method"] === "tools/list") {
         throw new Error("Method not found");
       }
@@ -314,7 +357,12 @@ describe("mcpToolToAlfredTool", () => {
   function makeClientWithCallResult(text: string, isError: boolean): McpClient {
     const fake = fakeTransport();
     autoRespond(fake, (req) => {
-      if (req["method"] === "initialize") return { protocolVersion: "2024-11-05", capabilities: {}, serverInfo: { name: "s", version: "1" } };
+      if (req["method"] === "initialize")
+        return {
+          protocolVersion: "2024-11-05",
+          capabilities: {},
+          serverInfo: { name: "s", version: "1" },
+        };
       if (req["method"] === "tools/call") {
         return { content: [{ type: "text", text }], isError };
       }
