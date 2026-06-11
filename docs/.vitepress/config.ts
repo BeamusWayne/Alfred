@@ -1,9 +1,39 @@
+import { execSync } from "node:child_process";
+import { createRequire } from "node:module";
 import { defineConfig } from "vitepress";
+
+const pkg = createRequire(import.meta.url)("../../package.json") as {
+  version: string;
+  dependencies: Record<string, string>;
+};
+
+// The homepage StatusStrip never claims a number the build didn't just
+// verify: the test count is MEASURED here by running the real suite
+// (~5s; bun is present locally and in docs.yml via setup-bun). If the
+// measurement fails the strip drops the item instead of showing a stale one.
+const TEST_COUNT: number | null = (() => {
+  try {
+    const out = execSync("bun test tests 2>&1", { encoding: "utf8", timeout: 120_000 });
+    // Anchor to the summary line (" 855 pass" on its own line) — test output
+    // itself can contain strings like "1 passing"; take the last match.
+    const m = [...out.matchAll(/^\s*(\d+) pass$/gm)].at(-1);
+    return m?.[1] ? Number(m[1]) : null;
+  } catch {
+    return null;
+  }
+})();
 
 // Docs site for Alfred. Built with `bun run docs:build`, deployed to GitHub Pages.
 // `base` assumes a project page at <user>.github.io/Alfred/ — set to "/" for a
 // user/org page or a custom domain.
 export default defineConfig({
+  vite: {
+    define: {
+      __PKG_VERSION__: JSON.stringify(pkg.version),
+      __TEST_COUNT__: JSON.stringify(TEST_COUNT),
+      __RUNTIME_DEPS__: JSON.stringify(Object.keys(pkg.dependencies).length),
+    },
+  },
   title: "Alfred",
   description: "A verifiable autonomous coding agent (CLI), built with TypeScript on Bun.",
   base: "/Alfred/",

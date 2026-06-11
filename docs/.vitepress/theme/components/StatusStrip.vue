@@ -1,14 +1,15 @@
 <script setup lang="ts">
-// Maturity signals under the hero actions. Numbers are maintained alongside
-// the README status line — update both when the suite grows.
+// Maturity signals under the hero actions. Nothing here is hand-maintained:
+// version and dependency count come from package.json and the test count is
+// MEASURED during the docs build (see `vite.define` in config.ts) — the
+// homepage never claims a number the build didn't just verify. A failed
+// measurement drops the item rather than showing a stale one.
 const ITEMS = [
-  "v0.2.2",
-  "797 tests",
-  "tsc --noEmit clean",
-  "3 runtime deps",
-  "weekly live provider smoke in CI",
+  `v${__PKG_VERSION__}`,
+  __TEST_COUNT__ === null ? null : `${__TEST_COUNT__} tests`,
+  `${__RUNTIME_DEPS__} runtime deps`,
   "MIT",
-];
+].filter((item): item is string => item !== null);
 </script>
 
 <template>

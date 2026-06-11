@@ -14,9 +14,6 @@ hero:
     - theme: alt
       text: Try it offline — no API key
       link: /guide/quickstart#offline-demo
-    - theme: alt
-      text: Architecture
-      link: /architecture/overview
 features:
   - title: Verifiable autonomy
     details: A feature_list state machine driven by an objective verify gate — only a captured exit 0 (plus a rubric pass) marks a feature done — with an HMAC hash-chained ledger you can audit and a journal you can replay.
