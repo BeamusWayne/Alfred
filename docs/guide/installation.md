@@ -180,7 +180,7 @@ Every file is readable with standard tools (`cat`, `jq`, `sqlite3`). Nothing is 
 After `bun install`, run the full test suite and the TypeScript type check:
 
 ```bash
-bun test        # 879 tests; all should pass
+bun test        # 884 tests; all should pass
 bun run typecheck  # tsc --noEmit; zero errors
 ```
 
