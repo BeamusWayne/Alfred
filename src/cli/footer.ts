@@ -52,9 +52,34 @@ export function renderFooterLines(state: FooterState): readonly string[] {
   return state.current === undefined ? [head] : [head, `▸ ${state.current}`];
 }
 
-/** Hard cap a line to `max` visible characters, ellipsizing the overflow. */
+/**
+ * Terminal display width, counted conservatively: ASCII is 1 column,
+ * everything else 2. CJK is genuinely double-width, and the panel's own
+ * glyphs (▮ ▯ ▸ · ⏱ ⚙) are East-Asian-AMBIGUOUS — CJK-configured terminals
+ * render those double too (this corrupted the live footer: a wrapped footer
+ * occupies more rows than the cursor-up erase accounts for). Over-counting
+ * only shortens a line; under-counting wraps it.
+ */
+export function displayWidth(line: string): number {
+  let width = 0;
+  for (const ch of line) width += (ch.codePointAt(0) ?? 0) < 0x80 ? 1 : 2;
+  return width;
+}
+
+const ELLIPSIS_WIDTH = 2; // … is ambiguous-width as well
+
+/** Hard cap a line to `max` display columns, ellipsizing the overflow. */
 export function truncateVisible(line: string, max: number): string {
-  return line.length <= max ? line : `${line.slice(0, Math.max(0, max - 1))}…`;
+  if (displayWidth(line) <= max) return line;
+  let out = "";
+  let used = 0;
+  for (const ch of line) {
+    const w = (ch.codePointAt(0) ?? 0) < 0x80 ? 1 : 2;
+    if (used + w > max - ELLIPSIS_WIDTH) break;
+    out += ch;
+    used += w;
+  }
+  return `${out}…`;
 }
 
 // ---------------------------------------------------------------------------
@@ -97,8 +122,13 @@ export class StickyFooter {
     }
     this.clear();
     for (const line of events) this.io.write(`${line}\n`);
+    if (footer.length === 0) return;
+    // Belt and braces: width-truncated AND painted with autowrap disabled,
+    // so a mis-measured glyph clips instead of desynchronising the erase.
     const width = Math.max(MIN_WIDTH, (this.io.columns ?? 80) - 1);
+    this.io.write("\x1b[?7l");
     for (const line of footer) this.io.write(`${this.decorate(truncateVisible(line, width))}\n`);
+    this.io.write("\x1b[?7h");
     this.shown = footer.length;
   }
 }

@@ -7,6 +7,7 @@
 
 import { describe, expect, test } from "bun:test";
 import {
+  displayWidth,
   type FooterIo,
   formatElapsed,
   progressBar,
@@ -61,10 +62,22 @@ describe("renderFooterLines", () => {
   });
 });
 
+describe("displayWidth", () => {
+  test("ascii counts 1; CJK and ambiguous-width glyphs count 2", () => {
+    // ▮/▸/·/⏱ are East-Asian-ambiguous: CJK terminals render them double
+    // width, which is exactly what corrupted the live footer. Conservative
+    // double-counting can only shorten lines, never wrap them.
+    expect(displayWidth("abc")).toBe(3);
+    expect(displayWidth("中文")).toBe(4);
+    expect(displayWidth("▮▸·⏱")).toBe(8);
+  });
+});
+
 describe("truncateVisible", () => {
-  test("leaves short lines alone and ellipsizes long ones", () => {
+  test("budgets by display width, not string length", () => {
     expect(truncateVisible("short", 10)).toBe("short");
-    expect(truncateVisible("a".repeat(12), 10)).toBe(`${"a".repeat(9)}…`);
+    expect(truncateVisible("a".repeat(12), 10)).toBe(`${"a".repeat(8)}…`);
+    expect(truncateVisible("中文中文中文", 8)).toBe("中文中…");
   });
 });
 
@@ -78,11 +91,14 @@ describe("StickyFooter", () => {
     const io = fakeIo(80);
     const footer = new StickyFooter(io, true, (s) => s);
 
+    // The footer block is painted with terminal autowrap disabled (\x1b[?7l)
+    // so an over-wide line clips instead of wrapping — a wrapped footer
+    // occupies more rows than the cursor-up erase accounts for.
     footer.print(["e1"], ["f1", "f2"]);
-    expect(io.chunks).toEqual(["e1\n", "f1\n", "f2\n"]);
+    expect(io.chunks).toEqual(["e1\n", "\x1b[?7l", "f1\n", "f2\n", "\x1b[?7h"]);
 
     footer.print(["e2"], ["f1'"]);
-    expect(io.chunks.slice(3)).toEqual(["\x1b[2A\x1b[0J", "e2\n", "f1'\n"]);
+    expect(io.chunks.slice(5)).toEqual(["\x1b[2A\x1b[0J", "e2\n", "\x1b[?7l", "f1'\n", "\x1b[?7h"]);
   });
 
   test("clear erases the footer once and is idempotent", () => {
@@ -91,7 +107,7 @@ describe("StickyFooter", () => {
     footer.print([], ["f1"]);
     footer.clear();
     footer.clear();
-    expect(io.chunks).toEqual(["f1\n", "\x1b[1A\x1b[0J"]);
+    expect(io.chunks).toEqual(["\x1b[?7l", "f1\n", "\x1b[?7h", "\x1b[1A\x1b[0J"]);
   });
 
   test("disabled mode passes events through and drops the footer", () => {
@@ -102,10 +118,10 @@ describe("StickyFooter", () => {
     expect(io.chunks).toEqual(["e1\n"]);
   });
 
-  test("footer lines are truncated to the terminal width", () => {
+  test("footer lines are truncated to the terminal display width", () => {
     const io = fakeIo(24);
     const footer = new StickyFooter(io, true, (s) => s);
     footer.print([], ["x".repeat(40)]);
-    expect(io.chunks[0]).toBe(`${"x".repeat(22)}…\n`);
+    expect(io.chunks[1]).toBe(`${"x".repeat(21)}…\n`);
   });
 });
