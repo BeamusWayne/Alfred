@@ -125,7 +125,7 @@ const SETUP_VARS: readonly SetupVar[] = [
   },
   {
     key: "ALFRED_MODEL",
-    hint: "enter = claude-sonnet-4-6 (use e.g. glm-4.7 on GLM)",
+    hint: "enter = claude-sonnet-4-6 · e.g. glm-4.7 on GLM",
     secret: false,
   },
 ];

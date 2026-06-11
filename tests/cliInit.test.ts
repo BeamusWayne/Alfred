@@ -6,7 +6,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { gitignoreWithAlfred, runInit } from "../src/cli/init.ts";
+import { gitignoreWithAlfred, isStarterFeatureList, runInit } from "../src/cli/init.ts";
 import { loadFeatureList } from "../src/harness/featureList.ts";
 
 let tempDirs: string[] = [];
@@ -65,5 +65,23 @@ describe("runInit", () => {
     const cwd = await makeTempDir();
     await runInit(cwd, {});
     expect(await Bun.file(join(cwd, ".gitignore")).exists()).toBe(false);
+  });
+});
+
+describe("isStarterFeatureList", () => {
+  test("matches only the untouched scaffold", async () => {
+    const cwd = await makeTempDir();
+    await runInit(cwd, {}, null);
+    const scaffold = await loadFeatureList(join(cwd, "feature_list.json"));
+    expect(isStarterFeatureList(scaffold)).toBe(true);
+
+    const renamed = {
+      ...scaffold,
+      features: scaffold.features.map((f) => ({ ...f, title: "Implement login" })),
+    };
+    expect(isStarterFeatureList(renamed)).toBe(false);
+
+    const extended = { ...scaffold, features: [...scaffold.features, ...scaffold.features] };
+    expect(isStarterFeatureList(extended)).toBe(false);
   });
 });

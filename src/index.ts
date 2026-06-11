@@ -35,7 +35,7 @@ import { colorEnabled, palette } from "./cli/colors.ts";
 import { COMPLETION_SHELLS, type CompletionShell, completionScript } from "./cli/completion.ts";
 import { runDemo } from "./cli/demo.ts";
 import { renderFooterLines, StickyFooter } from "./cli/footer.ts";
-import { runInit } from "./cli/init.ts";
+import { isStarterFeatureList, runInit } from "./cli/init.ts";
 import { formatLedgerTable } from "./cli/ledgerShow.ts";
 import { renderAutonomousEvent } from "./cli/renderRun.ts";
 import { startRepl } from "./cli/repl.ts";
@@ -161,7 +161,18 @@ async function runAutonomous(opts: RunCliOptions): Promise<number> {
   // Live panel state (footer + activity beats; line stream stays scrollable).
   let total: number | null = null;
   try {
-    total = (await loadFeatureList(featureListPath)).features.length;
+    const list = await loadFeatureList(featureListPath);
+    // The untouched init scaffold is a money trap: the model would wander
+    // off "implementing" placeholder text. Refuse at the front door.
+    if (isStarterFeatureList(list)) {
+      process.stderr.write(
+        `${yellow("feature_list.json is still the starter scaffold — describe a real feature first.")}\n${dim(
+          '  1. edit feature_list.json — title/description say what must be TRUE when done\n  2. rerun: alfred run --verify "bun test"',
+        )}\n`,
+      );
+      return 1;
+    }
+    total = list.features.length;
   } catch {
     total = null; // unreadable list — autonomousRun will surface the real error
   }
@@ -192,7 +203,7 @@ async function runAutonomous(opts: RunCliOptions): Promise<number> {
     renderFooterLines({
       resolved,
       total,
-      costUsd: runtime.budgetSnapshot().usd,
+      costUsd: runtime.liveCostUsd(),
       elapsedMs: Date.now() - startedMs,
       current,
     });
@@ -220,6 +231,8 @@ async function runAutonomous(opts: RunCliOptions): Promise<number> {
         footer.print([c.dim(`  ⚙ ${a.describe}`)], footerLines());
       } else if (a.event === "tool_result" && a.isError === true) {
         footer.print([c.red(`  ✗ ${a.name} failed`)], footerLines());
+      } else if (a.event === "turn") {
+        footer.print([], footerLines()); // running cost ticked — repaint only
       }
     },
   });

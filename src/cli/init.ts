@@ -11,19 +11,39 @@ import { join } from "node:path";
 import { palette } from "./colors.ts";
 import { type EnvSetupIo, runEnvSetup, terminalEnvSetupIo } from "./envSetup.ts";
 
-const STARTER_FEATURE_LIST = {
-  features: [
-    {
-      id: "feature-1",
-      title: "Describe your first feature",
-      description:
-        "State what must be TRUE when this feature is done. The verify command (e.g. `bun test`) is the arbiter — only its exit 0 can mark this passing.",
-      status: "pending",
-    },
-  ],
-};
+const STARTER_FEATURE = {
+  id: "feature-1",
+  title: "Describe your first feature",
+  description:
+    "State what must be TRUE when this feature is done. The verify command (e.g. `bun test`) is the arbiter — only its exit 0 can mark this passing.",
+  status: "pending",
+} as const;
+
+const STARTER_FEATURE_LIST = { features: [STARTER_FEATURE] };
 
 const GITIGNORE_BLOCK = "# Alfred runtime state (memory, journals, run ledgers)\n.alfred/\n";
+
+/**
+ * True when a feature list is still the untouched init scaffold — running
+ * the harness against the placeholder burns money "implementing" template
+ * text, so `alfred run` refuses it at the front door. Any meaningful edit
+ * (id, title, description, or added features) clears the check.
+ */
+export function isStarterFeatureList(list: {
+  readonly features: ReadonlyArray<{
+    readonly id: string;
+    readonly title: string;
+    readonly description: string;
+  }>;
+}): boolean {
+  const only = list.features.length === 1 ? list.features[0] : undefined;
+  return (
+    only !== undefined &&
+    only.id === STARTER_FEATURE.id &&
+    only.title === STARTER_FEATURE.title &&
+    only.description === STARTER_FEATURE.description
+  );
+}
 
 /**
  * Returns the new .gitignore content, or null when no change is needed.
