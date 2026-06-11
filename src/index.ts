@@ -21,7 +21,7 @@
  * load from .alfred/hooks.json; skills from .alfred/skills/; MCP/LSP servers
  * from .alfred/{mcp,lsp}.json.
  */
-import { join, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { Command } from "commander";
 import { type ConfigOverrides, loadConfig, PERMISSION_MODES } from "./config/manager.ts";
 import { loadModelOverrides } from "./config/modelOverrides.ts";
@@ -265,7 +265,11 @@ async function runAutonomous(opts: RunCliOptions): Promise<number> {
   });
 
   process.stderr.write(
-    dim(`[run ${runId}] feature_list=${featureListPath} verify="${verifyCmd}"\n`),
+    // Relative path: terminal output should be shareable without leaking the
+    // operator's home directory (same instinct as ledger redaction, ADR 0003).
+    dim(
+      `[run ${runId}] feature_list=${relative(workingDir, featureListPath) || featureListPath} verify="${verifyCmd}"\n`,
+    ),
   );
 
   const result = await autonomousRun({
@@ -375,7 +379,9 @@ ledgerCommand
     const ledger = new Ledger(target, secret);
     const rows = (await ledger.readAll()).length;
     const outcome = await ledger.verify();
-    process.stdout.write(formatVerifyOutcome(target, rows, outcome) + "\n");
+    // Display a cwd-relative path: shareable output, no home-directory leak.
+    const display = relative(process.cwd(), target) || target;
+    process.stdout.write(formatVerifyOutcome(display, rows, outcome) + "\n");
     process.exit(outcome.ok ? 0 : 1);
   });
 
