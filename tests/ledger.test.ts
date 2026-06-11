@@ -464,3 +464,52 @@ describe("Ledger — undefined/array values do not break verification", () => {
     expect(result.ok).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Redaction — the audit-pointer exemption
+// ---------------------------------------------------------------------------
+
+describe("redaction of row data", () => {
+  const SHA1 = "3f786850e387550fdab836ed7e6dc881de23001b"; // 40 hex
+  const SHA256 = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"; // 64 hex
+
+  test("gitSha survives as a real commit pointer (sha1 and sha256 repos)", async () => {
+    const dir = await makeTempDir();
+    const ledger = new Ledger(ledgerPath(dir), "secret");
+
+    await ledger.append("feature", { feature: "f1", gitSha: SHA1 });
+    await ledger.append("feature", { feature: "f2", gitSha: SHA256 });
+
+    const rows = await ledger.readAll();
+    expect(rows[0]?.data["gitSha"]).toBe(SHA1);
+    expect(rows[1]?.data["gitSha"]).toBe(SHA256);
+    expect((await ledger.verify()).ok).toBe(true);
+  });
+
+  test("a non-sha value under gitSha is still scrubbed", async () => {
+    const dir = await makeTempDir();
+    const ledger = new Ledger(ledgerPath(dir), "secret");
+
+    // Zhipu-shaped key material smuggled under the exempted key name.
+    await ledger.append("feature", {
+      gitSha: "0123456789abcdef0123456789abcdef.ABCDEFGHIJKLMNOP",
+    });
+    // 80 hex chars — key-material length, not a commit pointer.
+    await ledger.append("feature", { gitSha: "deadbeef".repeat(10) });
+
+    const rows = await ledger.readAll();
+    expect(String(rows[0]?.data["gitSha"])).toContain("[REDACTED:");
+    expect(String(rows[1]?.data["gitSha"])).toContain("[REDACTED:");
+  });
+
+  test("hex blobs under any other key are still scrubbed", async () => {
+    const dir = await makeTempDir();
+    const ledger = new Ledger(ledgerPath(dir), "secret");
+
+    await ledger.append("feature", { note: SHA1 });
+
+    const rows = await ledger.readAll();
+    expect(rows[0]?.data["note"]).toBe("[REDACTED:hex-blob]");
+    expect((await ledger.verify()).ok).toBe(true);
+  });
+});

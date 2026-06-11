@@ -92,6 +92,19 @@ function hmacSha256(secret: string, message: string): string {
   return createHmac("sha256", secret).update(message).digest("hex");
 }
 
+/** An exact git commit pointer — sha1 (40) or sha256-repo (64) lowercase hex,
+ *  as `git rev-parse` emits. Anything else under an exempted key is scrubbed. */
+const GIT_SHA_SHAPE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
+
+/**
+ * Keys whose value IS the audit trail: written by trusted harness code
+ * (checkpoint's `git rev-parse`), and the receipt is useless if they are
+ * scrubbed — a feature row's `gitSha` must point at the checkpoint commit.
+ * The exemption is shape-validated: a secret smuggled under the key name
+ * still fails GIT_SHA_SHAPE and goes through `redact()` like everything else.
+ */
+const AUDIT_POINTER_KEYS: ReadonlySet<string> = new Set(["gitSha"]);
+
 /**
  * Scrub secret-shaped strings from ledger data so the signed Proof Receipt is
  * safe to share (ADR 0003). Shallow — ledger rows are flat key/value records.
@@ -99,7 +112,13 @@ function hmacSha256(secret: string, message: string): string {
 function redactData(data: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(data)) {
-    out[k] = typeof v === "string" ? redact(v) : v;
+    if (typeof v !== "string") {
+      out[k] = v;
+    } else if (AUDIT_POINTER_KEYS.has(k) && GIT_SHA_SHAPE.test(v)) {
+      out[k] = v; // exact commit pointer — the one hex blob the receipt exists to keep
+    } else {
+      out[k] = redact(v);
+    }
   }
   return out;
 }
