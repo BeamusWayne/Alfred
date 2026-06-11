@@ -4,6 +4,17 @@ All notable changes to Alfred are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/) (0.x: minor = feature rounds, patch = fixes).
 
+## [Unreleased]
+
+### Added
+- **`alfred init` provider setup** — on a TTY, init now also asks for the
+  endpoint, API key (masked input, never echoed) and default model, and
+  writes them to the project `.env` (chmod 600, auto-added to `.gitignore`),
+  which Bun auto-loads for every alfred invocation from that directory.
+  Empty answers keep existing values; rerunning `alfred init` on an
+  already-initialized project reconfigures credentials without touching the
+  feature list.
+
 ## [0.4.0] — 2026-06-11
 
 The live-panel round: the dead air during a run is gone.

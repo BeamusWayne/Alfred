@@ -54,7 +54,7 @@ bun run typecheck # tsc --noEmit
 | `alfred [prompt]` | One-shot agent run. `-p` print mode (reads stdin when piped); `--model`, `--permission-mode`, `--max-turns`, `--yes`. |
 | `alfred run` | The **autonomous harness as a workflow**: a `feature_list.json` state machine → verify-fix loop → rubric gate → signed run ledger. Human progress by default, `--json` for the raw event stream. Flags: `--feature-list`, `--verify`, `--max-features`, `--rollback-on-block`, `--budget-usd`. |
 | `alfred demo` | **30-second offline proof** in a temp sandbox: RED gate → scripted model drives the real harness → signed ledger → one-byte tamper drill. No API key. |
-| `alfred init` | Scaffold `feature_list.json` (+ `.gitignore` entry) for `alfred run`. |
+| `alfred init` | Scaffold `feature_list.json` (+ `.gitignore` entry) — and, on a TTY, **interactive provider setup**: endpoint / API key (masked) / model → `./.env` (chmod 600, gitignored, auto-loaded by Bun). Rerun any time to reconfigure. |
 | `alfred why [runId]` | Explain a run from its receipts: blocked features, verify exits, rubric reasoning (`--json`). |
 | `alfred watch [path]` | Follow a run's journal + ledger as a **read-only live panel** — attach from another terminal, or replay a finished run. Sticky status line: elapsed · features · spend. |
 | `alfred eval <file>` | Replay recorded `MockProvider` trajectories through the real engine and assert tool-sequence / status / text regressions. Exits non-zero on failure. |

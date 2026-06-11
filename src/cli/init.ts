@@ -2,11 +2,14 @@
  * `alfred init` — scaffold a project for `alfred run`.
  *
  * Writes a starter `feature_list.json`, keeps `.alfred/` runtime state out of
- * git, and prints the exact next commands. Refuses to overwrite without
- * `--force`.
+ * git, offers interactive provider setup (endpoint/key/model → `.env`, see
+ * envSetup.ts) on a TTY, and prints the exact next commands. Refuses to
+ * overwrite the feature list without `--force` — but an already-initialized
+ * project can still rerun `alfred init` to (re)configure credentials.
  */
 import { join } from "node:path";
 import { palette } from "./colors.ts";
+import { type EnvSetupIo, runEnvSetup, terminalEnvSetupIo } from "./envSetup.ts";
 
 const STARTER_FEATURE_LIST = {
   features: [
@@ -36,7 +39,11 @@ export function gitignoreWithAlfred(existing: string | null): string | null {
   return `${existing}${sep}\n${GITIGNORE_BLOCK}`;
 }
 
-export async function runInit(cwd: string, opts: { force?: boolean }): Promise<number> {
+export async function runInit(
+  cwd: string,
+  opts: { force?: boolean },
+  envIo: EnvSetupIo | null = terminalEnvSetupIo(),
+): Promise<number> {
   const c = palette(process.stderr);
   const out = (s: string) => process.stderr.write(`${s}\n`);
   const listPath = join(cwd, "feature_list.json");
@@ -45,6 +52,8 @@ export async function runInit(cwd: string, opts: { force?: boolean }): Promise<n
     out(
       c.yellow("feature_list.json already exists — edit it, or rerun with --force to overwrite."),
     );
+    // Credentials are still configurable on an initialized project.
+    if (envIo !== null) await runEnvSetup(cwd, envIo);
     return 1;
   }
   await Bun.write(listPath, `${JSON.stringify(STARTER_FEATURE_LIST, null, 2)}\n`);
@@ -62,6 +71,12 @@ export async function runInit(cwd: string, opts: { force?: boolean }): Promise<n
       await Bun.write(gitignorePath, next);
       out(`${c.green("✓")} .gitignore: .alfred/ excluded`);
     }
+  }
+
+  if (envIo !== null) {
+    await runEnvSetup(cwd, envIo);
+  } else {
+    out(c.dim("tip: rerun `alfred init` in a terminal to configure .env (endpoint/key/model)"));
   }
 
   out("");
