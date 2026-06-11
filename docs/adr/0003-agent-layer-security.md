@@ -1,10 +1,10 @@
 # ADR 0003 — Agent-layer security: prompt-injection & exfiltration defense
 
-**English** | [中文](./0003-agent-layer-security.zh-CN.md)
+**English** | [中文](https://github.com/BeamusWayne/Alfred/blob/main/docs/adr/0003-agent-layer-security.zh-CN.md)
 
 - **Status:** Proposed
 - **Date:** 2026-06-05
-- **Relates to:** [ADR 0001](./0001-target-architecture.md) · [`improvement-proposal.md` §6.2](../improvement-proposal.md#62-agent-layer-security-prompt-injection--exfiltration-defense)
+- **Relates to:** [ADR 0001](./0001-target-architecture.md) · [`improvement-proposal.md` §6.2](https://github.com/BeamusWayne/Alfred/blob/main/docs/improvement-proposal.md#62-agent-layer-security-prompt-injection--exfiltration-defense)
 
 ## Context
 
@@ -33,4 +33,4 @@ Adopt defense-in-depth at the content layer:
 
 ## References
 
-See [`improvement-proposal.md` §11](../improvement-proposal.md#11-sources) — [S1] lethal trifecta (Willison), [S2] dual-LLM + CaMeL, [S3] blast-radius reduction (Sophos).
+See [`improvement-proposal.md` §11](https://github.com/BeamusWayne/Alfred/blob/main/docs/improvement-proposal.md#11-sources) — [S1] lethal trifecta (Willison), [S2] dual-LLM + CaMeL, [S3] blast-radius reduction (Sophos).

@@ -2,6 +2,10 @@
 
 **A verifiable autonomous coding agent (CLI).** Built with TypeScript on the [Bun](https://bun.sh) runtime.
 
+![alfred demo — autonomous run, objective verify gate, signed ledger, one-byte tamper caught](https://raw.githubusercontent.com/BeamusWayne/Alfred/main/docs/public/demo.gif)
+
+<sup>Real engine, real `bun test` verify gate, real HMAC ledger — only the model is scripted (`ALFRED_MOCK_SCRIPTS`), so the demo is keyless and deterministic. Reproduce it: `bun run demo`. Regenerate the GIF: `vhs docs/demo.tape` ([tape](docs/demo.tape)).</sup>
+
 Alfred is not another Claude Code clone. Its thesis: the long-running harness is *executable*, "done" is a *machine-enforced gate*, memory is *agent-curated but inspectable*, and every hands-off run leaves a *signed, replayable receipt*. Where the field is ahead on streaming/sandbox/caching parity, Alfred leans into the one thing it designs better — **enforced, auditable autonomy** — while still adopting the best ideas from across the ecosystem (`docs/improvement-proposal.md`).
 
 > Status: 797 tests passing · `tsc --noEmit` clean · zero runtime dependencies beyond `@anthropic-ai/sdk`, `commander`, `zod`.

@@ -1,10 +1,10 @@
 # ADR 0005 — Model routing & the architect–editor split
 
-**English** | [中文](./0005-model-routing.zh-CN.md)
+**English** | [中文](https://github.com/BeamusWayne/Alfred/blob/main/docs/adr/0005-model-routing.zh-CN.md)
 
 - **Status:** Proposed
 - **Date:** 2026-06-05
-- **Relates to:** [ADR 0001](./0001-target-architecture.md) · [`improvement-proposal.md` §6.4](../improvement-proposal.md#64-model-routing--the-architecteditor-split)
+- **Relates to:** [ADR 0001](./0001-target-architecture.md) · [`improvement-proposal.md` §6.4](https://github.com/BeamusWayne/Alfred/blob/main/docs/improvement-proposal.md#64-model-routing--the-architecteditor-split)
 
 ## Context
 
@@ -31,4 +31,4 @@ The proven coding-agent pattern is **architect/editor separation**: a strong rea
 
 ## References
 
-See [`improvement-proposal.md` §11](../improvement-proposal.md#11-sources) — [R1] Aider architect/editor mode.
+See [`improvement-proposal.md` §11](https://github.com/BeamusWayne/Alfred/blob/main/docs/improvement-proposal.md#11-sources) — [R1] Aider architect/editor mode.

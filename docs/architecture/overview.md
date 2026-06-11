@@ -123,7 +123,7 @@ Role-based model map with `{architect, editor, subagent}` slots, each resolvable
 
 ## Best-of-breed synthesis (§8 adopt/adapt/reject summary)
 
-Alfred's design is grounded in a structured review of Hermes Agent (Nous Research), MemGPT/Letta, Anthropic's memory tool and context editing, Claude Code dynamic workflows, Aider (repo-map, architect/editor split), OpenHands (inference-time scaling), and the lethal-trifecta security literature. The full table is in [`improvement-proposal.md`](/improvement-proposal).
+Alfred's design is grounded in a structured review of Hermes Agent (Nous Research), MemGPT/Letta, Anthropic's memory tool and context editing, Claude Code dynamic workflows, Aider (repo-map, architect/editor split), OpenHands (inference-time scaling), and the lethal-trifecta security literature. The full table is in [`improvement-proposal.md`](https://github.com/BeamusWayne/Alfred/blob/main/docs/improvement-proposal.md).
 
 High-level outcomes:
 
@@ -149,4 +149,4 @@ High-level outcomes:
 | Cloud control plane / hosted memory | — | **Rejected** — violates local-first |
 | 16-wide orchestration concurrency (Claude Code) | — | **Adapted down** to low concurrency for a single-user CLI |
 
-See [ADR 0001](/adr/0001-target-architecture) and [`improvement-proposal.md`](/improvement-proposal) §8 for the complete rationale.
+See [ADR 0001](/adr/0001-target-architecture) and [`improvement-proposal.md`](https://github.com/BeamusWayne/Alfred/blob/main/docs/improvement-proposal.md) §8 for the complete rationale.

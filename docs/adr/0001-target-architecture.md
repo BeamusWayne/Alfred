@@ -1,11 +1,11 @@
 # ADR 0001 — Target architecture: the verifiable autonomous coding agent
 
-**English** | [中文](./0001-target-architecture.zh-CN.md)
+**English** | [中文](https://github.com/BeamusWayne/Alfred/blob/main/docs/adr/0001-target-architecture.zh-CN.md)
 
 - **Status:** Proposed
 - **Date:** 2026-06-05
 - **Supersedes:** —
-- **Companion docs:** [`improvement-proposal.md`](../improvement-proposal.md) (full design) · [`alfred-vs-the-field.md`](../alfred-vs-the-field.md) (the review this builds on)
+- **Companion docs:** [`improvement-proposal.md`](https://github.com/BeamusWayne/Alfred/blob/main/docs/improvement-proposal.md) (full design) · [`alfred-vs-the-field.md`](https://github.com/BeamusWayne/Alfred/blob/main/docs/alfred-vs-the-field.md) (the review this builds on)
 
 ## Context
 
@@ -62,4 +62,4 @@ Cross-cutting principles: **local-first & inspectable**, **provider-abstracted**
 
 ## References
 
-See [`improvement-proposal.md` §11](../improvement-proposal.md#11-sources) and [`alfred-vs-the-field.md` §6](../alfred-vs-the-field.md) for full citations (Hermes Agent, MemGPT/Letta, Anthropic memory tool & context editing, Claude Code dynamic workflow, lethal-trifecta security, OTel GenAI, Aider repo-map/architect-editor, LSP, Codex/Gemini sandboxing, OpenHands, SWE-bench Verified).
+See [`improvement-proposal.md` §11](https://github.com/BeamusWayne/Alfred/blob/main/docs/improvement-proposal.md#11-sources) and [`alfred-vs-the-field.md` §6](https://github.com/BeamusWayne/Alfred/blob/main/docs/alfred-vs-the-field.md) for full citations (Hermes Agent, MemGPT/Letta, Anthropic memory tool & context editing, Claude Code dynamic workflow, lethal-trifecta security, OTel GenAI, Aider repo-map/architect-editor, LSP, Codex/Gemini sandboxing, OpenHands, SWE-bench Verified).

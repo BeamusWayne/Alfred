@@ -1,6 +1,33 @@
 # Quickstart
 
-Three first runs, end-to-end, with expected output shapes. Each builds on the previous one.
+Three first runs, end-to-end, with expected output shapes. Each builds on the previous one. (In a hurry? [Run 0](#offline-demo) needs no API key.)
+
+---
+
+## Run 0 — Try it offline, no API key {#offline-demo}
+
+A scripted model (`ALFRED_MOCK_SCRIPTS`) drives the **real** harness end to
+end — engine, `file_write` tool, permission stack, `bun test` verify gate,
+rubric gate, signed ledger. Zero API calls:
+
+```bash
+git clone https://github.com/BeamusWayne/Alfred && cd Alfred && bun install
+bun run demo          # implement → verify gate exit 0 → rubric 2/2 → signed ledger
+bun run demo:verify   # ✓ ledger intact — 2 rows, hash chain + head anchor verified
+```
+
+Then try to cheat:
+
+```bash
+cd examples/demo
+sed -i '' 's/"passing"/"PASSING"/' .alfred/workflows/*/ledger.jsonl   # flip ONE byte
+bun ../../src/index.ts ledger verify
+# ✗ TAMPER DETECTED at row 0: Signature mismatch at seq 0   (exit 1)
+```
+
+The point in one line: **"done" is a captured exit code plus a receipt you can
+re-verify — not the model's claim.** [`examples/demo/README.md`](https://github.com/BeamusWayne/Alfred/tree/main/examples/demo)
+explains each step; the home page [replays this exact session](../index.md#watch).
 
 ---
 

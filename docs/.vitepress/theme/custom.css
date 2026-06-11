@@ -1,0 +1,36 @@
+/**
+ * Alfred brand tokens over the VitePress default theme.
+ * Palette comes from the favicon mark: periwinkle A (#a8b1ff) + verify-gate
+ * green (#4ade80) on near-black (#16161a).
+ */
+
+:root {
+  /* Indigo readable on light backgrounds; periwinkle is reserved for dark. */
+  --vp-c-brand-1: #4f5ad8;
+  --vp-c-brand-2: #626de4;
+  --vp-c-brand-3: #7c88f8;
+  --vp-c-brand-soft: rgba(124, 136, 248, 0.14);
+
+  /* Hero: gradient name + glow behind the mark. */
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(120deg, #7c88f8 30%, #4ade80);
+  --vp-home-hero-image-background-image: linear-gradient(
+    -45deg,
+    rgba(124, 136, 248, 0.45) 50%,
+    rgba(74, 222, 128, 0.45) 50%
+  );
+  --vp-home-hero-image-filter: blur(48px);
+}
+
+.dark {
+  --vp-c-brand-1: #a8b1ff;
+  --vp-c-brand-2: #99a3ff;
+  --vp-c-brand-3: #7c88f8;
+  --vp-c-brand-soft: rgba(168, 177, 255, 0.16);
+}
+
+@media (min-width: 640px) {
+  :root {
+    --vp-home-hero-image-filter: blur(56px);
+  }
+}

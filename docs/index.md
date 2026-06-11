@@ -2,15 +2,18 @@
 layout: home
 hero:
   name: Alfred
-  text: A verifiable autonomous coding agent
-  tagline: The harness is executable, "done" is a machine-enforced gate, memory is agent-curated but inspectable, and every hands-off run leaves a signed, replayable receipt.
+  text: Your agent says "done." Alfred proves it.
+  tagline: An autonomous coding CLI where "done" means the test suite actually passed — and every hands-off run leaves a signed, tamper-evident receipt you can replay.
+  image:
+    src: /favicon.svg
+    alt: "Alfred — the A-mark: a verify gate as the crossbar"
   actions:
     - theme: brand
       text: Get started
       link: /guide/introduction
     - theme: alt
-      text: Quickstart
-      link: /guide/quickstart
+      text: Try it offline — no API key
+      link: /guide/quickstart#offline-demo
     - theme: alt
       text: Architecture
       link: /architecture/overview
@@ -24,3 +27,11 @@ features:
   - title: Local-first & inspectable
     details: Memory, skills, hooks, journals, and signed ledgers are plain files under .alfred/ that you can cat, grep, and git diff. No cloud control plane.
 ---
+
+## Watch a verified run {#watch}
+
+The terminal below replays a **real recorded run** from [`examples/demo`](https://github.com/BeamusWayne/Alfred/tree/main/examples/demo) — implement → objective verify gate → signed ledger row → a one-byte tamper, caught.
+
+<ReplayTerminal />
+
+**Where this pays off:** [overnight autonomous builds](/guide/use-cases#overnight) · [CI gates for agent changes](/guide/use-cases#ci-gate) · [hands-off runs on untrusted input](/guide/use-cases#untrusted) · [receipts you can hand to a reviewer](/guide/use-cases#receipts)

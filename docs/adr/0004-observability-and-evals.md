@@ -1,10 +1,10 @@
 # ADR 0004 — Observability, telemetry & evals
 
-**English** | [中文](./0004-observability-and-evals.zh-CN.md)
+**English** | [中文](https://github.com/BeamusWayne/Alfred/blob/main/docs/adr/0004-observability-and-evals.zh-CN.md)
 
 - **Status:** Proposed
 - **Date:** 2026-06-05
-- **Relates to:** [ADR 0001](./0001-target-architecture.md) · [`improvement-proposal.md` §6.3](../improvement-proposal.md#63-observability-telemetry--evals)
+- **Relates to:** [ADR 0001](./0001-target-architecture.md) · [`improvement-proposal.md` §6.3](https://github.com/BeamusWayne/Alfred/blob/main/docs/improvement-proposal.md#63-observability-telemetry--evals)
 
 ## Context
 
@@ -31,4 +31,4 @@ The field standard is the **OpenTelemetry GenAI semantic conventions**: `gen_ai`
 
 ## References
 
-See [`improvement-proposal.md` §11](../improvement-proposal.md#11-sources) — [O1] OTel GenAI agent spans, [O2] Datadog OTel GenAI support.
+See [`improvement-proposal.md` §11](https://github.com/BeamusWayne/Alfred/blob/main/docs/improvement-proposal.md#11-sources) — [O1] OTel GenAI agent spans, [O2] Datadog OTel GenAI support.

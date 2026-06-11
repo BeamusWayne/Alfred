@@ -1,10 +1,10 @@
 # ADR 0002 — Code intelligence: repo map + LSP
 
-**English** | [中文](./0002-code-intelligence.zh-CN.md)
+**English** | [中文](https://github.com/BeamusWayne/Alfred/blob/main/docs/adr/0002-code-intelligence.zh-CN.md)
 
 - **Status:** Proposed
 - **Date:** 2026-06-05
-- **Relates to:** [ADR 0001](./0001-target-architecture.md) · [`improvement-proposal.md` §6.1](../improvement-proposal.md#61-code-intelligence--repo-understanding)
+- **Relates to:** [ADR 0001](./0001-target-architecture.md) · [`improvement-proposal.md` §6.1](https://github.com/BeamusWayne/Alfred/blob/main/docs/improvement-proposal.md#61-code-intelligence--repo-understanding)
 
 ## Context
 
@@ -33,4 +33,4 @@ Add a code-intelligence layer in three steps:
 
 ## References
 
-See [`improvement-proposal.md` §11](../improvement-proposal.md#11-sources) — [CI1] Aider repo map, [CI2] LSP for agents / Kiro, [CI3] LSAP & tree-sitter-vs-LSP, [CI4] Hermes #535/#516.
+See [`improvement-proposal.md` §11](https://github.com/BeamusWayne/Alfred/blob/main/docs/improvement-proposal.md#11-sources) — [CI1] Aider repo map, [CI2] LSP for agents / Kiro, [CI3] LSAP & tree-sitter-vs-LSP, [CI4] Hermes #535/#516.
