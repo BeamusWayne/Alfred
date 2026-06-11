@@ -4,7 +4,7 @@
  * overrides, system context, hooks, memory, MCP/LSP extensions, provider
  * resolution (honouring ALFRED_MOCK_SCRIPTS), and event rendering.
  */
-import { join, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { type AlfredConfig, type ConfigOverrides, loadConfig } from "../config/manager.ts";
 import { loadModelOverrides } from "../config/modelOverrides.ts";
 import { buildSystemContext, buildSystemPrompt } from "../context/index.ts";
@@ -50,6 +50,22 @@ export function missingKeyMessage(cfg: AlfredConfig, c: Palette): string | null 
     c.red(`No ${envName} set — alfred needs a model to run.`),
     c.dim(`  export ${envName}=…`),
     c.dim("  no key handy? `alfred demo` shows a full verified run offline."),
+    "",
+  ].join("\n");
+}
+
+/**
+ * Actionable missing-feature-list message for `alfred run` — fail at the
+ * front door with the next command instead of throwing a stack trace from
+ * deep inside the harness (`loadFeatureList`).
+ */
+export function missingFeatureListMessage(path: string, cwd: string, c: Palette): string {
+  const display = relative(cwd, path) || path;
+  return [
+    c.red(`No feature list at ${display} — \`alfred run\` drives a feature_list.json to green.`),
+    c.dim("  alfred init                        scaffold one here"),
+    c.dim("  alfred run --feature-list <path>   use an existing list"),
+    c.dim("  alfred demo                        watch a full verified run offline first"),
     "",
   ].join("\n");
 }

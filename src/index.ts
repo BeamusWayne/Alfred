@@ -43,6 +43,7 @@ import {
   closeSession,
   drainRendered,
   keyPresent,
+  missingFeatureListMessage,
   missingKeyMessage,
   mockActive,
   queryConfigFromSession,
@@ -148,6 +149,10 @@ async function runAutonomous(opts: RunCliOptions): Promise<number> {
   const workingDir = process.cwd();
   loadModelOverrides(workingDir, (m) => process.stderr.write(yellow(`[models] ${m}\n`)));
   const featureListPath = opts.featureList ?? join(workingDir, "feature_list.json");
+  if (!(await Bun.file(featureListPath).exists())) {
+    process.stderr.write(missingFeatureListMessage(featureListPath, workingDir, c));
+    return 1;
+  }
   const verifyCmd = opts.verify ?? process.env.ALFRED_VERIFY_CMD ?? "bun test";
   const fastVerifyCmd = opts.verifyFast ?? process.env.ALFRED_VERIFY_FAST_CMD;
   const runId = new Date().toISOString().replace(/[:.]/g, "-");
