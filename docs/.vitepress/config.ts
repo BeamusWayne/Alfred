@@ -32,23 +32,35 @@ export default defineConfig({
   ],
   themeConfig: {
     logo: "/favicon.svg",
+    // Nav = four Diátaxis-shaped doors (tutorial / how-to / reference /
+    // explanation). The old six-item nav had "Guide" AND "Guides" — a
+    // four-letter distinction carrying real meaning nobody can see. Labels
+    // only; every URL is unchanged.
     nav: [
-      { text: "Guide", link: "/guide/introduction" },
-      { text: "CLI", link: "/cli/overview" },
-      { text: "Config", link: "/config/environment" },
-      { text: "Subsystems", link: "/subsystems/agent-loop" },
-      { text: "Guides", link: "/guides/autonomous-build" },
-      { text: "Architecture", link: "/architecture/overview" },
+      { text: "Get started", link: "/guide/introduction" },
+      { text: "How-to", link: "/guides/autonomous-build" },
+      { text: "Reference", link: "/cli/overview" },
+      { text: "Internals", link: "/architecture/overview" },
     ],
     sidebar: [
       {
-        text: "Guide",
+        text: "Get started",
         items: [
           { text: "Introduction", link: "/guide/introduction" },
           { text: "Installation", link: "/guide/installation" },
           { text: "Quickstart", link: "/guide/quickstart" },
           { text: "Use cases", link: "/guide/use-cases" },
           { text: "Concepts", link: "/guide/concepts" },
+        ],
+      },
+      {
+        text: "How-to guides",
+        items: [
+          { text: "Autonomous build (Alfred-Bench)", link: "/guides/autonomous-build" },
+          { text: "Using GLM / compatible endpoints", link: "/guides/using-glm" },
+          { text: "Writing a custom tool", link: "/guides/custom-tool" },
+          { text: "Writing a skill", link: "/guides/writing-a-skill" },
+          { text: "Writing a hook", link: "/guides/writing-a-hook" },
         ],
       },
       {
@@ -70,7 +82,18 @@ export default defineConfig({
         ],
       },
       {
+        text: "Extensibility",
+        items: [
+          { text: "Hooks", link: "/extensibility/hooks" },
+          { text: "MCP", link: "/extensibility/mcp" },
+          { text: "Skills", link: "/extensibility/skills" },
+        ],
+      },
+      // Explanation-tier groups start collapsed (VitePress auto-expands the
+      // one containing the active page) so the sidebar isn't a 28-link wall.
+      {
         text: "Subsystems",
+        collapsed: true,
         items: [
           { text: "Agent loop", link: "/subsystems/agent-loop" },
           { text: "Memory", link: "/subsystems/memory" },
@@ -83,25 +106,8 @@ export default defineConfig({
         ],
       },
       {
-        text: "Extensibility",
-        items: [
-          { text: "Hooks", link: "/extensibility/hooks" },
-          { text: "MCP", link: "/extensibility/mcp" },
-          { text: "Skills", link: "/extensibility/skills" },
-        ],
-      },
-      {
-        text: "Guides",
-        items: [
-          { text: "Autonomous build (Alfred-Bench)", link: "/guides/autonomous-build" },
-          { text: "Using GLM / compatible endpoints", link: "/guides/using-glm" },
-          { text: "Writing a custom tool", link: "/guides/custom-tool" },
-          { text: "Writing a skill", link: "/guides/writing-a-skill" },
-          { text: "Writing a hook", link: "/guides/writing-a-hook" },
-        ],
-      },
-      {
         text: "Architecture",
+        collapsed: true,
         items: [
           { text: "Overview", link: "/architecture/overview" },
           { text: "Decision records (ADRs)", link: "/architecture/decisions" },
