@@ -4,6 +4,27 @@ All notable changes to Alfred are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/) (0.x: minor = feature rounds, patch = fixes).
 
+## [Unreleased]
+
+First-touch UX round, driven by a live user session.
+
+### Added
+- **Live per-turn cost** — the engine yields a `turn` event (running spend)
+  after every model round-trip; `alfred run`'s footer and `alfred watch`
+  tick in real time instead of showing `$0.0000` until an agent finishes.
+  Turn beats are journaled, so replays and remote attaches show the same
+  numbers; in-flight tallies retire exactly when each agent's cost settles
+  (no double-counting).
+
+### Fixed
+- `alfred run` refuses the untouched `alfred init` scaffold instead of
+  letting the model burn money "implementing" the placeholder feature.
+- Footer corruption on CJK-width terminals: `▮ ▸ · ⏱` are
+  East-Asian-ambiguous (double width on CJK terminal configs), the footer
+  wrapped, and the cursor-up erase desynchronised. Truncation now budgets
+  display width, and the footer paints with terminal autowrap disabled.
+- `ALFRED_MODEL` prompt hint no longer nests parentheses.
+
 ## [0.5.0] — 2026-06-11
 
 Onboarding round: `bun install -g alfred-agent` → `alfred init` → `alfred run`
