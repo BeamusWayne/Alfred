@@ -25,6 +25,7 @@ import { defaultEffortForRole, modelProfile } from "../config/modelCatalog.ts";
 import { fallbackChain, type RoleSpec, type RoleTarget, resolveRole } from "../config/roles.ts";
 import { CostTracker } from "../cost/tracker.ts";
 import { runHooks } from "../hooks/engine.ts";
+import { defaultSessionId } from "../hooks/payload.ts";
 import type { HooksConfig } from "../hooks/types.ts";
 import { evaluatePermission } from "../permissions/evaluate.ts";
 import { getProvider } from "../providers/index.ts";
@@ -110,13 +111,19 @@ interface ToolOutcome {
   readonly endsRun?: boolean;
 }
 
+/** Hooks config plus the session identity every payload carries (§7.5). */
+interface HookEnv {
+  readonly config: HooksConfig;
+  readonly context: { readonly sessionId: string; readonly cwd: string; readonly model: string };
+}
+
 async function executeTool(
   use: ToolUse,
   tools: readonly Tool[],
   ctx: ToolContext,
   tracer: Tracer,
   parentSpan: SpanHandle | undefined,
-  hooks: HooksConfig | undefined,
+  hooks: HookEnv | undefined,
   quarantine: QuarantineFn | undefined,
   approve?: (req: ApprovalRequest) => Promise<boolean>,
 ): Promise<ToolOutcome> {
@@ -132,10 +139,10 @@ async function executeTool(
   // PreToolUse hooks: may block the call or rewrite the input (ADR 0001 §7.5).
   if (hooks) {
     const pre = await runHooks(
-      hooks,
+      hooks.config,
       "PreToolUse",
       { toolName: use.name, input: data },
-      { cwd: ctx.workingDir },
+      { cwd: ctx.workingDir, context: hooks.context },
     );
     if (pre.block) {
       return {
@@ -198,11 +205,13 @@ async function executeTool(
     }
     span.setStatus(result.isError ? "error" : "ok").end();
     if (hooks) {
+      // PostToolUse carries the output exactly as the model will see it, so a
+      // recorder's ledger and the transcript cannot disagree.
       await runHooks(
-        hooks,
+        hooks.config,
         "PostToolUse",
-        { toolName: use.name, input: finalInput },
-        { cwd: ctx.workingDir },
+        { toolName: use.name, input: finalInput, toolResponse: output },
+        { cwd: ctx.workingDir, context: hooks.context },
       ).catch(() => undefined);
     }
     return {
@@ -357,7 +366,16 @@ export async function* runQuery(
     ? getProvider(summaryTarget.provider)
     : config.provider;
   const summaryModel = summaryTarget.model;
-  const hooks = config.hooks;
+  const hooks: HookEnv | undefined = config.hooks
+    ? {
+        config: config.hooks,
+        context: {
+          sessionId: config.sessionId ?? defaultSessionId(),
+          cwd: config.permissions.workingDir,
+          model: config.model,
+        },
+      }
+    : undefined;
 
   // spawn_subagent execution (depth 0 only): an isolated runQuery on the
   // `subagent` role target whose usage/cost fold back into THIS run. Closure
@@ -387,6 +405,7 @@ export async function* runQuery(
             role: "subagent",
             roles: config.roles,
             hooks: config.hooks,
+            sessionId: config.sessionId,
             subagentDepth: subagentDepth + 1,
           });
           let step = await gen.next();

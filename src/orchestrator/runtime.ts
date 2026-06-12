@@ -9,6 +9,7 @@
  */
 import type { ZodTypeAny } from "zod";
 import type { Role } from "../config/roles.ts";
+import type { HooksConfig } from "../hooks/types.ts";
 import type { ToolPermissionContext } from "../permissions/types.ts";
 import type { Provider } from "../providers/types.ts";
 import type { QueryEvent } from "../query/types.ts";
@@ -41,6 +42,10 @@ export interface RuntimeOptions {
   readonly provider: Provider;
   readonly model: string;
   readonly permissions: ToolPermissionContext;
+  /** PreToolUse/PostToolUse hooks for every agent() call (ADR 0001 §7.5). */
+  readonly hooks?: HooksConfig;
+  /** Session id threaded into hook payloads — one ledger per run. */
+  readonly sessionId?: string;
   readonly journal?: Journal;
   readonly budget?: BudgetLimits;
   readonly concurrency?: number;
@@ -180,6 +185,8 @@ export function createRuntime(runId: string, opts: RuntimeOptions): Runtime {
         signal: opts.signal,
         role: callOpts.role,
         taskBudgetTokens: remainingTokens,
+        hooks: opts.hooks,
+        sessionId: opts.sessionId,
         onEvent,
       });
     } finally {

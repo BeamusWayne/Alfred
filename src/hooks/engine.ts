@@ -12,8 +12,9 @@
  */
 
 import { readFileSync } from "node:fs";
-import type { HookEvent, HookMatcher, HookOutcome, HooksConfig } from "./types.ts";
-import { hooksConfigSchema } from "./types.ts";
+import { buildHookPayload, type HookFireInput } from "./payload.ts";
+import type { HookContext, HookEvent, HookMatcher, HookOutcome, HooksConfig } from "./types.ts";
+import { BLOCKING_EVENTS, hooksConfigSchema } from "./types.ts";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 
@@ -58,20 +59,23 @@ export async function loadHooksConfig(path: string): Promise<HooksConfig> {
 // ---------------------------------------------------------------------------
 
 /**
- * Run all matching hooks for `event` + `payload.toolName`.
+ * Run all matching hooks for `event` (+ tool name on tool events).
  *
- * Hooks run sequentially. For PreToolUse, the first hook that exits 2 wins
- * and short-circuits remaining hooks. `updatedInput` accumulates across
+ * Hooks run sequentially. On blocking events (PreToolUse, UserPromptSubmit)
+ * the first hook that exits 2 wins and short-circuits remaining hooks; on
+ * every other event exit-2 is observe-only. `updatedInput` accumulates across
  * passing hooks (last writer wins per key).
  */
 export async function runHooks(
   config: HooksConfig,
   event: HookEvent,
-  payload: { readonly toolName: string; readonly input: Record<string, unknown> },
-  opts?: { readonly cwd?: string },
+  payload: HookFireInput,
+  opts?: { readonly cwd?: string; readonly context?: Partial<HookContext> },
 ): Promise<HookOutcome> {
+  // Lifecycle events have no tool name; treat them as matched by wildcard
+  // matchers only (an exact toolPattern on SessionStart never fires).
   const matchers = config.hooks.filter(
-    (m) => m.event === event && matchesTool(m, payload.toolName),
+    (m) => m.event === event && matchesTool(m, payload.toolName ?? ""),
   );
 
   if (matchers.length === 0) {
@@ -79,20 +83,21 @@ export async function runHooks(
   }
 
   // Carry the accumulated input forward so each hook sees the latest version.
-  let currentInput: Record<string, unknown> = payload.input;
+  let currentInput = payload.input;
   let mergedUpdatedInput: Record<string, unknown> | undefined;
 
   for (const matcher of matchers) {
-    const stdinPayload = JSON.stringify({
-      toolName: payload.toolName,
-      input: currentInput,
-    });
+    const stdinPayload = buildHookPayload(
+      event,
+      { ...payload, input: currentInput },
+      { ...opts?.context, cwd: opts?.context?.cwd ?? opts?.cwd },
+    );
 
     const outcome = await runSingleHook(matcher, stdinPayload, opts?.cwd);
 
     if (outcome.block) {
-      // PostToolUse exit-2 is silently ignored.
-      if (event === "PostToolUse") {
+      // Exit-2 only blocks on blocking events; elsewhere it is observe-only.
+      if (!BLOCKING_EVENTS.has(event)) {
         continue;
       }
       return { block: true, reason: outcome.reason };
@@ -101,7 +106,7 @@ export async function runHooks(
     if (outcome.updatedInput !== undefined) {
       // Merge rewrite into accumulated state.
       mergedUpdatedInput = { ...mergedUpdatedInput, ...outcome.updatedInput };
-      currentInput = { ...currentInput, ...outcome.updatedInput };
+      currentInput = { ...(currentInput ?? {}), ...outcome.updatedInput };
     }
   }
 

@@ -4,6 +4,38 @@ All notable changes to Alfred are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/) (0.x: minor = feature rounds, patch = fixes).
 
+## [0.7.0] — 2026-06-13
+
+The trust-layer round: Alfred joins the [Agent Trust Layer](https://github.com/BeamusWayne/agent-trust-layer)
+ecosystem — recordable by NightWatch, reporting in the cross-tool format.
+
+### Added
+- **Claude Code-compatible hooks.** Hook payloads now carry `session_id`,
+  `cwd`, `hook_event_name`, `tool_name`, `tool_input`, `tool_response`,
+  `prompt`, `source`, `model` (the legacy `toolName`/`input` keys remain), and
+  four new lifecycle events fire alongside PreToolUse/PostToolUse:
+  **SessionStart, UserPromptSubmit, Stop, SessionEnd**. Recorders and policy
+  hooks written for the Claude Code ecosystem run against Alfred unchanged —
+  `nightwatch init --agent alfred` wires up a black-box flight recorder in
+  one command. UserPromptSubmit exit-2 blocks the prompt (same contract as
+  Claude Code); Stop/SessionStart/SessionEnd are observe-only.
+- **Hooks fire in `alfred run`.** The autonomous harness now loads
+  `.alfred/hooks.json` and threads hooks through the orchestrator into every
+  agent step — the unattended mode is exactly where an external recorder
+  earns its keep. One `alfred-run-<runId>` session id ties the whole run
+  into one recorded session.
+- **`alfred ledger verify --trust-report <file>`** — emit the verdict as an
+  Agent Trust Report v0 (`{verdict, checks[]}`), the same cross-tool JSON
+  NightWatch's `attest --trust-report` and trace-vault's
+  `gate --trust-report` produce. One CI consumer for all three gates.
+- **`alfred doctor`** — one-pass setup diagnosis: runtime version, provider
+  key, hooks config validity, feature_list state, ledger secret, last
+  receipt integrity, git, and whether a flight recorder is on PATH. Exit 1
+  only on hard failures; every warn/fail comes with the fix.
+- **`alfred update`** — self-update via `bun install -g alfred-agent@latest`.
+- **One-line installer** — `curl -fsSL …/install.sh | bash` installs Bun if
+  missing, then alfred-agent, then prints the 30-second next steps.
+
 ## [0.6.1] — 2026-06-11
 
 ### Fixed

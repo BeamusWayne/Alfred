@@ -9,6 +9,7 @@
  */
 import * as readline from "node:readline";
 import type { ConfigOverrides } from "../config/manager.ts";
+import { fireLifecycleHooks, firePromptHooks } from "../hooks/lifecycle.ts";
 import type { Message } from "../providers/types.ts";
 import { runQuery } from "../query/engine.ts";
 import { createApprover } from "./approve.ts";
@@ -17,6 +18,7 @@ import {
   buildSession,
   closeSession,
   drainRendered,
+  hookContext,
   keyPresent,
   mockActive,
   queryConfigFromSession,
@@ -42,6 +44,8 @@ export async function startRepl(opts: ReplOptions): Promise<number> {
   const say = (s: string) => process.stderr.write(`${s}\n`);
 
   const session = await buildSession(opts.overrides);
+  const hookCtx = hookContext(session);
+  await fireLifecycleHooks(session.hooks, "SessionStart", hookCtx, "repl");
   const statusEnv = {
     provider: session.cfg.provider,
     model: session.cfg.model,
@@ -107,6 +111,13 @@ export async function startRepl(opts: ReplOptions): Promise<number> {
       continue;
     }
 
+    const promptGate = await firePromptHooks(session.hooks, input, hookCtx);
+    if (promptGate.block) {
+      say(c.red(`prompt blocked by hook: ${promptGate.reason}`));
+      rl.prompt();
+      continue;
+    }
+
     current = new AbortController();
     try {
       const state = await drainRendered(
@@ -121,6 +132,7 @@ export async function startRepl(opts: ReplOptions): Promise<number> {
       history = state.messages;
       if (state.cost) totalUsd += state.cost.usd;
       process.stdout.write("\n");
+      await fireLifecycleHooks(session.hooks, "Stop", hookCtx);
     } catch (err) {
       say(c.red(`✗ ${err instanceof Error ? err.message : String(err)}`));
     } finally {
@@ -130,6 +142,7 @@ export async function startRepl(opts: ReplOptions): Promise<number> {
   }
 
   rl.close();
+  await fireLifecycleHooks(session.hooks, "SessionEnd", hookCtx, "exit");
   await closeSession(session);
   say(c.dim(`session cost: $${totalUsd.toFixed(4)}`));
   return 0;

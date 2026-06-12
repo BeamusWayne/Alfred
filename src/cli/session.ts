@@ -107,6 +107,8 @@ export interface Session {
   readonly ext: Awaited<ReturnType<typeof bootstrapExtensions>>;
   readonly tools: QueryConfig["tools"];
   readonly workingDir: string;
+  /** One id per CLI session, threaded into every hook payload (§7.5). */
+  readonly sessionId: string;
 }
 
 /** Build everything a query needs that is independent of the prompt itself. */
@@ -142,6 +144,7 @@ export async function buildSession(overrides: ConfigOverrides): Promise<Session>
     ext,
     tools: ext.tools.length > 0 ? [...getAllTools(), ...ext.tools] : undefined,
     workingDir,
+    sessionId: `alfred-${crypto.randomUUID()}`,
   };
 }
 
@@ -162,6 +165,7 @@ export function queryConfigFromSession(session: Session): Omit<QueryConfig, "per
     thinking: cfg.thinking,
     roles: cfg.roles,
     hooks: session.hooks,
+    sessionId: session.sessionId,
     memory: session.memory,
     tools: session.tools,
     permissions: {
@@ -170,6 +174,19 @@ export function queryConfigFromSession(session: Session): Omit<QueryConfig, "per
       deniedTools: new Set(),
       workingDir: session.workingDir,
     },
+  };
+}
+
+/** The session's identity as hook payloads carry it (HookContext, §7.5). */
+export function hookContext(session: Session): {
+  sessionId: string;
+  cwd: string;
+  model: string;
+} {
+  return {
+    sessionId: session.sessionId,
+    cwd: session.workingDir,
+    model: session.cfg.model,
   };
 }
 

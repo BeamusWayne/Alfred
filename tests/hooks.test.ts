@@ -6,7 +6,7 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadHooksConfig, runHooks } from "../src/hooks/engine.ts";
@@ -337,5 +337,113 @@ describe("first blocker short-circuits", () => {
 
     expect(outcome.block).toBe(true);
     expect(outcome.updatedInput).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 10. Claude Code-compatible stdin payload
+// ---------------------------------------------------------------------------
+
+/** Run one hook that dumps its stdin to a file; return the parsed payload. */
+async function capturePayload(
+  event: Parameters<typeof runHooks>[1],
+  payload: Parameters<typeof runHooks>[2],
+  opts?: Parameters<typeof runHooks>[3],
+): Promise<Record<string, unknown>> {
+  const file = join(tmpDir, `payload-${crypto.randomUUID()}.json`);
+  const config = makeConfig({ event, command: `cat > ${file}` });
+  await runHooks(config, event, payload, opts);
+  return JSON.parse(readFileSync(file, "utf-8")) as Record<string, unknown>;
+}
+
+describe("Claude Code-compatible payload", () => {
+  test("PreToolUse carries snake_case fields plus legacy keys", async () => {
+    const got = await capturePayload(
+      "PreToolUse",
+      { toolName: "bash", input: { cmd: "ls" } },
+      { context: { sessionId: "ses-1", cwd: "/tmp/project", model: "test-model" } },
+    );
+
+    expect(got["session_id"]).toBe("ses-1");
+    expect(got["hook_event_name"]).toBe("PreToolUse");
+    expect(got["cwd"]).toBe("/tmp/project");
+    expect(got["model"]).toBe("test-model");
+    expect(got["tool_name"]).toBe("bash");
+    expect(got["tool_input"]).toEqual({ cmd: "ls" });
+    // pre-0.7 hooks keep working:
+    expect(got["toolName"]).toBe("bash");
+    expect(got["input"]).toEqual({ cmd: "ls" });
+  });
+
+  test("PostToolUse carries tool_response", async () => {
+    const got = await capturePayload(
+      "PostToolUse",
+      { toolName: "bash", input: { cmd: "ls" }, toolResponse: "file-a\nfile-b" },
+      { context: { sessionId: "ses-2", cwd: "/tmp/project" } },
+    );
+
+    expect(got["hook_event_name"]).toBe("PostToolUse");
+    expect(got["tool_response"]).toBe("file-a\nfile-b");
+  });
+
+  test("session_id defaults to a stable per-process id when unset", async () => {
+    const first = await capturePayload("PreToolUse", basePayload);
+    const second = await capturePayload("PreToolUse", basePayload);
+
+    expect(typeof first["session_id"]).toBe("string");
+    expect((first["session_id"] as string).length).toBeGreaterThan(0);
+    expect(first["session_id"]).toBe(second["session_id"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 11. Lifecycle events
+// ---------------------------------------------------------------------------
+
+describe("lifecycle events", () => {
+  test("SessionStart fires with source and no tool fields", async () => {
+    const got = await capturePayload(
+      "SessionStart",
+      { source: "startup" },
+      { context: { sessionId: "ses-3", cwd: "/tmp/project" } },
+    );
+
+    expect(got["hook_event_name"]).toBe("SessionStart");
+    expect(got["source"]).toBe("startup");
+    expect(got["tool_name"]).toBeUndefined();
+  });
+
+  test("UserPromptSubmit carries the prompt and can block via exit 2", async () => {
+    const got = await capturePayload("UserPromptSubmit", { prompt: "delete everything" });
+    expect(got["prompt"]).toBe("delete everything");
+
+    const blocking = makeConfig({
+      event: "UserPromptSubmit",
+      command: 'echo "prompt rejected" >&2; exit 2',
+    });
+    const outcome = await runHooks(blocking, "UserPromptSubmit", { prompt: "x" });
+    expect(outcome.block).toBe(true);
+    expect(outcome.reason).toContain("prompt rejected");
+  });
+
+  test("Stop and SessionEnd are observe-only — exit 2 never blocks", async () => {
+    for (const event of ["Stop", "SessionEnd"] as const) {
+      const config = makeConfig({ event, command: "exit 2" });
+      const outcome = await runHooks(config, event, {});
+      expect(outcome.block).toBe(false);
+    }
+  });
+
+  test("an exact toolPattern never matches a lifecycle event", async () => {
+    const config = makeConfig({
+      event: "SessionStart",
+      command: 'echo "ran" >&2; exit 2',
+      toolPattern: "bash",
+    });
+
+    const outcome = await runHooks(config, "SessionStart", { source: "startup" });
+
+    // Pattern cannot match (lifecycle events carry no tool name) → no hooks ran.
+    expect(outcome.block).toBe(false);
   });
 });

@@ -53,6 +53,12 @@ export interface QueryConfig {
   readonly role?: Role;
   /** PreToolUse/PostToolUse hooks fired around each tool call (ADR 0001 §7.5). */
   readonly hooks?: HooksConfig;
+  /**
+   * Session identity threaded into hook payloads (`session_id`) so an external
+   * recorder can stitch every query of one CLI session into one ledger.
+   * Defaults to a stable per-process id.
+   */
+  readonly sessionId?: string;
   /** When present, the engine prefetches relevant facts before turn 1 (ADR 0001 §4). */
   readonly memory?: MemoryProvider;
   /**

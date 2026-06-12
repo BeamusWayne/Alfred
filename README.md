@@ -8,11 +8,17 @@
 
 Alfred is not another Claude Code clone. Its thesis: the long-running harness is *executable*, "done" is a *machine-enforced gate*, memory is *agent-curated but inspectable*, and every hands-off run leaves a *signed, replayable receipt*. Where the field is ahead on streaming/sandbox/caching parity, Alfred leans into the one thing it designs better — **enforced, auditable autonomy** — while still adopting the best ideas from across the ecosystem (`docs/improvement-proposal.md`).
 
-> Status: 886 tests passing · `tsc --noEmit` clean · zero runtime dependencies beyond `@anthropic-ai/sdk`, `commander`, `zod`.
+> Status: 902 tests passing · `tsc --noEmit` clean · zero runtime dependencies beyond `@anthropic-ai/sdk`, `commander`, `zod`.
 
 **📖 Full documentation: [beamuswayne.github.io/Alfred](https://beamuswayne.github.io/Alfred/)** — built from [`docs/`](./docs/) with VitePress (`bun run docs:dev` to preview locally, deployed by [`.github/workflows/docs.yml`](./.github/workflows/docs.yml)). Jump to [Quickstart](https://beamuswayne.github.io/Alfred/guide/quickstart) · [CLI reference](https://beamuswayne.github.io/Alfred/cli/overview) · [Subsystems](https://beamuswayne.github.io/Alfred/subsystems/agent-loop) · [Architecture](https://beamuswayne.github.io/Alfred/architecture/overview).
 
-**📦 Install:** `bun install -g alfred-agent` ([npm](https://www.npmjs.com/package/alfred-agent); the command is `alfred`) — or `bunx alfred-agent` one-shot. Bun ≥ 1.3 required; this is a Bun CLI, not a Node one. Clone the repo for the docs, tests, bench, and the demo below.
+**📦 Install — one line, runtime included** (installs [Bun](https://bun.sh) if missing, then [alfred-agent](https://www.npmjs.com/package/alfred-agent); macOS/Linux/WSL2):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/BeamusWayne/Alfred/main/install.sh | bash
+```
+
+Already on Bun ≥ 1.3? `bun install -g alfred-agent` (the command is `alfred`) — or `bunx alfred-agent` one-shot. This is a Bun CLI, not a Node one. After installing: **`alfred demo`** (30-second offline proof, no key) → **`alfred init`** (interactive provider setup) → **`alfred doctor`** (check everything). Clone the repo for the docs, tests, bench, and the demo below.
 
 ---
 
@@ -58,9 +64,11 @@ bun run typecheck # tsc --noEmit
 | `alfred why [runId]` | Explain a run from its receipts: blocked features, verify exits, rubric reasoning (`--json`). |
 | `alfred watch [path]` | Follow a run's journal + ledger as a **read-only live panel** — attach from another terminal, or replay a finished run. Sticky status line: elapsed · features · spend. |
 | `alfred eval <file>` | Replay recorded `MockProvider` trajectories through the real engine and assert tool-sequence / status / text regressions. Exits non-zero on failure. |
-| `alfred ledger verify [path]` | Recompute a run ledger's HMAC hash chain + signed head anchor (defaults to the latest run). **Exit 2 on any tamper** — flip one byte and it fails. |
+| `alfred ledger verify [path]` | Recompute a run ledger's HMAC hash chain + signed head anchor (defaults to the latest run). **Exit 2 on any tamper** — flip one byte and it fails. `--trust-report <file>` also writes the verdict as a cross-tool [Trust Report v0](https://github.com/BeamusWayne/agent-trust-layer). |
 | `alfred ledger show [--md]` | Render the receipt as a table; `--md` is paste-ready for a PR description. |
 | `alfred status` | Provider/key · feature_list · last run · next steps, at a glance. |
+| `alfred doctor` | One-pass setup diagnosis: runtime, key, hooks, feature_list, ledger secret, last receipt, git, recorder. Every warn/fail comes with the fix. |
+| `alfred update` | Self-update to the latest published release. |
 | `alfred completion <shell>` | bash/zsh completion script. |
 
 Exit codes, everywhere: **0** success · **1** failure / not found · **2** ledger tampered.
@@ -96,7 +104,7 @@ Layers over a clean agent loop — each new piece is additive, not a rewrite. Th
 - **Agent-layer security** (`src/security/`, ADR 0003) — taint **fence**, **egress allow-list** (default-deny), secret **redaction**, and a **dual-LLM quarantine** for untrusted content. `web_fetch` is the model citizen for all three.
 - **Observability** (`src/telemetry/`, `src/cost/`, ADR 0004) — OTel GenAI semantic-convention spans, a cost tracker, and an **eval harness** (`src/eval/`).
 - **Model routing** (`src/config/roles.ts`, ADR 0005) — architect/editor/subagent role→model map + fallback chain. Providers: Anthropic + OpenAI + a scriptable mock.
-- **Extensibility** — **hooks** (`src/hooks/`, PreToolUse/PostToolUse, exit-2-blocks), **OS sandbox** (`src/sandbox/`, macOS seatbelt), **MCP** client (`src/mcp/`), **3-level skills** (`src/skills/`).
+- **Extensibility** — **hooks** (`src/hooks/`, six lifecycle events with **Claude Code-compatible payloads** — see the trust-layer section below), **OS sandbox** (`src/sandbox/`, macOS seatbelt), **MCP** client (`src/mcp/`), **3-level skills** (`src/skills/`).
 
 ---
 
@@ -139,11 +147,56 @@ Pricing for `glm-4.5` / `glm-4.6` / `glm-5.1` ships in the cost table; unknown m
 .alfred/
   memory/    USER.md · MEMORY.md · facts/<slug>.md · episodes/ · index.db
   skills/    <name>/SKILL.md          (Level-1 index auto-injected; load_skill loads bodies)
-  hooks.json                          (PreToolUse/PostToolUse matchers)
+  hooks.json                          (hook matchers — six events, CC-compatible payloads)
   models.json                         (model capability overrides — see below)
   workflows/<runId>/journal.jsonl     (resume/replay tape)
   workflows/<runId>/ledger.jsonl      (HMAC hash-chained Proof Receipt)
 ```
+
+### Hooks — Claude Code-compatible (≥ 0.7)
+
+`.alfred/hooks.json` matchers fire at six lifecycle events — **SessionStart,
+UserPromptSubmit, PreToolUse, PostToolUse, Stop, SessionEnd** — in every
+surface, *including unattended `alfred run`*. Each hook receives a Claude
+Code-compatible JSON payload on stdin (`session_id`, `cwd`,
+`hook_event_name`, `tool_name`, `tool_input`, `tool_response`, `prompt`,
+`source`, `model`; the pre-0.7 `toolName`/`input` keys remain), so tooling
+built for that hooks ecosystem works on Alfred unchanged. Exit 2 blocks on
+PreToolUse and UserPromptSubmit; stdout `{"updatedInput":{…}}` rewrites tool
+input; everything else is observe-only.
+
+```json
+{
+  "hooks": [
+    { "event": "PreToolUse", "toolPattern": "bash", "command": "./guard.sh", "timeoutMs": 5000 }
+  ]
+}
+```
+
+## Part of the Agent Trust Layer
+
+Alfred is the **Run** leg of the [Agent Trust Layer](https://github.com/BeamusWayne/agent-trust-layer)
+— three tools that replace "the agent said so" with verifiable evidence:
+
+- **Record** — [NightWatch](https://github.com/BeamusWayne/NightWatch) is a
+  black-box flight recorder that plugs straight into Alfred's hooks:
+  ```bash
+  npm i -g nightwatch-agent
+  nightwatch init --agent alfred       # wires .alfred/hooks.json (idempotent)
+  alfred run --verify "bun test"       # the night happens
+  nightwatch debrief                   # the morning: claims re-verified, not retold
+  ```
+  One run, **two independent witnesses**: Alfred's own HMAC-signed receipt
+  (signed with a secret the agent never sees) and NightWatch's external
+  hash-chained ledger (a record the agent cannot edit).
+- **Gate** — [trace-vault](https://github.com/BeamusWayne/trace-vault)
+  replays recorded agent runs offline in CI and scores determinism and
+  faithfulness separately.
+- **One verdict format** — all three emit [Agent Trust Report v0](https://github.com/BeamusWayne/agent-trust-layer/blob/main/spec/TRUST-REPORT.md):
+  `alfred ledger verify --trust-report r.json` here, `nightwatch attest
+  --trust-report` and `vault gate --trust-report` there. One CI consumer for
+  every gate. A real dual-witness run, raw ledgers included, is committed in
+  the [spec repo's examples](https://github.com/BeamusWayne/agent-trust-layer/tree/main/examples/dual-witness).
 
 ### Teaching Alfred a new model — `.alfred/models.json`
 

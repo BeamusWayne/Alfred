@@ -12,6 +12,7 @@
 import { z } from "zod";
 import { modelProfile } from "../config/modelCatalog.ts";
 import type { Role } from "../config/roles.ts";
+import type { HooksConfig } from "../hooks/types.ts";
 import type { ToolPermissionContext } from "../permissions/types.ts";
 import { allow } from "../permissions/types.ts";
 import type { Provider } from "../providers/types.ts";
@@ -38,6 +39,10 @@ export interface RunAgentOptions {
   readonly role?: Role;
   /** Remaining orchestration token budget, surfaced to capable models (beta). */
   readonly taskBudgetTokens?: number;
+  /** PreToolUse/PostToolUse hooks fired around each tool call (ADR 0001 §7.5). */
+  readonly hooks?: HooksConfig;
+  /** Session id threaded into hook payloads (recorders stitch one ledger). */
+  readonly sessionId?: string;
   /**
    * Live engine-event tap (tool calls, results, retries, …) — the run still
    * resolves to a single `AgentRun`; this only lets callers observe progress
@@ -167,6 +172,8 @@ export async function runAgent<T = unknown>(
     signal,
     role,
     taskBudgetTokens,
+    hooks: opts.hooks,
+    sessionId: opts.sessionId,
     ...(useNative && strictSchema !== null ? { responseSchema: strictSchema } : {}),
   });
 

@@ -2,14 +2,42 @@
  * Hooks type contracts — ADR 0001 §7.5 (hooks, exit-2-blocks)
  *
  * Defines the event taxonomy, matcher configuration, Zod validation schema,
- * and outcome type for the hooks engine. Hook payloads are JSON on stdin;
- * exit 2 blocks the tool; stdout `{"updatedInput":{…}}` rewrites the input.
+ * and outcome type for the hooks engine. Hook payloads are JSON on stdin in a
+ * Claude Code-compatible shape (snake_case `session_id` / `hook_event_name` /
+ * `tool_name` / `tool_input` / `tool_response`, plus Alfred's original
+ * `toolName` / `input` keys for back-compat), so recorders and policy hooks
+ * written for that ecosystem — e.g. NightWatch — run against Alfred unchanged.
+ * Exit 2 blocks (PreToolUse / UserPromptSubmit only); stdout
+ * `{"updatedInput":{…}}` rewrites the tool input.
  */
 
 import { z } from "zod";
 
-/** The two lifecycle events at which hooks may fire. */
-export type HookEvent = "PreToolUse" | "PostToolUse";
+/** The lifecycle events at which hooks may fire (Claude Code-compatible set). */
+export type HookEvent =
+  | "SessionStart"
+  | "UserPromptSubmit"
+  | "PreToolUse"
+  | "PostToolUse"
+  | "Stop"
+  | "SessionEnd";
+
+/** Events whose exit-2 blocks the action; the rest are observe-only. */
+export const BLOCKING_EVENTS: ReadonlySet<HookEvent> = new Set([
+  "PreToolUse",
+  "UserPromptSubmit",
+]);
+
+/**
+ * Per-session identity threaded into every hook payload. `sessionId` lets an
+ * external recorder stitch one run's events into one ledger; `model` and
+ * `cwd` give policy hooks the context Claude Code hooks expect.
+ */
+export interface HookContext {
+  readonly sessionId: string;
+  readonly cwd: string;
+  readonly model?: string;
+}
 
 /**
  * A single hook entry from the user's configuration.
@@ -50,7 +78,14 @@ export interface HookOutcome {
 // Zod schema — used by `loadHooksConfig` to validate the JSON file.
 // ---------------------------------------------------------------------------
 
-const hookEventSchema = z.union([z.literal("PreToolUse"), z.literal("PostToolUse")]);
+const hookEventSchema = z.union([
+  z.literal("SessionStart"),
+  z.literal("UserPromptSubmit"),
+  z.literal("PreToolUse"),
+  z.literal("PostToolUse"),
+  z.literal("Stop"),
+  z.literal("SessionEnd"),
+]);
 
 const hookMatcherSchema = z.object({
   event: hookEventSchema,

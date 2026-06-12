@@ -28,12 +28,13 @@
  * load from .alfred/hooks.json; skills from .alfred/skills/; MCP/LSP servers
  * from .alfred/{mcp,lsp}.json.
  */
-import { join, relative, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { Command } from "commander";
 import { resolveApprover } from "./cli/approve.ts";
 import { colorEnabled, palette } from "./cli/colors.ts";
 import { COMPLETION_SHELLS, type CompletionShell, completionScript } from "./cli/completion.ts";
 import { runDemo } from "./cli/demo.ts";
+import { gatherDoctor, hasFailure, renderDoctor } from "./cli/doctor.ts";
 import { renderFooterLines, StickyFooter } from "./cli/footer.ts";
 import { isStarterFeatureList, runInit } from "./cli/init.ts";
 import { formatLedgerTable } from "./cli/ledgerShow.ts";
@@ -43,6 +44,7 @@ import {
   buildSession,
   closeSession,
   drainRendered,
+  hookContext,
   keyPresent,
   missingFeatureListMessage,
   missingKeyMessage,
@@ -59,6 +61,8 @@ import { resolveRole } from "./config/roles.ts";
 import { formatReport, runEvalSuite } from "./eval/runner.ts";
 import type { EvalCase } from "./eval/types.ts";
 import { loadFeatureList } from "./harness/featureList.ts";
+import { loadHooksConfig } from "./hooks/engine.ts";
+import { fireLifecycleHooks, firePromptHooks } from "./hooks/lifecycle.ts";
 import { Journal } from "./orchestrator/journal.ts";
 import { Ledger } from "./orchestrator/ledger.ts";
 import {
@@ -67,6 +71,7 @@ import {
   formatVerifyOutcome,
 } from "./orchestrator/ledgerLocate.ts";
 import { createRuntime } from "./orchestrator/runtime.ts";
+import { toTrustReport } from "./orchestrator/trustReport.ts";
 import { type AutonomousEvent, autonomousRun } from "./orchestrator/workflows/autonomousRun.ts";
 import { runQuery } from "./query/engine.ts";
 import { VERSION } from "./version.ts";
@@ -104,7 +109,17 @@ async function runOnce(prompt: string, opts: CliOptions): Promise<number> {
   const controller = new AbortController();
   process.on("SIGINT", () => controller.abort());
 
+  // Session lifecycle hooks (§7.5): the same event stream Claude Code emits,
+  // so external recorders (e.g. NightWatch) capture one-shot runs unchanged.
+  const hookCtx = hookContext(session);
+  await fireLifecycleHooks(session.hooks, "SessionStart", hookCtx, "startup");
   try {
+    const promptGate = await firePromptHooks(session.hooks, prompt, hookCtx);
+    if (promptGate.block) {
+      process.stderr.write(red(`Prompt blocked by hook: ${promptGate.reason}\n`));
+      return 1;
+    }
+
     const state = await drainRendered(
       runQuery(prompt, {
         ...queryConfigFromSession(session),
@@ -121,8 +136,10 @@ async function runOnce(prompt: string, opts: CliOptions): Promise<number> {
     }
 
     process.stdout.write("\n");
+    await fireLifecycleHooks(session.hooks, "Stop", hookCtx);
     return state.status === "success" ? 0 : 1;
   } finally {
+    await fireLifecycleHooks(session.hooks, "SessionEnd", hookCtx);
     await closeSession(session);
   }
 }
@@ -191,6 +208,12 @@ async function runAutonomous(opts: RunCliOptions): Promise<number> {
   const ledgerSecret = process.env.ALFRED_LEDGER_SECRET ?? DEFAULT_LEDGER_SECRET;
   const ledger = new Ledger(join(runDir, "ledger.jsonl"), ledgerSecret);
 
+  // Hooks fire in autonomous runs too (§7.5) — the unattended mode is exactly
+  // where an external recorder (NightWatch) earns its keep. One session id
+  // ties every agent step of this run into one recorded session.
+  const hooks = await loadHooksConfig(join(workingDir, ".alfred", "hooks.json"));
+  const hookCtx = { sessionId: `alfred-run-${runId}`, cwd: workingDir, model: cfg.model };
+
   // Architect/editor split (ADR 0005): resolve per-role models from config.
   const roles = cfg.roles ?? {};
   const architectModel = resolveRole(roles, "architect", cfg.model).model;
@@ -214,6 +237,8 @@ async function runAutonomous(opts: RunCliOptions): Promise<number> {
     // Autonomous mode runs headless: bypass prompts, but the kill-list and
     // path jail still apply (ADR 0003). Override with care.
     permissions: { mode: "bypass", allowedTools: new Set(), deniedTools: new Set(), workingDir },
+    hooks,
+    sessionId: hookCtx.sessionId,
     journal,
     budget: opts.budgetUsd ? { maxUsd: Number(opts.budgetUsd) } : undefined,
     signal: controller.signal,
@@ -243,6 +268,14 @@ async function runAutonomous(opts: RunCliOptions): Promise<number> {
     dim(
       `[run ${runId}] feature_list=${relative(workingDir, featureListPath) || featureListPath} verify="${verifyCmd}"\n`,
     ),
+  );
+
+  // Declared goal for recorders: what this unattended session set out to do.
+  await fireLifecycleHooks(hooks, "SessionStart", hookCtx, "run");
+  await firePromptHooks(
+    hooks,
+    `autonomous run: drive ${relative(workingDir, featureListPath) || featureListPath} to green under verify gate "${verifyCmd}"`,
+    hookCtx,
   );
 
   const result = await autonomousRun({
@@ -276,6 +309,8 @@ async function runAutonomous(opts: RunCliOptions): Promise<number> {
 
   footer.clear();
   await journal.close();
+  await fireLifecycleHooks(hooks, "Stop", hookCtx);
+  await fireLifecycleHooks(hooks, "SessionEnd", hookCtx, result.stopped);
   process.stderr.write(
     dim(
       `\n[run ${runId}] passing=${result.passing} blocked=${result.blocked} ` +
@@ -370,8 +405,9 @@ const ledgerCommand = program
 ledgerCommand
   .command("verify")
   .argument("[path]", "path to a ledger.jsonl (default: the latest run under .alfred/workflows)")
+  .option("--trust-report <file>", "also write the verdict as a cross-tool Trust Report v0 JSON")
   .description("recompute the HMAC hash chain + signed head anchor; exit 2 on any tamper")
-  .action(async (path?: string) => {
+  .action(async (path: string | undefined, opts: { trustReport?: string }) => {
     const target = path ?? (await findLatestLedger(process.cwd()));
     if (target === null) {
       process.stderr.write(
@@ -385,11 +421,21 @@ ledgerCommand
     }
     const secret = process.env.ALFRED_LEDGER_SECRET ?? DEFAULT_LEDGER_SECRET;
     const ledger = new Ledger(target, secret);
-    const rows = (await ledger.readAll()).length;
+    const entries = await ledger.readAll();
     const outcome = await ledger.verify();
+    if (opts.trustReport !== undefined) {
+      const report = toTrustReport({
+        outcome,
+        entries,
+        runId: basename(dirname(target)),
+        version: VERSION,
+      });
+      await Bun.write(opts.trustReport, `${JSON.stringify(report, null, 2)}\n`);
+      process.stderr.write(dim(`trust report → ${opts.trustReport}\n`));
+    }
     // Display a cwd-relative path: shareable output, no home-directory leak.
     const display = relative(process.cwd(), target) || target;
-    process.stdout.write(formatVerifyOutcome(display, rows, outcome) + "\n");
+    process.stdout.write(formatVerifyOutcome(display, entries.length, outcome) + "\n");
     // Exit-code contract: 0 = intact, 1 = no ledger / bad invocation, 2 = TAMPERED.
     process.exit(outcome.ok ? 0 : 2);
   });
@@ -447,6 +493,32 @@ program
   .option("--force", "overwrite an existing feature_list.json")
   .action(async (opts: { force?: boolean }) => {
     process.exit(await runInit(process.cwd(), opts));
+  });
+
+program
+  .command("doctor")
+  .description("diagnose the setup: runtime, key, hooks, feature_list, receipts, git, recorder")
+  .action(async () => {
+    const cfg = loadConfig({});
+    const checks = await gatherDoctor(process.cwd(), { provider: cfg.provider, model: cfg.model });
+    process.stdout.write(`${renderDoctor(checks, palette(process.stdout))}\n`);
+    process.exit(hasFailure(checks) ? 1 : 0);
+  });
+
+program
+  .command("update")
+  .description("update alfred to the latest published release (bun install -g alfred-agent)")
+  .action(async () => {
+    process.stderr.write(dim(`alfred v${VERSION} — updating via bun install -g alfred-agent\n`));
+    const proc = Bun.spawn(["bun", "install", "-g", "alfred-agent@latest"], {
+      stdout: "inherit",
+      stderr: "inherit",
+    });
+    const code = await proc.exited;
+    if (code === 0) {
+      process.stderr.write(dim("done — `alfred --version` shows the active version\n"));
+    }
+    process.exit(code);
   });
 
 program
