@@ -4,6 +4,35 @@ All notable changes to Alfred are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/) (0.x: minor = feature rounds, patch = fixes).
 
+## [0.8.0] — 2026-06-13
+
+The living-room round: bare `alfred` is now a real TUI with the Claude Code
+interaction grammar — built with zero new dependencies (hand-rolled ANSI,
+no ink/react), CJK-correct throughout.
+
+### Added
+- **Interactive TUI** (`src/cli/tui/`) — the bare `alfred` invocation on a
+  TTY opens a bordered input box with: streaming responses (text flushes
+  into scrollback line-by-line, `⏺`-led), tool beats (`⏺ bash(bun test)` +
+  `  ⎿ result preview … +N lines`), an animated status line (spinner ·
+  elapsed · live cost · *esc to interrupt*), a **slash-command menu** with
+  ↑/↓ selection and Tab completion (`/help /status /model /cost /doctor
+  /clear /version /exit`), **arrow-key approval prompts** (yes / always for
+  this session / no — y·a·n shortcuts), ↑/↓ **prompt history** persisted to
+  `.alfred/history`, and Claude Code key grammar: ⏎ sends, `\`+⏎ or ctrl-j
+  newline, esc clears (or interrupts a run), ctrl-c×2 quits, ctrl-a/e/w/u/k
+  line editing.
+- **Bracketed paste** — pasted multi-line text inserts newlines instead of
+  submitting line one.
+- **CJK-aware everywhere** — UTF-8 stream decoding (multibyte input split
+  across chunks reassembles), double-width cursor math in the input box,
+  width-clipped repaints that can't desync the region erase.
+- `/model [name]` — switch the model for the current session only.
+
+### Changed
+- The 0.3 thin REPL remains as a fallback: `ALFRED_TUI=0` (and any non-TTY
+  context keeps the status screen / print mode unchanged).
+
 ## [0.7.0] — 2026-06-13
 
 The trust-layer round: Alfred joins the [Agent Trust Layer](https://github.com/BeamusWayne/agent-trust-layer)

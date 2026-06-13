@@ -40,6 +40,7 @@ import { isStarterFeatureList, runInit } from "./cli/init.ts";
 import { formatLedgerTable } from "./cli/ledgerShow.ts";
 import { renderAutonomousEvent } from "./cli/renderRun.ts";
 import { startRepl } from "./cli/repl.ts";
+import { startTui } from "./cli/tui/controller.ts";
 import {
   buildSession,
   closeSession,
@@ -341,10 +342,14 @@ program
       const overrides = overridesFrom(opts);
       const cfg = loadConfig(overrides);
       const canQuery = mockActive() || keyPresent(cfg.provider);
-      // Bare `alfred` on a TTY opens the thin REPL; everywhere else (pipes,
-      // CI, missing key) it prints the status screen with next steps.
-      if (!opts.print && canQuery && process.stdin.isTTY && process.stderr.isTTY) {
-        process.exit(await startRepl({ overrides, yes: opts.yes }));
+      // Bare `alfred` on a TTY opens the interactive TUI (ALFRED_TUI=0 falls
+      // back to the 0.3 thin REPL); everywhere else (pipes, CI, missing key)
+      // it prints the status screen with next steps.
+      if (!opts.print && canQuery && process.stdin.isTTY && process.stdout.isTTY) {
+        if (process.env.ALFRED_TUI === "0") {
+          process.exit(await startRepl({ overrides, yes: opts.yes }));
+        }
+        process.exit(await startTui(overrides, { yes: opts.yes }));
       }
       const cOut = palette(process.stdout);
       const status = await gatherStatus(process.cwd(), {

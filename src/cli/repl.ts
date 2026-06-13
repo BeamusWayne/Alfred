@@ -1,11 +1,11 @@
 /**
- * The thin REPL — a porch, not a living room.
+ * The thin REPL — the porch the TUI living room grew out of (0.8).
  *
- * Alfred's product is the unattended run; this surface exists so the bare
- * `alfred` invocation lands somewhere useful: multi-turn conversation
- * (engine-native via initialMessages), interactive tool approval (completing
- * the permission stack's "ask" loop), and a handful of slash commands. No
- * full-screen TUI, by design — see docs/adr and the positioning notes.
+ * Since 0.8 the bare `alfred` invocation opens the interactive TUI
+ * (src/cli/tui/); this readline surface remains as the deliberate fallback
+ * for `ALFRED_TUI=0` and for terminals where the repaint protocol is
+ * unwelcome: multi-turn conversation (engine-native via initialMessages),
+ * interactive tool approval, and a handful of slash commands.
  */
 import * as readline from "node:readline";
 import type { ConfigOverrides } from "../config/manager.ts";

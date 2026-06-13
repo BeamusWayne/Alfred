@@ -8,7 +8,7 @@
 
 Alfred is not another Claude Code clone. Its thesis: the long-running harness is *executable*, "done" is a *machine-enforced gate*, memory is *agent-curated but inspectable*, and every hands-off run leaves a *signed, replayable receipt*. Where the field is ahead on streaming/sandbox/caching parity, Alfred leans into the one thing it designs better — **enforced, auditable autonomy** — while still adopting the best ideas from across the ecosystem (`docs/improvement-proposal.md`).
 
-> Status: 902 tests passing · `tsc --noEmit` clean · zero runtime dependencies beyond `@anthropic-ai/sdk`, `commander`, `zod`.
+> Status: 955 tests passing · `tsc --noEmit` clean · zero runtime dependencies beyond `@anthropic-ai/sdk`, `commander`, `zod`.
 
 **📖 Full documentation: [beamuswayne.github.io/Alfred](https://beamuswayne.github.io/Alfred/)** — built from [`docs/`](./docs/) with VitePress (`bun run docs:dev` to preview locally, deployed by [`.github/workflows/docs.yml`](./.github/workflows/docs.yml)). Jump to [Quickstart](https://beamuswayne.github.io/Alfred/guide/quickstart) · [CLI reference](https://beamuswayne.github.io/Alfred/cli/overview) · [Subsystems](https://beamuswayne.github.io/Alfred/subsystems/agent-loop) · [Architecture](https://beamuswayne.github.io/Alfred/architecture/overview).
 
@@ -54,9 +54,13 @@ bun run typecheck # tsc --noEmit
 
 ## Commands
 
+![alfred TUI — bordered input, streaming ⏺ responses, slash menu, live status line](https://raw.githubusercontent.com/BeamusWayne/Alfred/main/docs/public/tui.gif)
+
+<sup>The interactive TUI (`alfred` on a TTY, 0.8+) — keyless demo via the scripted provider. Regenerate: `vhs docs/tui.tape`.</sup>
+
 | Command | What it does |
 |---|---|
-| `alfred` | Bare: a thin REPL on a TTY (multi-turn, interactive `[y/N/a]` tool approval); the status screen everywhere else. |
+| `alfred` | Bare: an **interactive TUI** on a TTY — bordered input box, streaming `⏺` responses with tool beats, slash-command menu (`/` + ↑/↓/Tab), arrow-key tool approval, prompt history, esc interrupts. Zero new deps (hand-rolled ANSI, CJK-correct). `ALFRED_TUI=0` falls back to the 0.3 thin REPL; the status screen everywhere else. |
 | `alfred [prompt]` | One-shot agent run. `-p` print mode (reads stdin when piped); `--model`, `--permission-mode`, `--max-turns`, `--yes`. |
 | `alfred run` | The **autonomous harness as a workflow**: a `feature_list.json` state machine → verify-fix loop → rubric gate → signed run ledger. Human progress by default, `--json` for the raw event stream. Flags: `--feature-list`, `--verify`, `--max-features`, `--rollback-on-block`, `--budget-usd`. |
 | `alfred demo` | **30-second offline proof** in a temp sandbox: RED gate → scripted model drives the real harness → signed ledger → one-byte tamper drill. No API key. |

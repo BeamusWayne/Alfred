@@ -10,10 +10,17 @@ alfred -p "What does this repo do?" | cat
 echo "What does this repo do?" | alfred -p   # print mode reads stdin when piped
 ```
 
-Bare `alfred` (no prompt) opens a **thin REPL** on a TTY — multi-turn, with
-interactive `[y/N/a]` tool approval and `/status` `/cost` `/clear` `/help` —
-and prints the **status screen** (provider/key, feature_list, last run, next
-steps) everywhere else. `alfred status`, `alfred demo`, `alfred init`,
+Bare `alfred` (no prompt) opens the **interactive TUI** on a TTY (0.8+):
+a bordered input box with streaming `⏺` responses, tool beats with result
+previews, an animated status line (elapsed · live cost · *esc to
+interrupt*), a slash-command menu (`/` then ↑/↓, Tab completes), arrow-key
+tool approval (yes / always this session / no), and persisted ↑/↓ prompt
+history. Key grammar follows Claude Code: ⏎ sends, `\`+⏎ or ctrl-j inserts
+a newline, esc clears the input (or interrupts a run), ctrl-c twice quits.
+Built with zero new dependencies — hand-rolled ANSI, CJK-correct width
+math. `ALFRED_TUI=0` falls back to the 0.3 thin REPL; every non-TTY
+context prints the **status screen** (provider/key, feature_list, last
+run, next steps) instead. `alfred status`, `alfred demo`, `alfred init`,
 `alfred doctor` (one-pass setup diagnosis), `alfred update`, `alfred why`,
 `alfred watch` and `alfred completion <shell>` round out the surface; the
 [README command table](https://github.com/BeamusWayne/Alfred#commands) has the
